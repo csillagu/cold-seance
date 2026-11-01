@@ -15,7 +15,7 @@ Give the right people the right access to a project.
 
 ## Steps
 
-1. The actor adds people to the project and gives each a role: read-only, read-write or admin ([SRC-091](SRC-091-read-only-role.md), [SRC-092](SRC-092-read-write-role.md), [SRC-093](SRC-093-admin-role.md), [DD-034](DD-034-roles-are-assigned-per-project.md)).
+1. The actor adds people to the project and gives each a role: read-only, the role between read-only and read-write, read-write or admin ([SRC-091](SRC-091-read-only-role.md), [SRC-136](SRC-136-a-role-between-read-only-and-read-write-lets-a-per.md), [SRC-092](SRC-092-read-write-role.md), [SRC-093](SRC-093-admin-role.md), [DD-034](DD-034-roles-are-assigned-per-project.md)).
 2. They change or remove members' roles as needed ([SRC-093](SRC-093-admin-role.md)).
 3. They may add the project to one or more groups, so that the groups' members get access with their group roles ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
 
