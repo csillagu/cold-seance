@@ -10,4 +10,6 @@ There is a project role above read-only ([SRC-091](SRC-091-read-only-role.md)) a
 
 As received: "User with a specific role (lower than write, higher than read) marks his assigned task in progress/on hold/ finished."
 
-That the role covers only tasks the person is assigned to is the drafting agent's reading of "his assigned task". Not stated: the role's name, and whether it allows anything beyond reading and these three status changes.
+It cannot edit a task's other fields, cancel a task, or reopen a finished one.
+
+That the role covers only tasks the person is assigned to was the drafting agent's reading of "his assigned task"; asked to confirm, the stakeholder said: "yes". Asked whether the role can also edit other fields of its own tasks, cancel them or reopen a finished one, the stakeholder said: "none of these". Not stated: the role's name.

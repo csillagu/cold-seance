@@ -16,7 +16,7 @@ Follow and change work across several projects from one Kanban or Gantt.
 ## Steps
 
 1. The actor opens the view. It shows only the tasks they can read ([SRC-110](SRC-110-a-view-shows-only-the-tasks-its-viewer-can-read.md)).
-2. They edit cards in the projects they can write to; the other cards are read-only ([SRC-112](SRC-112-cards-in-a-cross-project-view-are-editable-only-wh.md)).
+2. They do with each card whatever their role in its project lets them do from another view, where this view supports it ([SRC-138](SRC-138-a-cross-project-view-allows-whatever-the-viewer-ca.md)).
 3. They create a task. The tool asks which project it goes in, offering only projects the actor can write to; if the view's filter allows only one project, it uses that one ([SRC-117](SRC-117-creating-a-task-in-a-cross-project-view-asks-for-i.md)).
 4. In a Gantt view, they see the dependencies between the projects ([SRC-118](SRC-118-a-cross-project-gantt-draws-dependencies-between-p.md)).
 

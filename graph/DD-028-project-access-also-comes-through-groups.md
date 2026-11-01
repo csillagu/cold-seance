@@ -2,7 +2,7 @@
 
 ## Decision
 
-A group is a set of people, each holding a read, write or admin role in the group. A project can belong to several groups, and a group can hold several projects. A group member holds their group role on every project in the group. A person can also hold a role on a project directly, as before ([DD-034](DD-034-roles-are-assigned-per-project.md)). Where a person has more than one role on a project, the highest wins, so read plus write is write.
+A group is a set of people, each holding a role in the group: read, the role between read-only and read-write ([SRC-137](SRC-137-a-group-can-give-the-role-between-read-only-and-re.md)), write or admin. A project can belong to several groups, and a group can hold several projects. A group member holds their group role on every project in the group. A person can also hold a role on a project directly, as before ([DD-034](DD-034-roles-are-assigned-per-project.md)). Where a person has more than one role on a project, the highest wins, so read plus write is write.
 
 Anyone logged in can create a group, and every group is visible to everyone. Everyone can add a new project to a group. An existing project can be added to a group only by that project's admin. The group admin manages the group's members.
 
