@@ -5,7 +5,7 @@ evidence: design session 2026-11-01
 
 # SRC-120: Each person maintains their own working calendar
 
-There is no shared working calendar. Each person maintains their own calendar.
+Each person maintains their own calendar, rather than everyone sharing one working calendar.
 
 As received: "Working calendar being shared is not such a good idea, everyone should maintain their own calendar."
 

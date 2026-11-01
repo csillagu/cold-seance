@@ -29,6 +29,7 @@ Decide who can do a task and who will do it, without overloading anyone.
 ## Failure modes
 
 - A person without read access to the project cannot be made eligible or assigned ([DD-013](DD-013-shared-people-can-be-made-eligible-or-assigned-onl.md)).
+- If the assigned people cannot do the task in its time, the task turns red ([SRC-122](SRC-122-a-task-turns-red-when-its-assigned-people-cannot-d.md)).
 - If the assignment overloads someone on some day, it is still saved; the overload shows in red to every project involved, and nothing is moved automatically ([DD-029](DD-029-overloads-and-cross-project-conflicts-are-shown-in.md), [SRC-047](SRC-047-an-overload-is-shown-in-red-to-every-project-invol.md)).
 
 Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.

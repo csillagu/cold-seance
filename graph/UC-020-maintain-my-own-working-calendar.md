@@ -15,8 +15,10 @@ Keep one's own working days and holidays right, so that scheduling skips the day
 
 ## Success criteria
 
-- Scheduling skips the actor's non-working days ([SRC-121](SRC-121-scheduling-skips-non-working-days.md)).
+- The actor's days off are forbidden dates for the tasks they are assigned to ([SRC-124](SRC-124-forbidden-dates-come-from-the-assignees-calendars.md)): scheduling skips them ([SRC-121](SRC-121-scheduling-skips-non-working-days.md)), and those tasks cannot be moved onto them ([SRC-123](SRC-123-moving-a-task-to-a-forbidden-date-is-blocked.md)).
 
-Whose calendar governs a task with several assigned people, or with none, is not yet stated ([SRC-121](SRC-121-scheduling-skips-non-working-days.md)).
+## Failure modes
+
+- If the actor can no longer do a task they are assigned to in its time, the task turns red ([SRC-122](SRC-122-a-task-turns-red-when-its-assigned-people-cannot-d.md)).
 
 Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
