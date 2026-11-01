@@ -1,4 +1,5 @@
 ---
+certainty: assumed
 actor: Project member with the read-write role
 ---
 

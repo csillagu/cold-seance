@@ -1,4 +1,5 @@
 ---
+certainty: assumed
 actor: Owner of a project involved in the conflict
 ---
 

@@ -1,4 +1,5 @@
 ---
+certainty: verified
 source: design session
 evidence: design session 2026-11-01
 ---

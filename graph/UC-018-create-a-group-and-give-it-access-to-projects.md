@@ -1,4 +1,5 @@
 ---
+certainty: assumed
 actor: Any user with an account
 ---
 
@@ -8,16 +9,14 @@ actor: Any user with an account
 
 Give a set of people access to several projects at once, instead of adding everyone to each project.
 
-Whether the group's creator becomes its admin is not stated in the input.
-
 ## Preconditions
 
 - The actor has an account ([SRC-097](SRC-097-no-self-registration-a-system-admin-creates-accoun.md)).
 
 ## Steps
 
-1. The actor creates a group ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
-2. The group admin adds people to the group, each with a read, write or admin role ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
+1. The actor creates a group ([DD-028](DD-028-project-access-also-comes-through-groups.md)) and becomes its admin ([SRC-132](SRC-132-a-group-s-creator-becomes-its-admin.md)).
+2. As group admin, they add people to the group, each with a read, write or admin role ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
 3. Projects are added to the group: anyone can add a new project, and a project's admin can add an existing one ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
 4. Each member now holds their group role on every project in the group ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
 

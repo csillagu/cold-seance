@@ -1,4 +1,5 @@
 ---
+certainty: assumed
 actor: Project admin
 ---
 
@@ -21,5 +22,9 @@ Give the right people the right access to a project.
 ## Success criteria
 
 - Each member can do in the project what their role allows; where someone has a role directly and through a group, the higher one applies ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
+
+## Failure modes
+
+- The project's last admin cannot be removed ([SRC-135](SRC-135-a-project-s-last-admin-cannot-be-removed.md)).
 
 Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
