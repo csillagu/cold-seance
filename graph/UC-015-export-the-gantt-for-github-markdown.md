@@ -8,6 +8,10 @@ actor: Any user who can read the project
 
 Share the schedule in a place where people read GitHub markdown.
 
+## Preconditions
+
+- The actor can read the project ([SRC-091](SRC-091-read-only-role.md)).
+
 ## Steps
 
 1. The actor opens a Gantt ([SRC-010](SRC-010-gantt-view.md)).

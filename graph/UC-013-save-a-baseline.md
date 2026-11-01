@@ -11,7 +11,8 @@ Keep a record of the plan as it stands now, to compare against later.
 ## Preconditions
 
 - The project has planned dates.
-- Which role may save a baseline is not stated in the input.
+
+Which role may save a baseline is not stated in the input.
 
 ## Steps
 

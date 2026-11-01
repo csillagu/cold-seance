@@ -12,6 +12,10 @@ Dependencies have no lag: a blocked task can start the next working day after it
 
 An optional lag ("yes, optional, default 0", the drafting agent's suggestion), versus no lag.
 
+## Rationale
+
+Not stated: the stakeholder answered "2 no" without giving a reason. To be confirmed with the stakeholder.
+
 ## Trade-offs
 
 Gives up an optional lag.

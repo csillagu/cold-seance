@@ -25,4 +25,8 @@ Linking it to other tasks is described in "Link tasks with constraints", and cho
 
 - The task appears on the project's Gantt and Kanban; an unscheduled one lies at the bottom ([SRC-024](SRC-024-unscheduled-tasks-belong-to-their-project-and-appe.md)).
 
+## Failure modes
+
+- A member with only the read-only role cannot create tasks ([SRC-091](SRC-091-read-only-role.md)).
+
 Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
