@@ -25,7 +25,6 @@ Decide who can do a task and who will do it, without overloading anyone.
 ## Success criteria
 
 - The assigned people carry the task's load for its whole duration, adjusted for its AI share ([SRC-034](SRC-034-only-assigned-people-count-toward-person-load.md), [DD-009](DD-009-person-load-is-a-percentage-applied-over-the-task.md), [SRC-038](SRC-038-person-load-by-task-type-and-ai-share.md)), and their load is visible in the person load view.
-- The GitHub issue shows the assigned people as assignees ([SRC-063](SRC-063-planning-data-is-mirrored-from-the-tool-to-github.md)). People without a GitHub account are assigned in the tool only ([SRC-071](SRC-071-people-without-a-github-account-get-issues-without.md)).
 
 ## Failure modes
 

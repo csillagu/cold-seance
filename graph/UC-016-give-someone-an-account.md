@@ -11,7 +11,10 @@ Let a new person use the tool.
 ## Steps
 
 1. The system admin creates a local account for the person ([SRC-097](SRC-097-no-self-registration-a-system-admin-creates-accoun.md), [DD-027](DD-027-local-accounts-only-for-now.md)).
-2. The person can now sign in, create projects and groups, and be added to projects ([DD-035](DD-035-anyone-with-an-account-can-create-a-project-and-be.md), [DD-028](DD-028-project-access-also-comes-through-groups.md)).
+
+## Success criteria
+
+- The person can sign in with the new account.
 
 ## Failure modes
 

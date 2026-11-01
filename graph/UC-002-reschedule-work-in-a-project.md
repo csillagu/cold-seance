@@ -17,12 +17,12 @@ Change when a piece of work happens and see the knock-on effect on the rest of t
 
 1. The actor opens the project's Gantt ([SRC-010](SRC-010-gantt-view.md)).
 2. They move a task, or change its duration ([SRC-113](SRC-113-everything-shown-in-a-view-is-editable-there-unles.md)).
-3. Tasks blocked by it, and its parent, are rescheduled automatically within the project ([SRC-003](SRC-003-constraints-reschedule-dates-automatically-within.md), [SRC-021](SRC-021-blocked-by-blocking-constraint.md), [SRC-020](SRC-020-subtask-parent-child-constraint.md)), skipping non-working days ([SRC-044](SRC-044-a-shared-working-calendar-defines-working-days-and.md)).
+3. Tasks blocked by it, and its parent, are rescheduled automatically within the project ([SRC-003](SRC-003-constraints-reschedule-dates-automatically-within.md), [SRC-021](SRC-021-blocked-by-blocking-constraint.md), [SRC-020](SRC-020-subtask-parent-child-constraint.md)), skipping non-working days ([SRC-121](SRC-121-scheduling-skips-non-working-days.md)).
 4. The actor reviews the new schedule and any red flags it raised.
 
 ## Success criteria
 
-- Every dependent task in the project has moved so that no constraint is broken, and the GitHub issues still mirror the plan ([SRC-063](SRC-063-planning-data-is-mirrored-from-the-tool-to-github.md)).
+- Every dependent task in the project has moved so that no constraint is broken.
 
 ## Failure modes
 
