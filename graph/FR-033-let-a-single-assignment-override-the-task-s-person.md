@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-033: Let a single assignment override the task's person-load percentage
@@ -8,4 +8,4 @@ The system must let the person-load percentage be overridden for one assignment,
 
 It serves [UC-003](UC-003-assign-people-to-a-task.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

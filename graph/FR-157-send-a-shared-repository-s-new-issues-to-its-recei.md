@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-157: Send a shared repository's new issues to its receiving project
@@ -8,4 +8,4 @@ Where several projects pull issues from the same repository ([SRC-174](SRC-174-s
 
 It serves [UC-009](UC-009-triage-a-task-that-arrived-from-github.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

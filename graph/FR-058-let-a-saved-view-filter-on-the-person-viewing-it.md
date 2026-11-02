@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-058: Let a saved view filter on the person viewing it
@@ -8,4 +8,4 @@ The system must let a saved view's filter refer to the person viewing it, as in 
 
 It serves [UC-014](UC-014-create-a-saved-view.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

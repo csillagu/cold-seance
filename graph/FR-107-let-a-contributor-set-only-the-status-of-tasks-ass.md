@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-107: Let a contributor set only the status of tasks assigned to them
@@ -8,4 +8,4 @@ The system must let a person with the contributor role mark a task they are assi
 
 It serves [UC-029](UC-029-set-the-status-of-a-task-i-am-assigned-to.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-084: Notify both owners when a shared milestone moves past a dependent task's start
@@ -8,4 +8,4 @@ When a shared milestone moves past the start of a task that depends on it in ano
 
 It serves [UC-002](UC-002-reschedule-work-in-a-project.md) and [UC-006](UC-006-resolve-a-cross-project-red-flag.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.
