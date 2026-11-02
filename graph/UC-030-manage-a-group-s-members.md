@@ -23,4 +23,8 @@ Keep a group's membership and roles up to date, so the right people have the rig
 - Each member holds their group role on every project in the group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)).
 - Where a member also has a role on a project directly or through another group, the highest applies ([SRC-140](SRC-140-where-a-person-has-several-roles-on-a-project-the.md)).
 
+## Failure modes
+
+- The actor cannot leave the group while they are its last admin ([SRC-145](SRC-145-a-group-s-last-admin-cannot-leave.md)).
+
 Origin: composed by Claude from the items linked above, after the stakeholder asked for use cases covering the group rules. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
