@@ -1,4 +1,5 @@
 ---
+certainty: verified
 
 ---
 
@@ -29,4 +30,4 @@ No automatic retries: a GitHub write that fails, for example while GitHub is dow
 
 This decision serves [FR-101](FR-101-re-check-all-linked-issues-every-hour.md), [SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md), [SRC-191](SRC-191-an-hour-is-an-acceptable-delay-for-github-sync-and.md), [SRC-199](SRC-199-people-can-install-the-tool-simply.md).
 
-Origin: proposed by Claude in the design session of 2026-11-02, in place of the job queue of the retired DD-047, after the stakeholder questioned why the queue checks the database every few seconds. The alternatives, rationale, trade-offs and risks are Claude's. The stakeholder confirmed the decision in the same session: "lets remove that and do the two proposed points". The Risks section awaits the stakeholder's confirmation.
+Origin: proposed by Claude in the design session of 2026-11-02, in place of the job queue of the retired DD-047, after the stakeholder questioned why the queue checks the database every few seconds. The alternatives, rationale, trade-offs and risks are Claude's. The stakeholder confirmed the decision in the same session: "lets remove that and do the two proposed points". The stakeholder confirmed the Risks section in the same session: "1yes".

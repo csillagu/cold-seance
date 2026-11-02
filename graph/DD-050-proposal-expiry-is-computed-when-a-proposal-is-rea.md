@@ -1,4 +1,5 @@
 ---
+certainty: verified
 
 ---
 
@@ -28,4 +29,4 @@ An expired proposal stays in the database until something removes it; it is only
 
 This decision serves [FR-081](FR-081-expire-a-proposal-untouched-for-24-hours.md), [DD-024](DD-024-proposals-untouched-for-24-hours-expire.md).
 
-Origin: proposed by Claude in the design session of 2026-11-02, in place of the job queue of the retired DD-047, after the stakeholder questioned why the queue checks the database every few seconds. The alternatives, rationale, trade-offs and risks are Claude's. The stakeholder confirmed the decision in the same session: "lets remove that and do the two proposed points". The Risks section awaits the stakeholder's confirmation.
+Origin: proposed by Claude in the design session of 2026-11-02, in place of the job queue of the retired DD-047, after the stakeholder questioned why the queue checks the database every few seconds. The alternatives, rationale, trade-offs and risks are Claude's. The stakeholder confirmed the decision in the same session: "lets remove that and do the two proposed points". The stakeholder confirmed the Risks section in the same session: "1yes".

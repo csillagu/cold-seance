@@ -1,4 +1,5 @@
 ---
+certainty: verified
 evidence: docs/src-dd-classification.md; design session 2026-11-02
 ---
 

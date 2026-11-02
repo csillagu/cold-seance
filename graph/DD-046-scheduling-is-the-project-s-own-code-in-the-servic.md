@@ -1,3 +1,7 @@
+---
+certainty: verified
+---
+
 # DD-046: Scheduling is the project's own code in the service layer
 
 ## Decision
@@ -26,4 +30,4 @@ The project owns the scheduler's correctness and must test it thoroughly. Adding
 
 This decision serves [SRC-003](SRC-003-constraints-reschedule-dates-automatically-within.md), [SRC-019](SRC-019-all-three-constraint-types-are-enforced-in-the-too.md), [DD-021](DD-021-proposal-live-preview-against-the-current-plan.md), [DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md).
 
-Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("5-7 propose"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed". The Risks section was added by Claude afterwards, at the stakeholder's request ("Ok ok add risks"), and awaits the stakeholder's confirmation.
+Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("5-7 propose"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed". The Risks section was added by Claude afterwards, at the stakeholder's request ("Ok ok add risks"), and the stakeholder confirmed it in the same session: "1yes".
