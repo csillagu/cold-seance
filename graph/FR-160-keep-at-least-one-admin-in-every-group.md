@@ -4,7 +4,7 @@ certainty: assumed
 
 # FR-160: Keep at least one admin in every group
 
-The system must reject a group's last admin leaving the group ([SRC-145](SRC-145-a-group-s-last-admin-cannot-leave.md)).
+The system must not let a group lose its last admin: it must reject the last admin leaving the group ([SRC-145](SRC-145-a-group-s-last-admin-cannot-leave.md)).
 
 It serves [UC-030](UC-030-manage-a-group-s-members.md) and [UC-031](UC-031-leave-a-group.md).
 

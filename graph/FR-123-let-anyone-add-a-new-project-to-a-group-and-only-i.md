@@ -2,7 +2,7 @@
 certainty: assumed
 ---
 
-# FR-123: Let only a project's admin add an existing project to a group
+# FR-123: Let anyone add a new project to a group, and only its admin an existing one
 
 The system must let anyone add a new project to a group, and let only an existing project's admin add it to a group ([SRC-143](SRC-143-who-can-add-a-project-to-a-group.md)).
 
