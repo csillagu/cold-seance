@@ -16,14 +16,10 @@ Take a task that is no longer wanted out of the plan.
 ## Steps
 
 1. The actor opens the task in the tool.
-2. They cancel it. Tasks can be cancelled only in the tool ([DD-017](DD-017-an-issue-closed-as-not-planned-is-reopened-tasks-a.md)).
+2. They cancel it ([SRC-171](SRC-171-cancelling-a-task-and-closing-its-issue-as-not-pla.md)).
 
 ## Success criteria
 
 - The task is cancelled.
 
-## Failure modes
-
-- Closing the task's issue on GitHub as "not planned" does not cancel it; see "Work on an issue from GitHub" ([DD-017](DD-017-an-issue-closed-as-not-planned-is-reopened-tasks-a.md)).
-
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok". Changed after that confirmation, on 2026-11-02, to follow SRC-171: cancelling is no longer limited to the tool, and the failure mode for closing as "not planned" was removed. The change awaits the stakeholder's confirmation.

@@ -4,7 +4,7 @@ certainty: assumed
 
 # FR-099: Accept status changes from GitHub whatever the person's role in the tool
 
-The system must accept a start, hold or finish made on GitHub from anyone who can work on the issue there, whatever their role in the tool, or none ([SRC-134](SRC-134-anyone-can-work-on-a-task-s-issue-through-github.md), [SRC-002](SRC-002-the-tool-is-the-single-source-of-truth-for-plannin.md)).
+The system must accept a start, hold, finish or cancel made on GitHub from anyone who can work on the issue there, whatever their role in the tool, or none ([SRC-134](SRC-134-anyone-can-work-on-a-task-s-issue-through-github.md), [SRC-002](SRC-002-the-tool-is-the-single-source-of-truth-for-plannin.md), [SRC-171](SRC-171-cancelling-a-task-and-closing-its-issue-as-not-pla.md)).
 
 It serves [UC-008](UC-008-work-on-an-issue-from-github.md).
 

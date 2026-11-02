@@ -2,11 +2,9 @@
 certainty: assumed
 ---
 
-# FR-129: Show cancelled tasks in views that have a cancelled column
+# FR-027: Let a task be cancelled in the tool
 
-The system must still show a cancelled task in views that have a column for cancelled tasks ([SRC-159](SRC-159-what-cancelling-a-task-does.md)).
-
-Not stated: which views have such a column.
+The system must let a task be cancelled in the tool ([SRC-171](SRC-171-cancelling-a-task-and-closing-its-issue-as-not-pla.md)).
 
 It serves [UC-022](UC-022-cancel-a-task.md).
 

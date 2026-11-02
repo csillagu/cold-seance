@@ -6,7 +6,7 @@ evidence: design session 2026-11-02
 
 # SRC-159: What cancelling a task does
 
-Cancelling a task ([DD-017](DD-017-an-issue-closed-as-not-planned-is-reopened-tasks-a.md)):
+Cancelling a task ([SRC-171](SRC-171-cancelling-a-task-and-closing-its-issue-as-not-pla.md)):
 
 - frees its load;
 - leaves each task it blocked blocked by whatever the cancelled task was blocked by;
