@@ -10,7 +10,7 @@ A repository ([SRC-180](SRC-180-repositories-are-their-own-item-in-the-tool-with
 
 As received: "Repositorys have admins, those can approve adding them to projects." Asked whether one admin's approval is enough when a repository has several: "yes".
 
-The stakeholder had said earlier in the same session: "Manual approval is definitely out of picture." The drafting agent read this as ruling out a central gatekeeper, not the repository admins' own approval, and said so; the stakeholder did not object, but did not confirm the reading either.
+The stakeholder had said earlier in the same session: "Manual approval is definitely out of picture." The drafting agent read this as ruling out a central gatekeeper, not the repository admins' own approval; asked to confirm, the stakeholder said: "yes".
 
 "Adding to a project" covers both seeding a project from the repository ([SRC-074](SRC-074-a-project-can-be-seeded-from-existing-github-repos.md)) and pulling its new issues ([SRC-169](SRC-169-a-project-sets-which-repositories-it-pulls-issues.md)). This was the drafting agent's reading; asked to confirm, the stakeholder said: "yes".
 

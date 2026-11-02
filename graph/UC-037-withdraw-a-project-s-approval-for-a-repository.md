@@ -20,6 +20,10 @@ Take back a repository from a project that was allowed to use it.
 
 ## Success criteria
 
-- Not stated: what changes for the project once the approval is withdrawn, including what happens to its tasks from the repository ([SRC-185](SRC-185-a-repository-admin-can-reject-a-project-s-request-.md)).
+- The project no longer pulls issues from the repository ([SRC-185](SRC-185-a-repository-admin-can-reject-a-project-s-request-.md)).
+
+## Failure modes
+
+- Not stated: what happens when the project is the repository's receiving project ([SRC-177](SRC-177-one-receiving-project-per-repository-gets-its-new.md)).
 
 Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.

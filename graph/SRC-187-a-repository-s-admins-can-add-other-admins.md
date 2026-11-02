@@ -10,4 +10,4 @@ A repository's admins ([SRC-180](SRC-180-repositories-are-their-own-item-in-the-
 
 As received, asked whether a repository admin can add other admins: "yes".
 
-Not stated: whether a repository's admins can remove other admins, or leave themselves.
+Whether a repository's admins can remove other admins, or step down, was answered later; see SRC-189.
