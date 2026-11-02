@@ -1,3 +1,7 @@
+---
+effort: 13
+---
+
 # SC-004: Scheduler
 
 The project's own TypeScript scheduler in the service layer ([DD-046](DD-046-scheduling-is-the-project-s-own-code-in-the-servic.md)). It works through a project's tasks in dependency order and computes their planned dates in memory: no lag on dependencies ([DD-030](DD-030-dependencies-have-no-lag.md)), parents spanning their children, milestones on their fixed dates, forbidden days skipped, and nothing moved to fix an overload or across a project boundary ([DD-029](DD-029-overloads-and-cross-project-conflicts-are-shown-in.md)). The same code computes the live plan and a proposal's preview ([DD-021](DD-021-proposal-live-preview-against-the-current-plan.md)).
@@ -18,4 +22,4 @@ It delivers:
 - [FR-146](FR-146-use-the-global-calendar-in-place-of-a-missing-assi.md): Use the global calendar in place of a missing assignee calendar
 - [FR-148](FR-148-never-move-a-task-because-its-assigned-people-beca.md): Never move a task because its assigned people became unable to do it
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".

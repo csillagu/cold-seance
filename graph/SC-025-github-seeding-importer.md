@@ -1,3 +1,7 @@
+---
+effort: 8
+---
+
 # SC-025: GitHub seeding importer
 
 The backend module that seeds a project from one or more approved GitHub repositories in one all-or-nothing import: open issues as unscheduled tasks, closed issues as done with their closing date as actual finish ([DD-019](DD-019-the-initial-import-brings-in-closed-issues-too.md)), with their relations, assignees and status, skipping issues it cannot bring in cleanly. Every rule it applies is the service layer's ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)).
@@ -10,4 +14,4 @@ It delivers:
 - [FR-137](FR-137-seed-a-project-all-or-nothing.md): Seed a project all or nothing
 - [FR-163](FR-163-skip-issues-that-seeding-cannot-bring-in-cleanly.md): Skip issues that seeding cannot bring in cleanly
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".

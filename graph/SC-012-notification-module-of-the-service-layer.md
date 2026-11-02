@@ -1,3 +1,7 @@
+---
+effort: 5
+---
+
 # SC-012: Notification module of the service layer
 
 The module of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that creates in-app notifications only ([DD-003](DD-003-notifications-are-in-app-only.md)), keeps people's subscriptions to issues and projects, and sends each subscriber the notifications for what they subscribed to. It offers no cross-project change-request flow ([DD-012](DD-012-no-cross-project-change-request-flow-in-v1.md)).
@@ -15,4 +19,4 @@ It delivers:
 - [FR-162](FR-162-send-subscribers-the-notifications-for-what-they-s.md): Send subscribers the notifications for what they subscribed to
 - [FR-173](FR-173-notify-a-repository-s-admins-in-the-app-of-a-proje.md): Notify a repository's admins in the app of a project's request
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".

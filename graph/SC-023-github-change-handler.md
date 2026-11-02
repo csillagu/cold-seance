@@ -1,3 +1,7 @@
+---
+effort: 13
+---
+
 # SC-023: GitHub change handler
 
 The backend module that handles each change to a linked issue that reaches the tool from GitHub, by the GitHub App's webhooks ([SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md), [SRC-099](SRC-099-the-github-app-is-installed-per-repo-by-the-repo-s.md)) or found by the hourly re-check: start and hold from the Projects status field, finish by closing the issue ([DD-015](DD-015-start-and-hold-come-from-the-github-projects-statu.md)), cancel by closing it as not planned; it reverts status changes that break a constraint ([DD-032](DD-032-github-status-changes-that-break-a-constraint-are.md)) and planning edits made on GitHub, and turns each new issue into an unscheduled task in the receiving project. Every rule it applies is the service layer's ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)).
@@ -17,4 +21,4 @@ It delivers:
 - [FR-156](FR-156-never-create-a-planned-task-from-github.md): Never create a planned task from GitHub
 - [FR-157](FR-157-send-a-shared-repository-s-new-issues-to-its-recei.md): Send a shared repository's new issues to its receiving project
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".

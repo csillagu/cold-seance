@@ -1,3 +1,7 @@
+---
+effort: 5
+---
+
 # SC-008: Calendar and availability module of the service layer
 
 The module of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that keeps the global calendar of company holidays and weekend days, each person's own calendar of holidays, their capacity, and their absences in whole days ([DD-011](DD-011-availability-is-tracked-in-whole-days.md)).
@@ -12,4 +16,4 @@ It delivers:
 - [FR-131](FR-131-let-the-weekend-days-be-set-in-the-global-calendar.md): Let the weekend days be set in the global calendar
 - [FR-150](FR-150-let-a-system-admin-change-anyone-s-capacity-absenc.md): Let a system admin change anyone's capacity, absences and calendar
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".

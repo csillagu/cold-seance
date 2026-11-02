@@ -1,3 +1,7 @@
+---
+effort: 8
+---
+
 # SC-019: Repository registry
 
 The module of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that keeps each registered GitHub repository as its own item with its admins, the projects that pull issues from it and their approvals, requests, rejections and withdrawals, and the one receiving project for its new issues.
@@ -17,4 +21,4 @@ It delivers:
 - [FR-175](FR-175-reject-leaving-a-repository-without-an-admin.md): Reject leaving a repository without an admin
 - [FR-176](FR-176-let-a-repository-s-admins-remove-other-admins-or-s.md): Let a repository's admins remove other admins or step down
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The component's boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".
