@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Project member with the read-write role
 ---
 
@@ -31,4 +31,4 @@ Record how tasks depend on each other, so that the schedule follows from it.
 - If the new constraint would push a milestone past its fixed date, the milestone is not moved; the violation shows in red on the Gantt ([SRC-022](SRC-022-fixed-date-milestones-constraint.md), [SRC-010](SRC-010-gantt-view.md)).
 - Depending on another project's milestone is described in "Depend on another project's milestone".
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Project member with the read-write role in the dependent project
 ---
 
@@ -31,4 +31,4 @@ Make a task wait for a milestone that another project owns.
 - If the milestone lies after the task's start, the dependency is red in the actor's project; the task's dates are not moved ([SRC-048](SRC-048-shared-milestones-one-owning-project-others-can-de.md)).
 - Later moves of the milestone never move the dependent task; see "Resolve a cross-project red flag" ([SRC-004](SRC-004-cross-project-effects-never-change-another-project.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Group member
 ---
 
@@ -26,4 +26,4 @@ Stop being a member of a group.
 
 - The group's last admin cannot leave it ([SRC-145](SRC-145-a-group-s-last-admin-cannot-leave.md)).
 
-Origin: composed by Claude from the items linked above, after the stakeholder answered questions on groups in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the stakeholder answered questions on groups in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

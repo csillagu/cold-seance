@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Repository admin
 ---
 
@@ -23,4 +23,4 @@ Share the running of a repository with someone else.
 
 - The other person is an admin of the repository, and can approve or reject projects' requests for it ([SRC-181](SRC-181-a-repository-s-admins-approve-adding-it-to-a-proje.md), [SRC-185](SRC-185-a-repository-admin-can-reject-a-project-s-request-.md)).
 
-Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

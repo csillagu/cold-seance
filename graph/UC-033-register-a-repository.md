@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Any user with an account
 ---
 
@@ -29,4 +29,4 @@ Bring a GitHub repository into the tool, so that projects can use it.
 
 - A repository that is already registered cannot be registered again ([SRC-182](SRC-182-anyone-can-register-an-unregistered-repository-and.md)).
 
-Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

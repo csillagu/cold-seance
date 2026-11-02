@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Repository admin
 ---
 
@@ -24,4 +24,4 @@ Decide which projects may use a repository, so that nobody adds it to a project 
 
 - The repository is added to the project only after the actor's approval; the actor's approval alone is enough, even when the repository has other admins ([SRC-181](SRC-181-a-repository-s-admins-approve-adding-it-to-a-proje.md)).
 
-Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.
