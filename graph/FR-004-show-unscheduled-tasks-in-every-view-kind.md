@@ -4,7 +4,7 @@ certainty: assumed
 
 # FR-004: Show unscheduled tasks in every view kind
 
-The system must show unscheduled tasks in every view kind; on the Kanban and the Gantt they lie at the bottom ([SRC-024](SRC-024-unscheduled-tasks-belong-to-their-project-and-appe.md)).
+The system must show unscheduled tasks in every view kind ([SRC-024](SRC-024-unscheduled-tasks-belong-to-their-project-and-appe.md)).
 
 It serves [UC-001](UC-001-plan-a-task-in-a-project.md) and [UC-009](UC-009-triage-a-task-that-arrived-from-github.md).
 

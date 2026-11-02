@@ -4,7 +4,7 @@ certainty: assumed
 
 # FR-039: Let each person maintain their own working calendar
 
-The system must give each person their own calendar, in which they can enter as many holidays as they want but cannot set a weekend of their own ([SRC-120](SRC-120-each-person-maintains-their-own-working-calendar.md), [SRC-162](SRC-162-a-person-s-own-calendar-has-holidays-not-its-own-w.md)). A system admin can also change it ([SRC-164](SRC-164-a-system-admin-can-change-anyone-s-capacity-absenc.md)).
+The system must give each person their own calendar, in which they can enter as many holidays as they want but cannot set a weekend of their own ([SRC-120](SRC-120-each-person-maintains-their-own-working-calendar.md), [SRC-162](SRC-162-a-person-s-own-calendar-has-holidays-not-its-own-w.md)).
 
 It serves [UC-020](UC-020-maintain-my-own-working-calendar.md).
 
