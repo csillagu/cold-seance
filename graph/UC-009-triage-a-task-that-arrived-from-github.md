@@ -11,7 +11,7 @@ Turn an issue someone opened on GitHub into planned work, or leave it unschedule
 
 ## Preconditions
 
-- A third party, or someone reporting a non-plannable item such as a bug, created an issue on GitHub. It arrived in the tool automatically as an unscheduled task in its project ([SRC-061](SRC-061-new-third-party-github-issues-become-unscheduled-t.md), [SRC-115](SRC-115-new-non-plannable-github-issues-become-unscheduled.md)).
+- Someone created an issue on GitHub. It arrived in the tool automatically as an unscheduled task in its project ([SRC-192](SRC-192-every-new-github-issue-becomes-a-task-whoever-open.md)).
 - The actor has the read-write role in that project ([SRC-092](SRC-092-read-write-role.md), [DD-034](DD-034-roles-are-assigned-per-project.md)).
 
 ## Steps
