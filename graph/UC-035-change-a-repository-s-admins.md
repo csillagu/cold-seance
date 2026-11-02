@@ -25,6 +25,6 @@ Put a repository in the right hands, for example when someone with no business o
 
 ## Failure modes
 
-- Not stated: whether a repository can be left with no admin.
+- The actor cannot leave the repository without an admin ([SRC-188](SRC-188-a-repository-cannot-be-left-without-an-admin.md)).
 
 Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.

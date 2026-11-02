@@ -10,4 +10,4 @@ A system admin can change who the admins of a repository are in the tool ([SRC-1
 
 As received: "sys admins can change repository admins (in the tool) so nothing bad can happen."
 
-Not stated: whether a repository's own admins can add or remove admins; whether a repository can be left with no admin.
+Whether a repository's own admins can add admins, and whether a repository can be left with no admin, were answered later; see SRC-187 and SRC-188.
