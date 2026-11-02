@@ -10,4 +10,4 @@ On a project, one can set which repositories it pulls issues from. A new GitHub 
 
 As received, asked how the tool knows which project a new GitHub issue belongs to: "New github issue will be added to a project automatically, on the project, one can set which repos to pull issues from."
 
-This replaces DD-033, which assumed every issue belongs to exactly one project, with no mapping rules. Whether two projects can pull issues from the same repository is not stated.
+This replaces DD-033, which assumed every issue belongs to exactly one project, with no mapping rules. Whether two projects can pull issues from the same repository was answered later; see SRC-174.
