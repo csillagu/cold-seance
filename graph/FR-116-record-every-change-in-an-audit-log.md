@@ -6,7 +6,7 @@ certainty: assumed
 
 The system must record every change in an audit log, with who made it, when, and through which channel: UI, REST API, MCP server or GitHub ([SRC-095](SRC-095-every-change-is-recorded-in-an-audit-log.md)).
 
-Not stated: who can read the audit log, and who is recorded as making, and through which channel, a change that an approved AI proposal applies.
+Who can read it is set out in FR-138, and who is recorded for a change an approved AI proposal applies in FR-139.
 
 It serves [UC-012](UC-012-review-and-approve-an-ai-proposal.md).
 

@@ -4,9 +4,7 @@ certainty: assumed
 
 # FR-083: Notify of each new red flag
 
-The system must send a notification when a new red flag appears ([SRC-015](SRC-015-notifications-for-new-red-flags-proposals-waiting.md)).
-
-Not stated: who receives it, apart from the shared-milestone case in FR-084.
+When a new red flag appears, the system must notify the people subscribed to the issues or projects it concerns ([SRC-015](SRC-015-notifications-for-new-red-flags-proposals-waiting.md), [SRC-153](SRC-153-people-subscribe-to-issues-and-projects-write-and.md)).
 
 It serves [UC-006](UC-006-resolve-a-cross-project-red-flag.md).
 

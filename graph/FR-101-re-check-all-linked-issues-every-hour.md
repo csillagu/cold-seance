@@ -4,9 +4,7 @@ certainty: assumed
 
 # FR-101: Re-check all linked issues every hour
 
-The system must re-check all linked issues every hour, covering changes it missed while GitHub was down or its notifications did not arrive ([SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md)).
-
-Not stated: whether a difference the re-check finds is handled exactly as if the change had just arrived.
+The system must re-check all linked issues every hour, covering changes it missed while GitHub was down or its notifications did not arrive ([SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md)), and handle each difference it finds exactly as if the change had just arrived ([SRC-152](SRC-152-the-hourly-re-check-handles-a-difference-as-a-chan.md)).
 
 It serves [UC-008](UC-008-work-on-an-issue-from-github.md).
 

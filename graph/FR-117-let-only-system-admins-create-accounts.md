@@ -6,7 +6,7 @@ certainty: assumed
 
 The system must let only system admins create accounts, with no self-registration ([SRC-097](SRC-097-no-self-registration-a-system-admin-creates-accoun.md)).
 
-Not stated: how someone becomes a system admin, including the first one.
+Not stated: how the first system admin is created. The stakeholder was not sure; their tentative answer is recorded in SRC-167.
 
 It serves [UC-016](UC-016-give-someone-an-account.md).
 

@@ -6,7 +6,7 @@ certainty: assumed
 
 The system must create a GitHub issue for each task planned in the tool; a planned task is never created from GitHub ([SRC-066](SRC-066-tasks-planned-in-the-tool-create-their-github-issu.md)).
 
-Not stated: in which repository the issue is created when the project has several, and whether an unscheduled task created in the tool gets an issue.
+Not stated: in which repository the issue is created when the project has several, and when the issue is created. Asked this, the stakeholder answered "none, until assigned" and "There are tasks without github issue counterpart"; what "assigned" refers to is still to be clarified.
 
 It serves [UC-001](UC-001-plan-a-task-in-a-project.md) and [UC-008](UC-008-work-on-an-issue-from-github.md).
 

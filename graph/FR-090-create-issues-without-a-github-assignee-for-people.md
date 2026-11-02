@@ -4,9 +4,7 @@ certainty: assumed
 
 # FR-090: Create issues without a GitHub assignee for people without a GitHub account
 
-When a task is assigned to people without a GitHub account, the system must leave them off the issue's GitHub assignees ([SRC-071](SRC-071-people-without-a-github-account-get-issues-without.md)).
-
-Not stated: how a person's account in the tool is linked to their GitHub account.
+When a task is assigned to people without a GitHub account, the system must leave them off the issue's GitHub assignees ([SRC-071](SRC-071-people-without-a-github-account-get-issues-without.md)). Whether a person has a GitHub account is known from the link in [FR-135](FR-135-let-a-person-or-a-system-admin-link-the-person-s-g.md).
 
 It serves [UC-003](UC-003-assign-people-to-a-task.md).
 

@@ -6,7 +6,7 @@ certainty: assumed
 
 The system must store a capacity for each person, such as 100% full-time or 80% part-time ([SRC-041](SRC-041-each-person-has-a-capacity.md)), and let each person record their own ([SRC-130](SRC-130-each-person-records-their-own-capacity.md)).
 
-Not stated: whether anyone else may change a person's capacity.
+A system admin can also change it ([SRC-164](SRC-164-a-system-admin-can-change-anyone-s-capacity-absenc.md)).
 
 It serves [UC-019](UC-019-record-my-capacity.md).
 

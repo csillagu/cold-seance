@@ -4,9 +4,7 @@ certainty: assumed
 
 # FR-086: Notify of each change reverted on GitHub
 
-The system must send a notification for each change it reverts on GitHub ([SRC-015](SRC-015-notifications-for-new-red-flags-proposals-waiting.md)).
-
-Not stated: who receives it.
+For each change it reverts on GitHub, the system must notify the people subscribed to the issue or to its project ([SRC-015](SRC-015-notifications-for-new-red-flags-proposals-waiting.md), [SRC-153](SRC-153-people-subscribe-to-issues-and-projects-write-and.md)).
 
 It serves [UC-008](UC-008-work-on-an-issue-from-github.md).
 

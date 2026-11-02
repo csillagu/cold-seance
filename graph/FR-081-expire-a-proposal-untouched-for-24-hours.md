@@ -4,9 +4,7 @@ certainty: assumed
 
 # FR-081: Expire a proposal untouched for 24 hours
 
-The system must expire a proposal that nobody has touched for 24 hours ([DD-024](DD-024-proposals-untouched-for-24-hours-expire.md)).
-
-Not stated: what counts as touching a proposal.
+The system must expire a proposal that nobody, AI or person, has edited for 24 hours ([DD-024](DD-024-proposals-untouched-for-24-hours-expire.md), [SRC-158](SRC-158-only-an-edit-by-an-ai-or-a-person-touches-a-propos.md)).
 
 It serves [UC-011](UC-011-an-ai-agent-proposes-a-plan-change.md) and [UC-012](UC-012-review-and-approve-an-ai-proposal.md).
 
