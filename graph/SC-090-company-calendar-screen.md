@@ -1,6 +1,13 @@
+---
+certainty: assumed
+effort: 3
+---
+
 # SC-090: Company calendar screen
 
 The screen on which system admins manage the company holidays and set the weekend days of the global calendar. It is part of the React frontend ([DD-045](DD-045-the-frontend-uses-react-built-with-vite.md)).
+
+It is done when a system admin can add and remove company holidays and choose the weekend days, and no one else can change them.
 
 It delivers:
 
@@ -8,4 +15,4 @@ It delivers:
 - [FR-041](FR-041-let-system-admins-manage-the-company-holidays.md): Let system admins manage the company holidays
 - [FR-131](FR-131-let-the-weekend-days-be-set-in-the-global-calendar.md): Let the weekend days be set in the global calendar
 
-Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "4 correct".
