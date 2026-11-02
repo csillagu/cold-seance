@@ -32,4 +32,4 @@ Report progress on a task the actor is assigned to by setting its status in the 
 - The actor cannot set the status of a task they are not assigned to ([SRC-136](SRC-136-contributor-role.md)).
 - The actor cannot edit the task's other fields, cancel it, or reopen it once finished ([SRC-136](SRC-136-contributor-role.md)).
 
-Origin: composed by Claude from the items linked above, after the stakeholder described this use case in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the stakeholder described this use case in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

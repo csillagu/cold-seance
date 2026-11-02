@@ -28,4 +28,4 @@ Notice and settle a conflict that crosses a project boundary, without the tool c
 - The tool never fixes the conflict by changing another project's plan, and does not level loads automatically across projects ([SRC-004](SRC-004-cross-project-effects-never-change-another-project.md), [DD-029](DD-029-overloads-and-cross-project-conflicts-are-shown-in.md)).
 - If the conflict can only be fixed in the other project, the tool offers no way to request that change in v1; the owners get the in-app notification only ([DD-012](DD-012-no-cross-project-change-request-flow-in-v1.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

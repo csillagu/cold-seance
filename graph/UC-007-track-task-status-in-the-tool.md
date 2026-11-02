@@ -29,4 +29,4 @@ Move a task through its statuses as work progresses.
 - A parent cannot be finished while one of its subtasks is open ([SRC-020](SRC-020-subtask-parent-child-constraint.md)).
 - A blocked task cannot start before its blocker finishes ([SRC-021](SRC-021-blocked-by-blocking-constraint.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

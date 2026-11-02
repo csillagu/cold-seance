@@ -26,4 +26,4 @@ Keep a named Kanban or Gantt that shows just the work the actor cares about, for
 - People who can see where the view is kept can open it: anyone who can read the project, the group's members, or only its owner ([SRC-111](SRC-111-views-are-kept-in-a-project-a-group-or-personally.md)).
 - A filter on the viewer shows each person their own tasks ([SRC-116](SRC-116-saved-views-filter-on-any-task-field-and-on-the-vi.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

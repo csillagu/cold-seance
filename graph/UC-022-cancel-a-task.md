@@ -26,4 +26,4 @@ Take a task that is no longer wanted out of the plan.
 
 - Closing the task's issue on GitHub as "not planned" does not cancel it; see "Work on an issue from GitHub" ([DD-017](DD-017-an-issue-closed-as-not-planned-is-reopened-tasks-a.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

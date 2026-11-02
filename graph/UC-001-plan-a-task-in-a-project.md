@@ -30,4 +30,4 @@ Linking it to other tasks is described in "Link tasks with constraints", and cho
 
 - A member with only the read-only role cannot create tasks ([SRC-091](SRC-091-read-only-role.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

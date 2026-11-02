@@ -26,4 +26,4 @@ Keep company holidays in the tool, so that no task is planned on them.
 
 - A task already planned over a new company holiday is not moved; it turns red ([SRC-127](SRC-127-a-change-in-availability-turns-a-task-red-without-m.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

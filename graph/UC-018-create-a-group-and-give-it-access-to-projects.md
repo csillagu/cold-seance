@@ -28,4 +28,4 @@ Give a set of people access to several projects at once, instead of adding every
 
 - Someone who is not a project's admin cannot add that existing project to a group ([SRC-143](SRC-143-who-can-add-a-project-to-a-group.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

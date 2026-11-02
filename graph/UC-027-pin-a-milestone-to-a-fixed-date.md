@@ -28,4 +28,4 @@ Fix a milestone to a date that scheduling must not move.
 
 - If work it depends on already pushes it past the date, the milestone stays on its date and the violation shows in red on the Gantt ([SRC-022](SRC-022-fixed-date-milestones-constraint.md), [SRC-010](SRC-010-gantt-view.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

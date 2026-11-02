@@ -25,4 +25,4 @@ Start a project's plan from the issues already in one or more GitHub repositorie
 
 - Every issue from the chosen repositories is a task in the project, with its relations, assignees and status, and each closed one has an actual finish.
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".

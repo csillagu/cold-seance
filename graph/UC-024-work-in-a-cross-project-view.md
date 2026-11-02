@@ -28,4 +28,4 @@ Follow and change work across several projects from one Kanban or Gantt.
 
 - A view never grants access: two people opening the same view can see different tasks, and tasks the actor cannot read are not shown ([SRC-110](SRC-110-a-view-shows-only-the-tasks-its-viewer-can-read.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
