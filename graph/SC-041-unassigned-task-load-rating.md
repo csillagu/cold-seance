@@ -7,7 +7,7 @@ effort: 3
 
 The function of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that rates a task with an eligibility expression but no assigned people red, amber or green, by checking each valid combination of eligible people in its eligibility tree ([DD-038](DD-038-eligibility-is-stored-as-a-tree.md)) against their load.
 
-It is done when each such task is rated as FR-045 sets out: red when every valid combination of eligible people overloads someone, amber when some valid combinations do and others don't, and green when at least one valid combination fits. FR-045's amber and green both hold when some combinations fit and others don't; which colour applies then is not stated.
+It is done when each such task is rated as FR-045 sets out: red when every valid combination of eligible people overloads someone, amber when some valid combinations do and others don't, and green when at least one valid combination fits; where amber and green both hold, the rating is amber ([SRC-201](SRC-201-amber-wins-when-some-combinations-fit-and-others-d.md)), so green only when no valid combination overloads anyone.
 
 It delivers:
 

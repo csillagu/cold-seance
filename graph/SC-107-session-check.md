@@ -1,5 +1,6 @@
 ---
 certainty: assumed
+effort: 2
 ---
 
 # SC-107: Session check
@@ -10,4 +11,4 @@ It delivers:
 
 - [FR-118](FR-118-sign-people-in-with-local-accounts.md): Sign people in with local accounts
 
-Origin: split off from SC-052, which the quality review found bundled (signing in and keeping a person signed in), after the owner chose how sessions are kept in the design session of 2026-11-02: "Sessions: as recommended". The boundary and name are Claude's; it awaits the owner's confirmation. Effort: not stated; it awaits the owner's estimate.
+Origin: split off from SC-052, which the quality review found bundled (signing in and keeping a person signed in), after the owner chose how sessions are kept in the design session of 2026-11-02: "Sessions: as recommended". The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, which the owner confirmed in the design session of 2026-11-02, answering "okay" to the proposed estimates.

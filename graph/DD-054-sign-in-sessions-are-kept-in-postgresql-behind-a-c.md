@@ -1,10 +1,14 @@
-# DD-054: Sign-in sessions are kept in PostgreSQL behind a cookie; passwords are hashed with Argon2id
+---
+certainty: verified
+---
+
+# DD-054: Sign-in sessions are kept in PostgreSQL behind a cookie
 
 ## Decision
 
 When a person signs in with their local account ([DD-027](DD-027-local-accounts-only-for-now.md)), the backend creates a session, stores it in PostgreSQL ([SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md)), and gives the browser only a random session id in a cookie. Page scripts cannot read the cookie, it is sent only over HTTPS, and it is not sent with requests that other sites start. Signing out deletes the session at once.
 
-Passwords are stored only as Argon2id hashes.
+How passwords are stored is [DD-056](DD-056-passwords-are-stored-only-as-argon2id-hashes.md).
 
 ## Alternatives considered
 
@@ -14,7 +18,7 @@ Passwords are stored only as Argon2id hashes.
 
 ## Rationale
 
-A session kept in the database ends the moment it is deleted, the same reason API tokens are stored as hashes ([DD-048](DD-048-api-access-uses-personal-access-tokens.md)). A signed token stays valid until it expires. A token kept where page scripts can read it can be stolen by any script that runs on the page. Argon2id is the password hash the OWASP Password Storage Cheat Sheet recommends first.
+A session kept in the database ends the moment it is deleted, the same reason API tokens are stored as hashes ([DD-048](DD-048-api-access-uses-personal-access-tokens.md)). A signed token stays valid until it expires. A token kept where page scripts can read it can be stolen by any script that runs on the page.
 
 ## Trade-offs
 
@@ -25,10 +29,9 @@ A session kept in the database ends the moment it is deleted, the same reason AP
 
 - Without HTTPS from the deployment, the cookie cannot be marked secure, and the session id can be read in transit.
 - Sessions that are never cleaned up pile up in the database.
-- Argon2id is slow on purpose, so many sign-in attempts load the backend unless they are limited.
 
 ## Serves
 
 This decision serves [DD-027](DD-027-local-accounts-only-for-now.md), [FR-118](FR-118-sign-people-in-with-local-accounts.md), [SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md).
 
-Origin: Claude set out these options with its recommendation in the design session of 2026-11-02, because the quality review found the sign-in component vague: how passwords are stored and how sessions are kept had not been stated. The owner answered: "Sessions: as recommended". The wording, alternatives, rationale, trade-offs and risks are Claude's.
+Origin: Claude set out these options with its recommendation in the design session of 2026-11-02, because the quality review found the sign-in component vague: how passwords are stored and how sessions are kept had not been stated. The owner answered: "Sessions: as recommended". The wording, alternatives, rationale, trade-offs and risks are Claude's. At the owner's request ("Dd54 split"), the password hash, which this DD first held too, is now DD-056. Confirmed by the owner in the same session: "Certainty verified".

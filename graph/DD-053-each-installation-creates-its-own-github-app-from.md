@@ -1,3 +1,7 @@
+---
+certainty: verified
+---
+
 # DD-053: Each installation creates its own GitHub App from a setup page in the tool
 
 ## Decision
@@ -34,4 +38,4 @@ The manifest flow keeps connecting GitHub to one step, in line with simple insta
 
 This decision serves [SRC-099](SRC-099-the-github-app-is-installed-per-repo-by-the-repo-s.md), [SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md), [SRC-199](SRC-199-people-can-install-the-tool-simply.md), [SRC-001](SRC-001-the-tool-is-self-hosted-and-open-source.md), [DD-015](DD-015-start-and-hold-come-from-the-github-projects-statu.md), [DD-051](DD-051-the-hourly-re-check-runs-on-a-timer-in-the-backend.md).
 
-Origin: Claude set out four options in the design session of 2026-11-02, after the owner asked: "Yes what are the options". The owner chose this one: "Gh app A". The wording, alternatives, rationale, trade-offs and risks are Claude's. The limit on Projects webhooks comes from GitHub's documentation of webhook events (https://docs.github.com/en/webhooks/webhook-events-and-payloads), read on 2026-11-02.
+Origin: Claude set out four options in the design session of 2026-11-02, after the owner asked: "Yes what are the options". The owner chose this one: "Gh app A". The wording, alternatives, rationale, trade-offs and risks are Claude's. The limit on Projects webhooks comes from GitHub's documentation of webhook events (https://docs.github.com/en/webhooks/webhook-events-and-payloads), read on 2026-11-02. Confirmed by the owner in the same session: "Certainty verified".

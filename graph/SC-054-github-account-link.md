@@ -7,7 +7,7 @@ effort: 2
 
 The function of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that lets a person, or a system admin, link the person's account to their GitHub account.
 
-It is done when a person can link their own account to a GitHub account and a system admin can link anyone's. How the GitHub account is identified, for example by its name or by signing in to GitHub, is not stated.
+It is done when a person can link their own account to a GitHub account and a system admin can link anyone's. The GitHub account is given by its name ([SRC-202](SRC-202-a-person-s-github-account-is-identified-by-its-nam.md)).
 
 It delivers:
 
