@@ -1,0 +1,23 @@
+# DD-049: The MCP server uses the Streamable HTTP transport
+
+## Decision
+
+The MCP server is served over the MCP specification's Streamable HTTP transport, on an endpoint of the backend, and each request is authenticated with an API token ([DD-048](DD-048-api-access-uses-personal-access-tokens.md)).
+
+## Alternatives considered
+
+The stdio transport, the older HTTP with Server-Sent Events transport, or Streamable HTTP.
+
+## Rationale
+
+With stdio, the AI client starts the server as a local process beside itself, which does not fit an MCP server that is part of a shared, self-hosted backend ([DD-043](DD-043-the-mcp-server-is-part-of-the-backend.md)). The specification has replaced HTTP with Server-Sent Events by Streamable HTTP.
+
+## Trade-offs
+
+Clients that only speak stdio need a local bridge. The endpoint is reachable over the network, so it relies on token authentication and on the deployment providing TLS.
+
+## Serves
+
+This decision serves [SRC-078](SRC-078-mcp-server-reads-the-plan-and-writes-only-by-creat.md), [DD-043](DD-043-the-mcp-server-is-part-of-the-backend.md), [DD-048](DD-048-api-access-uses-personal-access-tokens.md).
+
+Origin: the stakeholder answered "part" to whether the MCP server is a separate process or part of the backend, and left its transport open; Claude proposes this transport in the design session of 2026-11-02, with the other technical choices the stakeholder asked it to propose. The alternatives, rationale and trade-offs are Claude's. Awaits the stakeholder's confirmation.
