@@ -10,7 +10,7 @@ A saved view ([SRC-108](SRC-108-kanban-and-gantt-support-saved-views.md)) is kep
 | Kept in | Who sees the view | Can cover |
 |---|---|---|
 | A project | anyone who can read the project | that project |
-| A group ([DD-028](DD-028-project-access-also-comes-through-groups.md)) | group members | any of the group's projects |
+| A group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)) | group members | any of the group's projects |
 | Personal | only its owner | anything the owner can read |
 
 Group and personal views can cover several projects ([SRC-109](SRC-109-views-can-cover-several-projects.md)).

@@ -8,4 +8,4 @@ evidence: docs/initial-requirements.md; docs/src-dd-classification.md; design se
 
 The same roles apply to API tokens and to the MCP server's access.
 
-Origin: the drafting agent's addition. Asked whether the role between read-only and read-write is available for API tokens and the MCP server too, the stakeholder said: "of course, every role is available there too".
+Origin: the drafting agent's addition. Asked whether the contributor role is available for API tokens and the MCP server too, the stakeholder said: "of course, every role is available there too".

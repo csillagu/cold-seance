@@ -15,17 +15,17 @@ Give a set of people access to several projects at once, instead of adding every
 
 ## Steps
 
-1. The actor creates a group ([DD-028](DD-028-project-access-also-comes-through-groups.md)) and becomes its admin ([SRC-132](SRC-132-a-group-s-creator-becomes-its-admin.md)).
-2. As group admin, they add people to the group, each with a role: read, the role between read-only and read-write, write or admin ([DD-028](DD-028-project-access-also-comes-through-groups.md), [SRC-137](SRC-137-a-group-can-give-the-role-between-read-only-and-re.md)).
-3. Projects are added to the group: anyone can add a new project, and a project's admin can add an existing one ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
-4. Each member now holds their group role on every project in the group ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
+1. The actor creates a group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)) and becomes its admin ([SRC-132](SRC-132-a-group-s-creator-becomes-its-admin.md)).
+2. As group admin, they add people to the group, each with a role: read, contributor, write or admin ([SRC-139](SRC-139-project-access-also-comes-through-groups.md), [SRC-137](SRC-137-a-group-can-give-the-contributor-role.md)).
+3. Projects are added to the group: anyone can add a new project, and a project's admin can add an existing one ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)).
+4. Each member now holds their group role on every project in the group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)).
 
 ## Success criteria
 
-- Group members can open the group's projects and its shared views, each with their group role or their direct role, whichever is higher ([DD-028](DD-028-project-access-also-comes-through-groups.md), [SRC-111](SRC-111-views-are-kept-in-a-project-a-group-or-personally.md)).
+- Group members can open the group's projects and its shared views, each with their group role or their direct role, whichever is higher ([SRC-139](SRC-139-project-access-also-comes-through-groups.md), [SRC-111](SRC-111-views-are-kept-in-a-project-a-group-or-personally.md)).
 
 ## Failure modes
 
-- Someone who is not a project's admin cannot add that existing project to a group ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
+- Someone who is not a project's admin cannot add that existing project to a group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)).
 
 Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. To be confirmed by the stakeholder.

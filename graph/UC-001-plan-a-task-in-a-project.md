@@ -11,7 +11,7 @@ Add a task to a project's plan.
 
 ## Preconditions
 
-- The actor has the read-write role in the project ([SRC-092](SRC-092-read-write-role.md), [DD-034](DD-034-roles-are-assigned-per-project.md)), directly or through a group ([DD-028](DD-028-project-access-also-comes-through-groups.md)).
+- The actor has the read-write role in the project ([SRC-092](SRC-092-read-write-role.md), [DD-034](DD-034-roles-are-assigned-per-project.md)), directly or through a group ([SRC-139](SRC-139-project-access-also-comes-through-groups.md)).
 
 ## Steps
 
