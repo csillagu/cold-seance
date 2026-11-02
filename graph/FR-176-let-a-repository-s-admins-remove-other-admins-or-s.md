@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-176: Let a repository's admins remove other admins or step down
@@ -8,4 +8,4 @@ The system must let any admin of a repository remove another admin of it, or ste
 
 It serves [UC-039](UC-039-remove-an-admin-from-a-repository.md).
 
-Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

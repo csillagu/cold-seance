@@ -14,7 +14,7 @@ Plane, OpenProject, or building the tool. The drafting agent's record says this 
 
 ## Rationale
 
-Not stated.
+A tool the project builds itself can be changed at any time and customised, and the stakeholder expects the result to be good. In the stakeholder's words: "we can change it anytime, we can customize it, moreover it will be good."
 
 ## Trade-offs
 
@@ -24,4 +24,4 @@ Gives up adopting Plane or OpenProject.
 
 This decision serves [SRC-001](SRC-001-the-tool-is-self-hosted-and-open-source.md).
 
-Origin: the alternatives come from the drafting agent's record. Asked in the design session of 2026-11-02 whether they chose to build their own tool, and why not Plane or OpenProject, the stakeholder answered: "Build". The reason was not given.
+Origin: the alternatives come from the drafting agent's record. Asked in the design session of 2026-11-02 whether they chose to build their own tool, and why not Plane or OpenProject, the stakeholder answered: "Build". Asked for the reason, the stakeholder gave the one quoted under Rationale.

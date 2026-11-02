@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-172: Let a repository admin withdraw an approval given to a project
@@ -10,4 +10,4 @@ When the project is the repository's receiving project ([SRC-177](SRC-177-one-re
 
 It serves [UC-037](UC-037-withdraw-a-project-s-approval-for-a-repository.md).
 
-Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

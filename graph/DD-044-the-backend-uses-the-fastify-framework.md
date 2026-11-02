@@ -20,4 +20,4 @@ Gives less ready-made structure than NestJS: keeping the service layer apart fro
 
 This decision serves [SRC-195](SRC-195-the-backend-is-written-in-typescript-on-node-js.md), [SRC-077](SRC-077-rest-api-with-full-read-and-write-access.md), [DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md).
 
-Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("Ts something, propose (based on node)"). The alternatives, rationale and trade-offs are Claude's. Awaits the stakeholder's confirmation.
+Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("Ts something, propose (based on node)"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed".
