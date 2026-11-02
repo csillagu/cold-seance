@@ -16,8 +16,14 @@ Fastify is written with TypeScript in mind and validates requests and responses 
 
 Gives less ready-made structure than NestJS: keeping the service layer apart from the routes is the project's own discipline. Has a smaller ecosystem of middleware than Express.
 
+## Risks
+
+- Rules can creep into route handlers instead of the service layer, so the REST API and the MCP server start to behave differently, against DD-039.
+- The OpenAPI description generated from the schemas drifts from what the routes really return if a route is added without a schema.
+- A plugin the project needs may be missing or unmaintained in Fastify's smaller ecosystem.
+
 ## Serves
 
 This decision serves [SRC-195](SRC-195-the-backend-is-written-in-typescript-on-node-js.md), [SRC-077](SRC-077-rest-api-with-full-read-and-write-access.md), [DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md).
 
-Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("Ts something, propose (based on node)"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed".
+Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("Ts something, propose (based on node)"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed". The Risks section was added by Claude afterwards, at the stakeholder's request ("Ok ok add risks"), and awaits the stakeholder's confirmation.

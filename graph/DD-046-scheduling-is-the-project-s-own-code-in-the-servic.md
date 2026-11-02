@@ -16,8 +16,14 @@ The rules are few and fixed: no lag on dependencies ([DD-030](DD-030-dependencie
 
 The project owns the scheduler's correctness and must test it thoroughly. Adding leveling or optimisation later would be new work, not configuration.
 
+## Risks
+
+- Errors in edge cases, such as nested parents, milestones, forbidden days and dependencies on other projects' milestones, are the project's to find. A wrong date goes straight into the plan and on to GitHub.
+- Recomputing a large project on every change, and again for each proposal preview, may become slow.
+- If leveling or optimisation is wanted later, the scheduler needs a redesign, not an extension.
+
 ## Serves
 
 This decision serves [SRC-003](SRC-003-constraints-reschedule-dates-automatically-within.md), [SRC-019](SRC-019-all-three-constraint-types-are-enforced-in-the-too.md), [DD-021](DD-021-proposal-live-preview-against-the-current-plan.md), [DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md).
 
-Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("5-7 propose"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed".
+Origin: proposed by Claude at the stakeholder's request in the design session of 2026-11-02 ("5-7 propose"). The alternatives, rationale and trade-offs are Claude's. Confirmed by the stakeholder in the design session of 2026-11-02: "1 confirmed". The Risks section was added by Claude afterwards, at the stakeholder's request ("Ok ok add risks"), and awaits the stakeholder's confirmation.
