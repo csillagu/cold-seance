@@ -14,4 +14,4 @@ It delivers:
 - [FR-033](FR-033-let-a-single-assignment-override-the-task-s-person.md): Let a single assignment override the task's person-load percentage
 - [FR-149](FR-149-let-an-ai-only-task-s-load-be-any-percentage-1-by.md): Let an AI-only task's load be any percentage, 1% by default
 
-Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "4 correct".
+Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate for this component as it now stands. The owner confirmed Claude's list of proposed estimates in the design session of 2026-11-02, answering "correct" to it.

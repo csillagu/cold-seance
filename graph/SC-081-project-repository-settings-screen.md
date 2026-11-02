@@ -15,4 +15,4 @@ It delivers:
 - [FR-143](FR-143-mark-one-receiving-project-for-each-repository.md): Mark one receiving project for each repository
 - [FR-170](FR-170-add-a-repository-at-once-when-its-adder-is-admin-o.md): Add a repository at once when its adder is admin of both it and the project
 
-Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "4 correct".
+Origin: added by Claude for issue #11. Asked whether the screens behind these FRs should be components too, the owner answered in the design session of 2026-11-02: "Yes please." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate for this component as it now stands. The owner confirmed Claude's list of proposed estimates in the design session of 2026-11-02, answering "correct" to it.
