@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-041: Let system admins manage the company holidays
@@ -8,4 +8,4 @@ The system must let system admins, the people who create accounts, manage the co
 
 It serves [UC-028](UC-028-maintain-the-company-holiday-calendar.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

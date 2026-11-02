@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-052: Keep the baseline variance view read-only
@@ -8,4 +8,4 @@ The system must allow no edits in the baseline variance view ([SRC-012](SRC-012-
 
 It serves [UC-023](UC-023-review-variance-against-a-baseline.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

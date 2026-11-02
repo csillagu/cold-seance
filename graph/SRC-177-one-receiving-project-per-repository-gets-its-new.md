@@ -10,4 +10,4 @@ Of the projects that pull issues from a repository ([SRC-174](SRC-174-several-pr
 
 As received: the drafting agent proposed three options for which project gets a new issue from a repository several projects pull from. Option A read: "Of the projects that pull from a repository, one is marked as the one that receives its new issues. Every new issue goes there as an unscheduled task." The stakeholder chose it: "1A". The wording is the drafting agent's.
 
-Not stated: who marks the receiving project, and what happens when it stops pulling issues from the repository.
+Not stated here: who marks the receiving project, and what happens when it stops pulling issues from the repository. Both were answered later; see SRC-178 and SRC-190.

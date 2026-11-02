@@ -6,7 +6,7 @@ evidence: design session 2026-11-02
 
 # SRC-169: A project sets which repositories it pulls issues from
 
-On a project, one can set which repositories it pulls issues from. A new GitHub issue in those repositories is added to the project automatically ([SRC-061](SRC-061-new-third-party-github-issues-become-unscheduled-t.md), [SRC-115](SRC-115-new-non-plannable-github-issues-become-unscheduled.md)).
+On a project, one can set which repositories it pulls issues from. A new GitHub issue in those repositories is added to the project automatically ([SRC-192](SRC-192-every-new-github-issue-becomes-a-task-whoever-open.md)).
 
 As received, asked how the tool knows which project a new GitHub issue belongs to: "New github issue will be added to a project automatically, on the project, one can set which repos to pull issues from."
 

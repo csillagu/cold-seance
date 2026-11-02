@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-146: Use the global calendar in place of a missing assignee calendar
@@ -8,4 +8,4 @@ When an assigned person has not filled in their own calendar, the system must us
 
 It serves [UC-002](UC-002-reschedule-work-in-a-project.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.
