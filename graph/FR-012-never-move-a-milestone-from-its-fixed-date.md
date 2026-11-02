@@ -8,4 +8,4 @@ The system must never move a milestone pinned to a fixed date when it schedules 
 
 It serves [UC-027](UC-027-pin-a-milestone-to-a-fixed-date.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".

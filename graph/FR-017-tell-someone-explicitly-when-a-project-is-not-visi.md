@@ -8,4 +8,4 @@ When a project is not visible to someone, the system must tell them explicitly t
 
 It serves [UC-005](UC-005-depend-on-another-project-s-milestone.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".

@@ -8,4 +8,4 @@ The system must import each closed issue as a done task, with its actual finish 
 
 It serves [UC-010](UC-010-seed-a-project-from-github-repositories.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok".
