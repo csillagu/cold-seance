@@ -5,7 +5,7 @@ effort: 5
 
 # SC-022: GitHub planning mirror
 
-The backend module that keeps the planning of linked issues identical to the tool, the plan being held in the tool, not in the issues ([DD-001](DD-001-the-plan-is-stored-in-the-tool-s-own-backend-not-i.md)): sub-issues, blocked-by relations, assignees (leaving off people without a linked GitHub account) and milestone dates. A write that fails is put right by the hourly re-check ([DD-051](DD-051-the-hourly-re-check-runs-on-a-timer-in-the-backend.md)).
+The backend module that keeps the planning of linked issues identical to the tool, the plan being held in the tool, not in the issues ([DD-001](DD-001-the-plan-is-stored-in-the-tool-s-own-backend-not-i.md)): sub-issues, blocked-by relations, assignees (leaving off people without a linked GitHub account) and milestone dates. A write that fails is put right by the hourly re-check ([DD-051](DD-051-the-re-check-runs-on-a-timer-in-the-backend.md)).
 
 It delivers:
 

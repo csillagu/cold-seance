@@ -11,4 +11,4 @@ It delivers:
 
 - [FR-177](FR-177-use-the-postgresql-database-given-in-the-configura.md): Use the PostgreSQL database given in the configuration
 
-Origin: added by Claude for issue #11, after the owner proposed configuration over typing secrets into the tool in the design session of 2026-11-03 (SRC-210). The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, awaiting the owner's confirmation.
+Origin: added by Claude for issue #11, after the owner proposed configuration over typing secrets into the tool in the design session of 2026-11-03 (SRC-210). The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate. The owner confirmed it in the design session of 2026-11-03: "Efforts ok".
