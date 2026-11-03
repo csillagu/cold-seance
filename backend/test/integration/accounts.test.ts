@@ -285,8 +285,14 @@ describe('the account service', () => {
 
   describe('listAccounts', () => {
     it('lists every account by username, without password hashes, to a system admin', async () => {
+      await seedAccount(x.db, { username: 'mallory' })
+      await seedAccount(x.db, { username: 'dave' })
       const list = await service.listAccounts(by(root))
-      expect(list.map((a) => a.username)).toEqual(list.map((a) => a.username).toSorted())
+      // The order is the database's collation, so it follows the deployment's locale. Plain
+      // lower-case ASCII names come in the same order in every collation; others may not (CI's
+      // PostgreSQL puts `Renée` after `alice`, the C collation before it).
+      const plain = ['alice', 'dave', 'mallory', 'root']
+      expect(list.map((a) => a.username).filter((name) => plain.includes(name))).toEqual(plain)
       expect(list).toContainEqual({ id: alice.id, username: 'alice', systemAdmin: false })
       expect(list).toContainEqual({ id: root.id, username: 'root', systemAdmin: true })
       for (const account of list)
