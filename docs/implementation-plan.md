@@ -1,6 +1,6 @@
 # Implementation plan for the solution components
 
-This plan puts the 110 solution components (SCs) in [`graph/`](../graph/) in the order they are built, and shows which blocks of them can be built at the same time. It sets only the order. What each SC is, what it delivers and when it is done are in the SC's own file, and this plan does not repeat them.
+This plan puts the 111 solution components (SCs) in [`graph/`](../graph/) in the order they are built, and shows which blocks of them can be built at the same time. It sets only the order. What each SC is, what it delivers and when it is done are in the SC's own file, and this plan does not repeat them.
 
 - Drafted by Claude for issue #15, 2026-11-03. It awaits the owner's confirmation.
 - The order comes from what each SC needs in order to work: the FRs, DDs and SCs it links, and the service-layer modules it calls. Where an SC names no dependency, the order shown is Claude's reading of it.
@@ -31,7 +31,7 @@ Wave level only; the tables below give the blocks and their exact dependencies.
 ```mermaid
 flowchart LR
   B0[B0 Foundation] --> B1[B1 Identity, access, audit] --> B2[B2 Organisation, task core] --> B3[B3 Planning engine, GitHub outbound] --> B4[B4 Proposals, GitHub inbound, notifications] --> B5[B5 Closing]
-  B1 --> F1[F1 Sign-in, personal settings, audit]
+  B1 --> F1[F1 Layout, sign-in, personal settings, audit]
   F1 --> F2[F2 Projects and groups] & F3[F3 Repositories] & F4[F4 Calendars] & F5[F5 Task editing] & F6[F6 Views] & F9[F9 Seeding and notifications]
   B2 --> F2 & F3 & F4 & F5
   B3 --> F6 --> F7[F7 View tools]
@@ -108,11 +108,11 @@ B3.3 joins B3.1 and B3.2. B3.6 and B3.7 do not need the planning engine. They ar
 
 ## Frontend lane
 
-[SC-075](../graph/SC-075-sign-in-page.md) comes first in the frontend, so every other F block also waits for F1's [SC-075](../graph/SC-075-sign-in-page.md).
+[SC-113](../graph/SC-113-frontend-layout.md) and [SC-075](../graph/SC-075-sign-in-page.md) come first in the frontend, so every other F block also waits for both of them in F1.
 
 | Block | Order | Needs | Σ effort |
 |---|---|---|---|
-| F1 Sign-in, personal settings, audit | [SC-075](../graph/SC-075-sign-in-page.md) → ([SC-076](../graph/SC-076-account-administration-screen.md) ∥ [SC-077](../graph/SC-077-github-account-link-setting.md) ∥ [SC-078](../graph/SC-078-personal-access-token-page.md) ∥ [SC-094](../graph/SC-094-audit-log-viewer.md)) | B1 | 10 |
+| F1 Layout, sign-in, personal settings, audit | [SC-113](../graph/SC-113-frontend-layout.md); [SC-075](../graph/SC-075-sign-in-page.md) → ([SC-076](../graph/SC-076-account-administration-screen.md) ∥ [SC-077](../graph/SC-077-github-account-link-setting.md) ∥ [SC-078](../graph/SC-078-personal-access-token-page.md) ∥ [SC-094](../graph/SC-094-audit-log-viewer.md)) | B1; [SC-113](../graph/SC-113-frontend-layout.md) needs none | 12 |
 | F2 Projects and groups | [SC-079](../graph/SC-079-project-creation-form.md) ∥ [SC-080](../graph/SC-080-project-members-and-roles-screen.md) ∥ [SC-082](../graph/SC-082-group-list-screen.md) ∥ [SC-083](../graph/SC-083-group-members-screen.md) ∥ [SC-084](../graph/SC-084-group-projects-screen.md) | B1.3, B2.1; [SC-082](../graph/SC-082-group-list-screen.md)'s group deletion also [SC-059](../graph/SC-059-group-deletion.md) (B3.5) | 9 |
 | F3 Repositories | [SC-085](../graph/SC-085-repository-registration-screen.md) ∥ [SC-086](../graph/SC-086-repository-admins-screen.md) ∥ [SC-087](../graph/SC-087-repository-request-inbox.md); [SC-081](../graph/SC-081-project-repository-settings-screen.md) → [SC-112](../graph/SC-112-receiving-project-control.md) | B2.2 | 10 |
 | F4 Calendars | [SC-088](../graph/SC-088-capacity-and-absences-screen.md) ∥ [SC-089](../graph/SC-089-personal-working-calendar-screen.md) ∥ [SC-090](../graph/SC-090-company-calendar-screen.md) | B2.3 | 7 |
@@ -134,4 +134,4 @@ The longest chain of dependent work is:
 
 ## Coverage
 
-All 110 SCs appear in exactly one block above, apart from B5.2, which names the five tracks again to close them: 66 in the backend lane (effort 202) and 44 in the frontend lane (effort 111). SC-103 and SC-104 are retired and not in the graph.
+All 111 SCs appear in exactly one block above, apart from B5.2, which names the five tracks again to close them: 66 in the backend lane (effort 202) and 45 in the frontend lane (effort 113). SC-103 and SC-104 are retired and not in the graph.
