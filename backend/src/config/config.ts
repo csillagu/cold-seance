@@ -66,10 +66,7 @@ export const defaultRecheckIntervalMinutes = 60
 export const defaultServerHost = '127.0.0.1'
 export const defaultServerPort = 3000
 
-/**
- * Every setting named in DD-059, and the listen address, which the owner added for the Docker
- * image (SC-028, design session of 2026-11-03).
- */
+/** Every setting named in DD-059, the listen address included. */
 export const settings: readonly Setting[] = [
   { path: ['server', 'host'], kind: 'host', required: false },
   { path: ['server', 'port'], kind: 'port', required: false },

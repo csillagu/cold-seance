@@ -22,8 +22,8 @@ export function hasFrontend(dir: string): boolean {
 }
 
 /**
- * Serves the built frontend from `dir` (SC-028, owner's decision of 2026-11-03: the backend, the
- * one process in the image, serves it). Its files are served as they are; any other GET or HEAD
+ * Serves the built frontend from `dir` (SC-028): the backend, the one process in the image,
+ * serves it (DD-040). Its files are served as they are; any other GET or HEAD
  * outside the REST API is answered with its `index.html`, since the frontend is a single-page
  * application whose own routes are not files; a missing file is not found. The REST API keeps its own answers: nothing under
  * `API_PREFIX` reaches the frontend. Anything else not found is a 404 in the API's error shape.
