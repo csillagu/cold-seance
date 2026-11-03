@@ -6,12 +6,24 @@ import { parse as parseYaml, YAMLError } from 'yaml'
  * The configuration loader (SC-109, DD-059): reads the YAML configuration file, applies the
  * environment variables that override it, reads the GitHub Apps' key files, and returns the
  * settings for the rest of the backend. A required setting that is missing, a value that is not
- * valid, or a key file that cannot be read stops the start with a message naming the setting.
+ * valid, or a key file that cannot be read stops the start with a message naming the setting; a
+ * GitHub function given both an App and a personal access token, or neither, stops it with a
+ * message naming the function (DD-060, FR-187).
  */
 
-/** The tool's functions on GitHub, each of which may have its own App (DD-058, SRC-207). */
+/**
+ * The tool's functions on GitHub, each of which is given its own App or personal access token, or
+ * shares one with the others (DD-058, DD-060, SRC-207, SRC-229).
+ */
 export const githubFunctions = ['readIssues', 'writeIssues', 'projectsStatus'] as const
 export type GitHubFunction = (typeof githubFunctions)[number]
+
+/** How each function reads in a message. */
+export const githubFunctionLabels: Record<GitHubFunction, string> = {
+  readIssues: 'reading issues',
+  writeIssues: 'writing to issues',
+  projectsStatus: 'the Projects status field',
+}
 
 export interface GitHubAppConfig {
   appId: number
@@ -37,19 +49,30 @@ export interface Config {
     directUrl: string
   }
   github: {
-    apps: Record<GitHubFunction, GitHubAppConfig>
+    /**
+     * The App of each function given an App. Every function is in exactly one of `apps` and
+     * `tokens` (DD-060): a function given both, or neither, stops the start.
+     */
+    apps: Partial<Record<GitHubFunction, GitHubAppConfig>>
+    /** The personal access token of each function given one, as configured (DD-060). */
+    tokens: Partial<Record<GitHubFunction, string>>
+    /** The one secret of the webhooks set up on repositories and organizations, if they are used (DD-060). */
+    webhookSecret: string | undefined
     /** The interval of the re-check of linked issues, one hour unless set (SRC-213). */
     recheckIntervalMinutes: number
   }
 }
 
-type Kind = 'databaseUrl' | 'secret' | 'positiveInteger' | 'keyFile' | 'host' | 'port'
+type Kind = 'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' | 'host' | 'port'
 
 /** One setting: where it sits in the YAML file, the environment variable that overrides it. */
 export interface Setting {
   path: readonly string[]
   kind: Kind
+  /** For a setting of a function's App (`of.via` is `app`): required when the function is given an App. */
   required: boolean
+  /** The GitHub function whose App or token the setting gives. */
+  of?: { fn: GitHubFunction; via: 'app' | 'token' }
 }
 
 export const envPrefix = 'COLD_SEANCE_'
@@ -72,11 +95,21 @@ export const settings: readonly Setting[] = [
   { path: ['server', 'port'], kind: 'port', required: false },
   { path: ['database', 'url'], kind: 'databaseUrl', required: true },
   { path: ['database', 'directUrl'], kind: 'databaseUrl', required: false },
-  ...githubFunctions.flatMap((fn): Setting[] => [
-    { path: ['github', 'apps', fn, 'appId'], kind: 'positiveInteger', required: true },
-    { path: ['github', 'apps', fn, 'privateKeyFile'], kind: 'keyFile', required: true },
-    { path: ['github', 'apps', fn, 'webhookSecret'], kind: 'secret', required: false },
-  ]),
+  ...githubFunctions.flatMap((fn): Setting[] => {
+    const of = { fn, via: 'app' } as const
+    return [
+      { path: ['github', 'apps', fn, 'appId'], kind: 'positiveInteger', required: true, of },
+      { path: ['github', 'apps', fn, 'privateKeyFile'], kind: 'keyFile', required: true, of },
+      { path: ['github', 'apps', fn, 'webhookSecret'], kind: 'secret', required: false, of },
+    ]
+  }),
+  ...githubFunctions.map((fn): Setting => ({
+    path: ['github', 'tokens', fn],
+    kind: 'token',
+    required: false,
+    of: { fn, via: 'token' },
+  })),
+  { path: ['github', 'webhookSecret'], kind: 'secret', required: false },
   { path: ['github', 'recheckIntervalMinutes'], kind: 'positiveInteger', required: false },
 ]
 
@@ -144,14 +177,30 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   reportUnknownFileKeys(file, [], problems)
   reportUnknownEnv(env, problems)
 
+  const raws = new Map(settings.map((s) => [s, rawValue(s, file, env, problems)]))
+  // What each GitHub function is given: an App if any of its App's settings is set.
+  const given = (fn: GitHubFunction, via: 'app' | 'token') =>
+    settings.some((s) => s.of?.fn === fn && s.of.via === via && raws.get(s) !== undefined)
+  const access = new Map(
+    githubFunctions.map((fn) => [fn, { app: given(fn, 'app'), token: given(fn, 'token') }]),
+  )
+
   const values: Values = { numbers: new Map(), strings: new Map(), keyFiles: new Map() }
   for (const setting of settings) {
-    const raw = rawValue(setting, file, env, problems)
+    const raw = raws.get(setting)
     if (raw === undefined) {
-      if (setting.required) problems.push(`${settingName(setting)} is required but not set`)
+      // A setting of a function's App is required only when the function is given an App alone:
+      // given both or neither, the function is reported below instead.
+      const of = setting.of && access.get(setting.of.fn)!
+      const required = setting.required && (of === undefined || (of.app && !of.token))
+      if (required) problems.push(`${settingName(setting)} is required but not set`)
       continue
     }
     convert(setting, raw, values, cwd, problems)
+  }
+
+  for (const [fn, { app, token }] of access) {
+    if (app === token) problems.push(githubFunctionProblem(fn, app))
   }
 
   if (problems.length > 0) throw new ConfigError(problems)
@@ -159,9 +208,17 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   // Every required setting is in its map now: a missing one was reported above.
   const key = (...path: string[]) => path.join('.')
   const url = values.strings.get(key('database', 'url'))!
-  const app = (fn: GitHubFunction): GitHubAppConfig => {
+  // Each function is given exactly one of an App and a token now: anything else was reported above.
+  const apps: Partial<Record<GitHubFunction, GitHubAppConfig>> = {}
+  const tokens: Partial<Record<GitHubFunction, string>> = {}
+  for (const fn of githubFunctions) {
+    const token = values.strings.get(key('github', 'tokens', fn))
+    if (token !== undefined) {
+      tokens[fn] = token
+      continue
+    }
     const keyFile = values.keyFiles.get(key('github', 'apps', fn, 'privateKeyFile'))!
-    return {
+    apps[fn] = {
       appId: values.numbers.get(key('github', 'apps', fn, 'appId'))!,
       privateKeyFile: keyFile.path,
       privateKey: keyFile.contents,
@@ -175,16 +232,23 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
     },
     database: { url, directUrl: values.strings.get(key('database', 'directUrl')) ?? url },
     github: {
-      apps: {
-        readIssues: app('readIssues'),
-        writeIssues: app('writeIssues'),
-        projectsStatus: app('projectsStatus'),
-      },
+      apps,
+      tokens,
+      webhookSecret: values.strings.get(key('github', 'webhookSecret')),
       recheckIntervalMinutes:
         values.numbers.get(key('github', 'recheckIntervalMinutes')) ??
         defaultRecheckIntervalMinutes,
     },
   }
+}
+
+/** A GitHub function given both an App and a token (`both`), or neither, named with its settings. */
+function githubFunctionProblem(fn: GitHubFunction, both: boolean): string {
+  const app = `a GitHub App (github.apps.${fn})`
+  const tokenPath = ['github', 'tokens', fn]
+  const token = `a personal access token (${tokenPath.join('.')}, ${envName(tokenPath)})`
+  const what = both ? `both ${app} and ${token}` : `neither ${app} nor ${token}`
+  return `the GitHub function for ${githubFunctionLabels[fn]} is given ${what}; give it ${both ? 'only ' : ''}one of them`
 }
 
 /** Reads and parses the configuration file. A missing default file is not an error: env alone may configure the tool. */
@@ -314,6 +378,17 @@ function convert(
     case 'secret':
       if (typeof value === 'string') values.strings.set(path, value)
       else problems.push(`${name} must be a string; quote it in the configuration file`)
+      return
+    case 'token':
+      // Neither message echoes the value. A token is used as given, whatever its kind (DD-060);
+      // only a value no GitHub token can be is refused, such as one carrying a line break.
+      if (typeof value !== 'string') {
+        problems.push(`${name} must be a string; quote it in the configuration file`)
+      } else if (!/^[\x21-\x7e]+$/.test(value)) {
+        problems.push(
+          `${name} must be the token alone: printable ASCII characters, with no spaces or line breaks`,
+        )
+      } else values.strings.set(path, value)
       return
     case 'keyFile':
       if (typeof value !== 'string') {
