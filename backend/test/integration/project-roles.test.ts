@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { auditLog, projectMembers } from '../../src/db/schema.ts'
 import { AuditLogService } from '../../src/service/audit.ts'
@@ -20,8 +20,9 @@ import { groupTable } from '../helpers/group-roles.ts'
 import { grantRole, seedProject } from '../helpers/projects.ts'
 
 // The project role store (SC-014) against a real PostgreSQL: its rules, then the test cases of
-// FR-105, FR-110, FR-111 and FR-112, as far as the parts built so far reach. Projects (SC-017) do
-// not exist yet, so a project here is an id its creator holds the admin role in.
+// FR-105, FR-109, FR-110, FR-111 and FR-112, as far as the parts built so far reach. The rules
+// tests give projects and roles straight in the database; the test cases create their projects
+// through the REST API (SC-017).
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -437,16 +438,15 @@ describe('the project role store', () => {
 })
 
 describe('test cases through the REST API', () => {
-  // Projects (SC-017), groups (SC-018, SC-057, SC-058) and tasks (SC-001) do not exist yet. Each
-  // test below checks the role store's part of its test case through the REST API, with a project
-  // made as SC-017 will make it (an id its creator is admin of); the "Pending" note in each names
-  // what the full test case still waits for.
+  // Each test below follows its test case through the REST API, its projects created there by
+  // their creators (SC-017).
   let x: TestDatabase
   let app: ReturnType<typeof buildApp>
   let alice: Seeded
   let bob: Seeded
 
-  beforeAll(async () => {
+  // Each test case starts from its own fresh test deployment, as the test cases ask.
+  beforeEach(async () => {
     x = await createTestDatabase()
     app = buildApp({}, { authenticators: [testAuthenticator], services: createServices(x.db) })
     await seedAccount(x.db, { username: 'root', systemAdmin: true })
@@ -454,7 +454,7 @@ describe('test cases through the REST API', () => {
     bob = await seedAccount(x.db, { username: 'bob' })
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await app?.close()
     await x?.drop()
   })
@@ -467,17 +467,34 @@ describe('test cases through the REST API', () => {
       payload: { role },
     })
 
+  /** A project `creator` creates through the REST API, and so is the only admin of. */
+  const create = async (creator: Seeded, name: string): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(creator),
+      payload: { name },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
+
   const members = (as_: Seeded, projectId: string) =>
     app.inject({ method: 'GET', url: `/api/projects/${projectId}/members`, headers: as(as_) })
 
   describe('TC-153: a person holds a different role in each project', () => {
     it('gives bob read-only in P1, contributor in P2, read-write in P3 and admin in P4', async () => {
-      const [p1, p2, p3, p4] = await Promise.all([1, 2, 3, 4].map(() => seedProject(x.db, alice)))
+      const [p1, p2, p3, p4] = [
+        await create(alice, 'P1'),
+        await create(alice, 'P2'),
+        await create(alice, 'P3'),
+        await create(alice, 'P4'),
+      ]
       const given: [string, ProjectRole][] = [
-        [p1!, 'read-only'],
-        [p2!, 'contributor'],
-        [p3!, 'read-write'],
-        [p4!, 'admin'],
+        [p1, 'read-only'],
+        [p2, 'contributor'],
+        [p3, 'read-write'],
+        [p4, 'admin'],
       ]
       for (const [p, role] of given) {
         expect((await setRole(alice, p, bob, role)).statusCode).toBe(200)
@@ -490,15 +507,13 @@ describe('test cases through the REST API', () => {
         // No role offered falls outside these four.
         for (const m of read) expect(PROJECT_ROLES).toContain(m.role)
       }
-      expect((await setRole(alice, p1!, bob, 'owner')).statusCode).toBe(400)
+      expect((await setRole(alice, p1, bob, 'owner')).statusCode).toBe(400)
     })
-
-    // Pending: TC-153 in full: alice creates P1 to P4 herself (SC-017).
   })
 
   describe("TC-161: removing a project's last admin is rejected", () => {
     it('rejects removing alice from Apollo, keeps her its admin, and does not make bob admin', async () => {
-      const apollo = await seedProject(x.db, alice)
+      const apollo = await create(alice, 'Apollo')
       await grantRole(x.db, bob, apollo, 'read-write')
 
       const removal = await app.inject({
@@ -515,8 +530,6 @@ describe('test cases through the REST API', () => {
         { accountId: bob.id, username: 'bob', role: 'read-write' },
       ])
     })
-
-    // Pending: TC-161 in full: alice creates Apollo herself (SC-017).
   })
 
   it("lets the project's admin read its audit log, as the role store says (SC-013)", async () => {
@@ -539,13 +552,7 @@ describe('test cases through the REST API', () => {
 
   describe("TC-160: a project admin manages the project's members and their roles", () => {
     it('lets alice add bob as read-only, make him read-write, then remove him, staying admin', async () => {
-      const created = await app.inject({
-        method: 'POST',
-        url: '/api/projects',
-        headers: as(alice),
-        payload: { name: 'Apollo' },
-      })
-      const apollo = created.json<{ id: string }>().id
+      const apollo = await create(alice, 'Apollo')
       const roleOf = async (who: Seeded) => {
         const response = await members(alice, apollo)
         expect(response.statusCode).toBe(200)
@@ -574,7 +581,7 @@ describe('test cases through the REST API', () => {
       ])
     })
 
-    it('refuses the same changes to bob while he is read-write, since managing members is the admin’s', async () => {
+    it('refuses bob, a read-write member, a change of the members, which is the admin’s (FR-109)', async () => {
       const apollo = await seedProject(x.db, alice)
       await grantRole(x.db, bob, apollo, 'read-write')
       const response = await setRole(bob, apollo, bob, 'admin')

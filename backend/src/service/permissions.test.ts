@@ -49,10 +49,11 @@ describe('allows', () => {
 })
 
 describe('allowsStatusChange', () => {
-  const change = (from: TaskStatus, to: TaskStatus, assignedToCaller = true): StatusChange => ({
+  const ME = 'carol'
+  const change = (from: TaskStatus, to: TaskStatus, assignedToMe = true): StatusChange => ({
     from,
     to,
-    assignedToCaller,
+    assignees: assignedToMe ? ['alice', ME] : ['alice'],
   })
 
   it.each(['read-write', 'admin'] as const)(
@@ -60,7 +61,7 @@ describe('allowsStatusChange', () => {
     (role) => {
       for (const from of STATUSES) {
         for (const to of STATUSES) {
-          expect(allowsStatusChange(role, change(from, to, false))).toBe(true)
+          expect(allowsStatusChange(role, ME, change(from, to, false))).toBe(true)
         }
       }
     },
@@ -70,7 +71,7 @@ describe('allowsStatusChange', () => {
     for (const role of ['read-only', undefined] as const) {
       for (const from of STATUSES) {
         for (const to of STATUSES) {
-          expect(allowsStatusChange(role, change(from, to))).toBe(false)
+          expect(allowsStatusChange(role, ME, change(from, to))).toBe(false)
         }
       }
     }
@@ -78,35 +79,58 @@ describe('allowsStatusChange', () => {
 
   describe('for a contributor (FR-107)', () => {
     it('lets them mark a task they are assigned to as in progress, on hold or finished', () => {
-      expect(allowsStatusChange('contributor', change('not-started', 'in-progress'))).toBe(true)
-      expect(allowsStatusChange('contributor', change('in-progress', 'on-hold'))).toBe(true)
-      expect(allowsStatusChange('contributor', change('on-hold', 'in-progress'))).toBe(true)
-      expect(allowsStatusChange('contributor', change('in-progress', 'done'))).toBe(true)
+      expect(allowsStatusChange('contributor', ME, change('not-started', 'in-progress'))).toBe(true)
+      expect(allowsStatusChange('contributor', ME, change('in-progress', 'on-hold'))).toBe(true)
+      expect(allowsStatusChange('contributor', ME, change('on-hold', 'in-progress'))).toBe(true)
+      expect(allowsStatusChange('contributor', ME, change('in-progress', 'done'))).toBe(true)
     })
 
     it('refuses them every status change on a task they are not assigned to', () => {
       for (const from of STATUSES) {
         for (const to of STATUSES) {
-          expect(allowsStatusChange('contributor', change(from, to, false))).toBe(false)
+          expect(allowsStatusChange('contributor', ME, change(from, to, false))).toBe(false)
         }
       }
     })
 
     it('refuses them cancelling a task, even one they are assigned to', () => {
       for (const from of STATUSES) {
-        expect(allowsStatusChange('contributor', change(from, 'cancelled'))).toBe(false)
+        expect(allowsStatusChange('contributor', ME, change(from, 'cancelled'))).toBe(false)
       }
     })
 
     it('refuses them reopening a finished task', () => {
       for (const to of STATUSES) {
-        expect(allowsStatusChange('contributor', change('done', to))).toBe(false)
+        expect(allowsStatusChange('contributor', ME, change('done', to))).toBe(false)
       }
+    })
+
+    it('refuses them a task with nobody assigned, and one assigned to someone else alone', () => {
+      expect(
+        allowsStatusChange('contributor', ME, {
+          from: 'not-started',
+          to: 'in-progress',
+          assignees: [],
+        }),
+      ).toBe(false)
+      expect(
+        allowsStatusChange('contributor', ME, {
+          from: 'not-started',
+          to: 'in-progress',
+          assignees: ['carol-2'],
+        }),
+      ).toBe(false)
+    })
+
+    it('lets them move a cancelled task they are assigned to on: the requirements do not say', () => {
+      // An open question for the owner: FR-107 forbids cancelling and reopening a finished task,
+      // and says nothing of a cancelled one. The check follows its words.
+      expect(allowsStatusChange('contributor', ME, change('cancelled', 'in-progress'))).toBe(true)
     })
 
     it('refuses them setting a task back to not started', () => {
       for (const from of STATUSES) {
-        expect(allowsStatusChange('contributor', change(from, 'not-started'))).toBe(false)
+        expect(allowsStatusChange('contributor', ME, change(from, 'not-started'))).toBe(false)
       }
     })
   })
@@ -190,7 +214,7 @@ describe('ProjectPermissions', () => {
       const { permissions } = rolesOf({ apollo: 'contributor' })
       await expect(
         permissions.requireStatusChange(ALICE, 'apollo', {
-          assignedToCaller: true,
+          assignees: ['alice'],
           from: 'not-started',
           to: 'in-progress',
         }),
@@ -201,7 +225,7 @@ describe('ProjectPermissions', () => {
       const { permissions } = rolesOf({ apollo: 'contributor' })
       const error = await refusal(
         permissions.requireStatusChange(ALICE, 'apollo', {
-          assignedToCaller: true,
+          assignees: ['alice'],
           from: 'in-progress',
           to: 'cancelled',
         }),
@@ -216,13 +240,13 @@ describe('ProjectPermissions', () => {
       const { permissions } = rolesOf({ apollo: 'read-only' })
       const error = await refusal(
         permissions.requireStatusChange(ALICE, 'apollo', {
-          assignedToCaller: true,
+          assignees: ['alice'],
           from: 'not-started',
           to: 'in-progress',
         }),
       )
       expect(error.message).toBe(
-        "Only the project's read-write members and admins can set the status of its tasks",
+        "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
       )
     })
   })

@@ -16,22 +16,29 @@ import type { ProjectRole } from './project-roles.ts'
  */
 export type ProjectAction = 'read' | 'edit-plan' | 'handle-proposals' | 'manage-project'
 
-/** The statuses a task can be in. */
+/**
+ * The statuses a task can be in. The task modules (SC-001, SC-003, SC-038) take this one
+ * definition over.
+ */
 export type TaskStatus = 'not-started' | 'in-progress' | 'on-hold' | 'done' | 'cancelled'
 
 /** A change of a task's status, as the permission check needs to know it. */
 export interface StatusChange {
-  /** Whether the person changing it is among the task's assigned people. */
-  assignedToCaller: boolean
+  /**
+   * The accounts assigned to the task. The check itself decides whether the caller is among them,
+   * so no module has to work that out on its own.
+   */
+  assignees: readonly string[]
   from: TaskStatus
   to: TaskStatus
 }
 
 const ALLOWED: Record<ProjectAction, ReadonlySet<ProjectRole>> = {
   read: new Set(['read-only', 'contributor', 'read-write', 'admin']),
+  // A project's admin may do everything the read-write role may (FR-109), and also manage the
+  // project.
   'edit-plan': new Set(['read-write', 'admin']),
   'handle-proposals': new Set(['read-write', 'admin']),
-  // A project's admin may also do everything the read-write role may (FR-109).
   'manage-project': new Set(['admin']),
 }
 
@@ -53,15 +60,23 @@ export function allows(role: ProjectRole | undefined, action: ProjectAction): bo
 }
 
 /**
- * Whether the role allows the status change. Whoever may edit the plan may set any status; a
- * contributor may mark a task they are assigned to as in progress, on hold or finished, but not
- * cancel it, nor reopen a finished one, nor touch a task they are not assigned to (FR-107); the
- * read-only role may set none (FR-106).
+ * Whether the role allows the person `accountId` the status change. Whoever may edit the plan may
+ * set any status; a contributor may mark a task they are assigned to as in progress, on hold or
+ * finished, but not cancel it, nor reopen a finished one, nor touch a task they are not assigned
+ * to (FR-107); the read-only role may set none (FR-106).
  */
-export function allowsStatusChange(role: ProjectRole | undefined, change: StatusChange): boolean {
+export function allowsStatusChange(
+  role: ProjectRole | undefined,
+  accountId: string,
+  change: StatusChange,
+): boolean {
   if (allows(role, 'edit-plan')) return true
   if (role !== 'contributor') return false
-  return change.assignedToCaller && change.from !== 'done' && CONTRIBUTOR_TARGETS.has(change.to)
+  return (
+    change.assignees.includes(accountId) &&
+    change.from !== 'done' &&
+    CONTRIBUTOR_TARGETS.has(change.to)
+  )
 }
 
 /** Answers a person's role in a project, read with `executor` when one is given. */
@@ -104,7 +119,12 @@ export class ProjectPermissions {
     return role
   }
 
-  /** Refuses with `forbidden` a status change the caller's role in the project does not allow. */
+  /**
+   * Refuses with `forbidden` a status change the caller's role in the project does not allow. The
+   * task's assignees and its status (`from`) must be read in the transaction `executor` that makes
+   * the change, with the task locked, so that what is checked is what is changed: otherwise a
+   * contributor could, say, reopen a task someone else finished in the meantime.
+   */
   async requireStatusChange(
     caller: Caller,
     projectId: string,
@@ -112,12 +132,12 @@ export class ProjectPermissions {
     executor?: Executor,
   ): Promise<void> {
     const role = await this.#roles.roleOf(caller.accountId, projectId, executor)
-    if (!allowsStatusChange(role, change)) {
+    if (!allowsStatusChange(role, caller.accountId, change)) {
       throw new ServiceError(
         'forbidden',
         role === 'contributor'
           ? 'A contributor can only mark a task they are assigned to as in progress, on hold or finished'
-          : "Only the project's read-write members and admins can set the status of its tasks",
+          : "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
       )
     }
   }
