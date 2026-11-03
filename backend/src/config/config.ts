@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, YAMLError } from 'yaml'
 
 /**
  * The configuration loader (SC-109, DD-059): reads the YAML configuration file, applies the
@@ -99,7 +99,7 @@ export class ConfigError extends Error {
 export interface LoadConfigOptions {
   /** Defaults to `process.env`. */
   env?: Record<string, string | undefined>
-  /** The directory a relative configuration file path is resolved against; defaults to `process.cwd()`. */
+  /** The directory relative configuration and key file paths are resolved against; defaults to `process.cwd()`. */
   cwd?: string
 }
 
@@ -123,6 +123,9 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   const problems: string[] = []
 
   const file = readConfigFile(env, cwd, problems)
+  // A file that cannot be used is reported alone: every setting it may hold would otherwise be
+  // reported as not set as well.
+  if (problems.length > 0) throw new ConfigError(problems)
 
   const values: Values = { numbers: new Map(), strings: new Map(), keyFiles: new Map() }
   for (const setting of settings) {
@@ -131,7 +134,7 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
       if (setting.required) problems.push(`${settingName(setting)} is required but not set`)
       continue
     }
-    convert(setting, raw, values, problems)
+    convert(setting, raw, values, cwd, problems)
   }
 
   if (problems.length > 0) throw new ConfigError(problems)
@@ -176,16 +179,19 @@ function readConfigFile(
     text = readFileSync(path, 'utf8')
   } catch (error) {
     if (named === undefined && errorCode(error) === 'ENOENT') return undefined
-    problems.push(
-      `the configuration file ${path} (${configFileEnv}) cannot be read: ${errorCode(error)}`,
-    )
+    const source = named === undefined ? 'the default file' : configFileEnv
+    problems.push(`the configuration file ${path} (${source}) cannot be read: ${errorCode(error)}`)
     return undefined
   }
   let parsed: unknown
   try {
     parsed = parseYaml(text)
   } catch (error) {
-    problems.push(`the configuration file ${path} is not valid YAML: ${String(error)}`)
+    // Only the position is reported: the library's message quotes the offending line, which may
+    // hold a secret.
+    const at = error instanceof YAMLError ? error.linePos?.[0] : undefined
+    const where = at ? ` at line ${at.line}, column ${at.col}` : ''
+    problems.push(`the configuration file ${path} is not valid YAML${where}`)
     return undefined
   }
   if (parsed === null || parsed === undefined) return undefined
@@ -226,7 +232,13 @@ function fileValue(path: readonly string[], file: unknown, problems: string[]): 
   return node
 }
 
-function convert(setting: Setting, raw: Raw, values: Values, problems: string[]): void {
+function convert(
+  setting: Setting,
+  raw: Raw,
+  values: Values,
+  cwd: string,
+  problems: string[],
+): void {
   const name = settingName(setting)
   const path = setting.path.join('.')
   const { value } = raw
@@ -257,7 +269,10 @@ function convert(setting: Setting, raw: Raw, values: Values, problems: string[])
         return
       }
       try {
-        values.keyFiles.set(path, { path: value, contents: readFileSync(value, 'utf8') })
+        values.keyFiles.set(path, {
+          path: value,
+          contents: readFileSync(resolve(cwd, value), 'utf8'),
+        })
       } catch (error) {
         problems.push(`${name}: the key file ${value} cannot be read: ${errorCode(error)}`)
       }

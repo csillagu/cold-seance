@@ -5,8 +5,10 @@ import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 
 // TC-259 (FR-177), the part SC-109 supports: the backend uses the database whose address is in
-// its configuration. Creating a project, a second install and stopping the bundled database need
-// SC-017, SC-028 and SC-029 and are pending until then.
+// its configuration, here a database on the test server standing in for the external one. Still
+// pending: signing in as the first system admin (SC-053), creating and listing a project (SC-017,
+// and a project listing no SC names yet), and the two installs with the bundled database
+// stopped (SC-028, SC-029).
 describe('TC-259: the tool stores its data in the PostgreSQL database given in its configuration', () => {
   let x: TestDatabase
   let fx: ConfigFixture

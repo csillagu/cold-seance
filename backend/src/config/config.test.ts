@@ -404,22 +404,30 @@ github:
     it('when the default configuration file exists but cannot be read', () => {
       mkdirSync(join(fx.dir, 'config.yaml'))
       expect(problemsOf({ COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })).toEqual([
-        `the configuration file ${join(fx.dir, 'config.yaml')} (COLD_SEANCE_CONFIG_FILE) cannot be read: EISDIR`,
+        `the configuration file ${join(fx.dir, 'config.yaml')} (the default file) cannot be read: EISDIR`,
       ])
     })
 
-    it('when the file is not valid YAML', () => {
-      const problems = problemsOf(
-        withFile('database: [unclosed', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
-      )
+    it('when the file is not valid YAML, alone, giving the position without echoing the line', () => {
+      // Nothing is set by the environment: the file-level problem is reported without a
+      // "required but not set" line for each setting the broken file may have held.
+      const problems = problemsOf(withFile('database:\n  url: [postgres://u:hunter2@h/db\n'))
       expect(problems).toHaveLength(1)
-      expect(problems[0]).toMatch(/^the configuration file .*config\.yaml is not valid YAML: /)
+      expect(problems[0]).toMatch(
+        /^the configuration file .*config\.yaml is not valid YAML at line \d+, column \d+$/,
+      )
+      expect(problems.join()).not.toContain('hunter2')
+    })
+
+    it('when the named file cannot be read, alone', () => {
+      const path = join(fx.dir, 'nope.yaml')
+      expect(problemsOf({ [configFileEnv]: path })).toEqual([
+        `the configuration file ${path} (COLD_SEANCE_CONFIG_FILE) cannot be read: ENOENT`,
+      ])
     })
 
     it('when the file does not hold a mapping', () => {
-      const problems = problemsOf(
-        withFile('- a\n- b\n', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
-      )
+      const problems = problemsOf(withFile('- a\n- b\n'))
       expect(problems).toEqual([
         `the configuration file ${join(fx.dir, 'config.yaml')} must hold a mapping of settings`,
       ])
@@ -445,18 +453,27 @@ github:
     })
   })
 
+  it('resolves a relative key file path against the working directory', () => {
+    const env: Record<string, string> = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+    env['COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE'] = 'readIssues.pem'
+    const app = loadConfig({ env, cwd: fx.dir }).github.apps.readIssues
+    expect(app).toMatchObject({ privateKeyFile: 'readIssues.pem', privateKey: 'key-readIssues' })
+  })
+
   it('uses process.env and process.cwd() by default', () => {
-    const saved = { ...process.env }
+    const ours = Object.keys(process.env).filter((key) => key.startsWith('COLD_SEANCE_'))
+    const saved = Object.fromEntries(ours.map((key) => [key, process.env[key]]))
+    const set = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
     const cwd = process.cwd()
     try {
-      for (const key of Object.keys(process.env))
-        if (key.startsWith('COLD_SEANCE_')) delete process.env[key]
-      Object.assign(process.env, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })
+      for (const key of ours) delete process.env[key]
+      Object.assign(process.env, set)
       process.chdir(fx.dir)
       expect(loadConfig().database.url).toBe(dbUrl)
     } finally {
       process.chdir(cwd)
-      process.env = saved
+      for (const key of Object.keys(set)) delete process.env[key]
+      Object.assign(process.env, saved)
     }
   })
 })
