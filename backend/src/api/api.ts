@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
+import type { Services } from '../service/services.ts'
+import { accountRoutes } from './accounts.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { openApiDescription } from './openapi.ts'
@@ -15,20 +17,44 @@ export const API_PREFIX = '/api'
  */
 export interface ApiRouteGroup {
   prefix: string
-  routes: FastifyPluginAsync
+  routes: FastifyPluginAsync<RouteGroupOptions>
+}
+
+/** What each route group is registered with. */
+export interface RouteGroupOptions {
+  /** The one service layer its routes call (DD-039). */
+  services: Services
 }
 
 /**
  * The route groups of the REST API. Each backend block adds its group here as its solution
  * component lands; the list is complete when every read and change the UI offers has a route.
  */
-export const routeGroups: readonly ApiRouteGroup[] = []
+export const routeGroups: readonly ApiRouteGroup[] = [
+  { prefix: '/accounts', routes: accountRoutes },
+]
+
+/**
+ * Stands in for the service layer when none is given, so the routes can be registered and
+ * described (SC-063) without a database; a route that reaches it fails as a fault of the backend.
+ */
+const noServices: Services = {
+  get accounts(): never {
+    return unavailable()
+  },
+}
+
+function unavailable(): never {
+  throw new Error('The REST API was built without a service layer')
+}
 
 export interface ApiOptions {
   /** Asked in turn for the caller of each request; the first that recognises one wins. */
   authenticators?: readonly Authenticator[]
   /** The route groups to serve; `routeGroups` unless a test passes its own. */
   groups?: readonly ApiRouteGroup[]
+  /** The service layer the routes call; without it, every route that needs it fails. */
+  services?: Services
 }
 
 /**
@@ -41,6 +67,7 @@ export interface ApiOptions {
 export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
   const authenticators = options.authenticators ?? []
   const groups = options.groups ?? routeGroups
+  const services = options.services ?? noServices
 
   return async (api: FastifyInstance) => {
     api.decorateRequest('caller', null)
@@ -73,7 +100,7 @@ export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
     await openApiDescription(api)
 
     for (const group of groups) {
-      await api.register(group.routes, { prefix: group.prefix })
+      await api.register(group.routes, { prefix: group.prefix, services })
     }
   }
 }

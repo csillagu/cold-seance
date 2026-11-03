@@ -4,6 +4,7 @@ import { loadConfig, type Config, type LoadConfigOptions } from './config/config
 import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
+import { createServices } from './service/services.ts'
 
 export interface Backend {
   config: Config
@@ -33,7 +34,11 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   const { db, close } = createDatabase(config.database.url)
   const frontendDir = options.frontendDir ?? defaultFrontendDir
   const servesFrontend = hasFrontend(frontendDir)
-  const app = buildApp(options.server, {}, servesFrontend ? { frontendDir } : {})
+  const app = buildApp(
+    options.server,
+    { services: createServices(db) },
+    servesFrontend ? { frontendDir } : {},
+  )
   // Running from the repository without building the frontend is normal in development, where
   // Vite serves it; in the Docker image the frontend is always there.
   if (!servesFrontend) app.log.warn(`No built frontend in ${frontendDir}; only the API is served`)

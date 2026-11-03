@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { is, sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
 import { pushSchema } from 'drizzle-kit/api'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -65,12 +66,18 @@ describe('the migrations applied to an empty database (SC-073)', () => {
     // A column or table the database has and the schema lacks makes drizzle-kit ask whether it was
     // renamed, which fails here with its "Interactive prompts require a TTY terminal" error.
     const schemas = [...new Set([...declaredTables().keys()].map((key) => key.split('.')[0]!))]
-    const { statementsToExecute } = await pushSchema(
-      schema,
-      x.db,
-      schemas.length > 0 ? schemas : ['public'],
-    )
-    expect(statementsToExecute).toEqual([])
+    // drizzle-kit takes a Drizzle database typed without a schema, so it gets one of its own.
+    const db = drizzle(x.url)
+    try {
+      const { statementsToExecute } = await pushSchema(
+        schema,
+        db,
+        schemas.length > 0 ? schemas : ['public'],
+      )
+      expect(statementsToExecute).toEqual([])
+    } finally {
+      await db.$client.end()
+    }
   })
 
   it('are each recorded as applied, once, so a later start applies only newer ones', async () => {

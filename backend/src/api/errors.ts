@@ -1,4 +1,5 @@
 import { STATUS_CODES } from 'node:http'
+import { DrizzleQueryError } from 'drizzle-orm'
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import { ServiceError, type ServiceErrorKind } from '../service/errors.ts'
 
@@ -51,8 +52,22 @@ export function handleApiError(
   if (statusCode !== undefined) {
     return reply.code(statusCode).send(errorBody(statusCode, error.message))
   }
-  request.log.error({ err: error }, 'REST API request failed')
+  request.log.error({ err: withoutQueryParams(error) }, 'REST API request failed')
   return reply.code(500).send(errorBody(500, 'Internal Server Error'))
+}
+
+/**
+ * The error as it may be logged. A failed database query carries its parameters, in its message
+ * and its stack too, and those can be secrets such as a password's hash (DD-056); the log gets the
+ * query, its cause and where it failed, but not the values it was sent with.
+ */
+export function withoutQueryParams(error: Error): Error {
+  if (!(error instanceof DrizzleQueryError)) return error
+  const safe = new Error(`Failed query: ${error.query}`, { cause: error.cause })
+  safe.name = 'DrizzleQueryError'
+  const frames = String(error.stack).indexOf('\n    at ')
+  safe.stack = `${safe.name}: ${safe.message}${frames === -1 ? '' : String(error.stack).slice(frames)}`
+  return safe
 }
 
 /** An error Fastify raised itself for a request it would not take, with a 4xx status. */
