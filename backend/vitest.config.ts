@@ -4,8 +4,8 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts'],
+      include: ['src/**/*.ts', 'scripts/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
       reporter: ['text', 'html', 'json-summary'],
     },
     projects: [
@@ -13,7 +13,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['src/**/*.test.ts'],
+          include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
+          testTimeout: 30_000,
         },
       },
       {
