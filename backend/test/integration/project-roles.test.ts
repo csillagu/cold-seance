@@ -41,10 +41,16 @@ async function refused(promise: Promise<unknown>, kind: ServiceError['kind']) {
 }
 
 /** Group roles from a table, standing in for group membership and projects (SC-057, SC-058). */
-function groupTable(): GroupRoles & { give(a: Seeded, p: string, role: ProjectRole): void } {
-  const roles: { accountId: string; projectId: string; role: ProjectRole }[] = []
+function groupTable(): GroupRoles & {
+  give(a: Seeded, p: string, role: ProjectRole): void
+  takeAway(a: Seeded, p: string): void
+} {
+  let roles: { accountId: string; projectId: string; role: ProjectRole }[] = []
   return {
     give: (account, projectId, role) => roles.push({ accountId: account.id, projectId, role }),
+    takeAway: (account, projectId) => {
+      roles = roles.filter((r) => !(r.accountId === account.id && r.projectId === projectId))
+    },
     rolesThroughGroups: async (_executor: Executor, accountId, projectId) =>
       roles
         .filter((r) => r.accountId === accountId && r.projectId === projectId)
@@ -264,6 +270,10 @@ describe('the project role store', () => {
         store.setRole(by(bob), p, bob.id, 'read-only'),
       ])
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      // The one that waited finds itself the last admin.
+      const [lost] = results.filter((r) => r.status === 'rejected')
+      expect(lost?.reason).toBeInstanceOf(ServiceError)
+      expect(lost?.reason).toMatchObject({ kind: 'conflict' })
       const admins = await x.db
         .select()
         .from(projectMembers)
@@ -326,6 +336,10 @@ describe('the project role store', () => {
         store.removeMember(by(bob), p, alice.id),
       ])
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      // The one that waited is no longer an admin, so it may not remove anyone.
+      const [lost] = results.filter((r) => r.status === 'rejected')
+      expect(lost?.reason).toBeInstanceOf(ServiceError)
+      expect(lost?.reason).toMatchObject({ kind: 'forbidden' })
       const admins = await x.db
         .select()
         .from(projectMembers)
@@ -363,6 +377,58 @@ describe('the project role store', () => {
         expect(error.message).toBe('Only people with a role in the project can see its members')
       }
     })
+  })
+
+  // The role store's part of FR-111's and FR-112's test cases. Groups with members and projects
+  // (SC-018, SC-057, SC-058) do not exist yet, so a group's role is given through the stand-in
+  // above; tasks (SC-001), whose titles bob edits in each test case, do not exist either, so the
+  // role the store applies is read in their place.
+  describe('TC-162: a group member holds the group role on every project in the group', () => {
+    it('gives bob the write role on Apollo and Borealis, and not the admin role', async () => {
+      const [apollo, borealis] = [await seedProject(x.db, alice), await seedProject(x.db, alice)]
+      // alice adds bob to Platform, which holds Apollo and Borealis, with the write role.
+      for (const p of [apollo, borealis]) groups.give(bob, p, 'read-write')
+      for (const p of [apollo, borealis]) {
+        expect(await store.roleOf(bob.id, p)).toBe('read-write')
+        // Negative: bob cannot manage members of either project, since write is not admin.
+        await refused(store.setRole(by(bob), p, carol.id, 'read-only'), 'forbidden')
+        await refused(store.removeMember(by(bob), p, alice.id), 'forbidden')
+      }
+    })
+
+    // Pending: TC-162 in full: Platform created by alice, Apollo and Borealis added to it, bob
+    // added with the write role (SC-018, SC-057, SC-058), and bob changing a task's title in each
+    // through the REST API (SC-001).
+  })
+
+  describe('TC-163: a removed group member loses the group role on its projects', () => {
+    it('takes the write role on Apollo from bob once he leaves Platform', async () => {
+      const apollo = await seedProject(x.db, alice)
+      groups.give(bob, apollo, 'read-write')
+      expect(await store.roleOf(bob.id, apollo)).toBe('read-write')
+      // alice removes bob from Platform.
+      groups.takeAway(bob, apollo)
+      expect(await store.roleOf(bob.id, apollo)).toBeUndefined()
+      await refused(store.listMembers(by(bob), apollo), 'forbidden')
+    })
+
+    // Pending: TC-163 in full: bob removed from Platform by alice (SC-057), bob's edit of T
+    // rejected with T still `Draft` (SC-001), and Apollo reported as not visible to him (SC-051).
+  })
+
+  describe('TC-164: of a direct read role and a group write role, write applies', () => {
+    it('applies write to bob on Apollo and leaves his direct read-only role as it was', async () => {
+      const apollo = await seedProject(x.db, alice)
+      await store.setRole(by(alice), apollo, bob.id, 'read-only')
+      groups.give(bob, apollo, 'read-write')
+      expect(await store.roleOf(bob.id, apollo)).toBe('read-write')
+      // Negative: bob's direct role is still read-only, not rewritten.
+      const members = await store.listMembers(by(alice), apollo)
+      expect(members.find((m) => m.accountId === bob.id)?.role).toBe('read-only')
+    })
+
+    // Pending: TC-164 in full: Platform with bob as a write member and Apollo added (SC-018,
+    // SC-057, SC-058), and bob changing T's title to `Final` through the REST API (SC-001).
   })
 
   it('records nothing when the audit log cannot be written, and makes no change', async () => {
@@ -486,11 +552,5 @@ describe('test cases through the REST API', () => {
     expect((await read(bob)).statusCode).toBe(403)
   })
 
-  // TC-162: a group member holds the group role on every project in the group.
-  // TC-163: a removed group member loses the group role on its projects.
-  // TC-164: of a direct read role and a group write role, write applies.
-  // Pending: all three need groups with members and projects (SC-018, SC-057, SC-058) and tasks
-  // whose title bob changes (SC-001); TC-163 also the not-visible response (SC-051). The role
-  // store's part, applying a group's role and the highest of several, is tested above under
-  // `roleOf`, with group roles standing in for SC-057 and SC-058.
+  // TC-162, TC-163 and TC-164 need groups, so their tests are with the role store above.
 })

@@ -136,6 +136,9 @@ export class ProjectRoleService implements ProjectRoles {
     role: string,
   ): Promise<ProjectMember> {
     return this.#db.transaction(async (tx) => {
+      // The caller is checked before the admins are locked, so that no one else can hold up a
+      // project's admins, and again once they are, so that the check still holds at the change.
+      await this.#requireAdmin(tx, caller, projectId)
       const admins = await this.#lockAdmins(tx, projectId)
       await this.#requireAdmin(tx, caller, projectId)
       if (!isProjectRole(role)) {
@@ -179,6 +182,9 @@ export class ProjectRoleService implements ProjectRoles {
    */
   async removeMember(caller: Caller, projectId: string, accountId: string): Promise<void> {
     await this.#db.transaction(async (tx) => {
+      // The caller is checked before the admins are locked, so that no one else can hold up a
+      // project's admins, and again once they are, so that the check still holds at the change.
+      await this.#requireAdmin(tx, caller, projectId)
       const admins = await this.#lockAdmins(tx, projectId)
       await this.#requireAdmin(tx, caller, projectId)
       const [member] = isUuid(accountId)
@@ -218,6 +224,8 @@ export class ProjectRoleService implements ProjectRoles {
       .select({ accountId: projectMembers.accountId })
       .from(projectMembers)
       .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.role, 'admin')))
+      // In one order, so that two transactions locking the same rows cannot deadlock.
+      .orderBy(asc(projectMembers.accountId))
       .for('update')
     return rows.map((row) => row.accountId)
   }
