@@ -15,40 +15,33 @@ afterEach(() => {
   fx.remove()
 })
 
+/** Runs the server in its own process, with no `COLD_SEANCE_` setting but `settings`. */
+function runServer(settings: Record<string, string>) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('COLD_SEANCE_')),
+  )
+  return spawnSync(process.execPath, [server], {
+    cwd: fx.dir,
+    env: { ...env, ...settings },
+    encoding: 'utf8',
+    timeout: 20_000,
+  })
+}
+
 describe('server', () => {
   it('stops the start with a message naming the missing setting', () => {
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([k]) => !k.startsWith('COLD_SEANCE_')),
-    )
-    const result = spawnSync(process.execPath, [server], {
-      cwd: fx.dir,
-      env: { ...env, ...fx.githubEnv },
-      encoding: 'utf8',
-      timeout: 20_000,
-    })
+    const result = runServer(fx.githubEnv)
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('The configuration is not valid, so the tool does not start')
     expect(result.stderr).toContain(
       'database.url (COLD_SEANCE_DATABASE_URL) is required but not set',
     )
   })
-})
-
-describe('server', () => {
   it("stops the start with the migration step's message when the migrations cannot be applied", () => {
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([k]) => !k.startsWith('COLD_SEANCE_')),
-    )
-    const result = spawnSync(process.execPath, [server], {
-      cwd: fx.dir,
-      env: {
-        ...env,
-        ...fx.githubEnv,
-        // Nothing listens on port 1, so the migration step's connection is refused.
-        COLD_SEANCE_DATABASE_URL: 'postgres://u:secret-password@127.0.0.1:1/db',
-      },
-      encoding: 'utf8',
-      timeout: 20_000,
+    const result = runServer({
+      ...fx.githubEnv,
+      // Nothing listens on port 1, so the migration step's connection is refused.
+      COLD_SEANCE_DATABASE_URL: 'postgres://u:secret-password@127.0.0.1:1/db',
     })
     expect(result.status).toBe(1)
     expect(result.stderr).toContain(

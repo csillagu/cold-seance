@@ -41,9 +41,15 @@ export async function createTestDatabase(
 
   const url = new URL(serverUrl)
   url.pathname = `/${name}`
+  if (options.migrate !== false) {
+    try {
+      await applyMigrations(url.toString())
+    } catch (error) {
+      await onServer(serverUrl, (client) => client.query(`DROP DATABASE "${name}" WITH (FORCE)`))
+      throw error
+    }
+  }
   const { db, close } = createDatabase(url.toString())
-
-  if (options.migrate !== false) await applyMigrations(url.toString())
 
   return {
     name,

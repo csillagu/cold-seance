@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { migrationApplicationName } from '../../src/db/migrate.ts'
+import { defaultMigrationsFolder, migrationApplicationName } from '../../src/db/migrate.ts'
 import { startBackend } from '../../src/start.ts'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
@@ -146,8 +148,13 @@ describe('the migration step at the start of the backend (SC-074)', () => {
       env: { COLD_SEANCE_DATABASE_URL: x.url, ...fx.githubEnv },
       cwd: fx.dir,
     })
-    // The backend's own journal lists no migration yet (SC-073), so the migrator records none.
-    expect(await recorded()).toBe(0)
+    // Every migration in the backend's own journal is recorded as applied, and nothing else.
+    const journal: unknown = JSON.parse(
+      readFileSync(join(defaultMigrationsFolder, 'meta', '_journal.json'), 'utf8'),
+    )
+    const entries: unknown = Reflect.get(Object(journal), 'entries')
+    if (!Array.isArray(entries)) throw new Error('the journal lists no entries')
+    expect(await recorded()).toBe(entries.length)
     await backend.app.close()
   })
 
