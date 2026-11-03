@@ -29,18 +29,18 @@ The backend does not start if a required setting is missing, a value is not vali
 
 ### Checks
 
-| Command                           | What it runs                                                                                          |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `npm run check`                   | Everything below except the integration tests: run it before you push                                 |
-| `npm run format` / `format:check` | Prettier                                                                                              |
-| `npm run lint`                    | oxlint, with type-aware rules                                                                         |
-| `npm run typecheck`               | `tsc` in both packages                                                                                |
-| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                            |
-| `npm run test:unit`               | Vitest unit tests, both packages                                                                      |
-| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/` |
-| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                          |
-| `npm run test:image`              | Tests of the Docker image (SC-028), against PostgreSQL; needs Docker and a built image                |
-| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                              |
+| Command                           | What it runs                                                                                                         |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                   | Everything below except the integration tests: run it before you push                                                |
+| `npm run format` / `format:check` | Prettier                                                                                                             |
+| `npm run lint`                    | oxlint, with type-aware rules                                                                                        |
+| `npm run typecheck`               | `tsc` in both packages                                                                                               |
+| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                           |
+| `npm run test:unit`               | Vitest unit tests, both packages                                                                                     |
+| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                |
+| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                         |
+| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image |
+| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                             |
 
 ### Tests
 
@@ -72,6 +72,25 @@ docker build -t cold-seance:test .
 TEST_IMAGE=cold-seance:test TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:image
 ```
 
+### Installing with Docker Compose
+
+[`compose.yaml`](compose.yaml) is the tool's installation (SC-029, DD-040): the application image, `ghcr.io/csillagu/cold-seance:latest`, next to the official PostgreSQL 18 image, which keeps its data in the Compose volume `database`. In a directory holding `compose.yaml`:
+
+```sh
+cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps and the database address
+mkdir secrets && cp <key files> secrets/      # mounted at /run/secrets
+docker compose up -d
+```
+
+- The database address is `database.url` in `config.yaml` (FR-177, DD-059). The bundled database is `postgres://cold_seance:cold_seance@database:5432/cold_seance`. Its password is a default: the database is not published, so only the application reaches it, over the Compose network.
+- To use an existing or hosted PostgreSQL instead, put its address in `database.url` (and `database.directUrl` behind a pooler) and start the application alone: `docker compose up -d --no-deps app`.
+- The tool is published on port 3000 of every interface of the machine.
+- `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They hold secrets: make them readable by the `node` user (uid 1000) and no one else.
+- `docker compose pull && docker compose up -d` updates the tool to the latest image.
+- **The volume is the data.** `docker compose down --volumes`, or removing the volume, deletes everything. Back it up with `docker compose exec -T database pg_dump -U cold_seance cold_seance > backup.sql`, and restore it into an empty volume with `docker compose exec -T database psql -U cold_seance -d cold_seance < backup.sql`. The PostgreSQL major version is fixed in `compose.yaml`; moving to a new one needs a dump and a restore, which Compose does not do.
+
+The image tests (`npm run test:image`, above) also run the Compose file from a scratch install directory, with the image under test in place of the published one: with its bundled database, and with an external one while the bundled one is stopped.
+
 ### REST API
 
 The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part of the service layer gets a route group, added to `routeGroups` in `backend/src/api/api.ts`. A route only translates the request and calls the service layer, passing it `callerOf(request)`; the rules, permission checks included, live in the service layer (DD-039), which refuses a request by throwing a `ServiceError` (`backend/src/service/errors.ts`). The API:
@@ -94,6 +113,6 @@ At start, before it serves any request, the backend applies the migrations the d
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.

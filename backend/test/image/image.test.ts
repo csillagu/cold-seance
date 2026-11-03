@@ -1,9 +1,10 @@
-import { execFileSync, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { chmodSync } from 'node:fs'
 import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
+import { docker, fromContainer, testImage } from '../helpers/docker.ts'
 
 // SC-028: the application image, run as Docker runs it. TC-259 (FR-177), the part the image
 // supports: an install of the image, configured with the address of an external database `X` and
@@ -11,36 +12,9 @@ import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 // and replaced by a second install on the same address, the second uses the same `X`.
 // The test server's database stands in for the hosted one, reached from the containers as another
 // host, and a second container on the same Docker host stands in for the install on another
-// machine. Still pending: creating project `Persisted` as the first system admin (SC-053, SC-017) and
-// listing it from the second install, and the Compose file's own database, stopped (SC-029).
-
-/** The image under test, built beforehand: `docker build -t cold-seance:test .` */
-function testImage(): string {
-  const image = process.env['TEST_IMAGE']
-  if (!image) {
-    throw new Error(
-      'TEST_IMAGE is not set. Build the image (docker build -t cold-seance:test .) and set ' +
-        'TEST_IMAGE=cold-seance:test.',
-    )
-  }
-  return image
-}
-
-function docker(...args: string[]): string {
-  return execFileSync('docker', args, {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  }).trim()
-}
-
-/** The address of `url` as a container sees it: the Docker host's own services are on host.docker.internal. */
-function fromContainer(url: string): string {
-  const address = new URL(url)
-  if (['localhost', '127.0.0.1', '::1', '[::1]'].includes(address.hostname)) {
-    address.hostname = 'host.docker.internal'
-  }
-  return address.toString()
-}
+// machine. The Compose install's part, with its own database stopped, is in compose.test.ts (SC-029).
+// Still pending: creating project `Persisted` as the first system admin (SC-053, SC-017) and listing
+// it from the second install.
 
 /** Where the container keeps the configuration fixture's files. */
 const configMount = '/config'

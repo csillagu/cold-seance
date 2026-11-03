@@ -46,3 +46,16 @@ updates:
     ignore:
       - dependency-name: node
         update-types: [version-update:semver-major]
+
+  # The bundled PostgreSQL of the Compose file (SC-029), pinned by version and digest. A new major
+  # needs a dump and a restore (DD-040), so it is not proposed here.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
