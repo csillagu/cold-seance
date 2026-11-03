@@ -8,6 +8,7 @@ import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRoutes } from './projects.ts'
+import { sessionRoutes } from './session.ts'
 import { missingSchemas } from './schema-guard.ts'
 
 /** Where the REST API is served. */
@@ -40,6 +41,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
+  { prefix: '/session', routes: sessionRoutes },
 ]
 
 /**
@@ -62,11 +64,11 @@ export interface ApiOptions {
 }
 
 /**
- * The REST API (SC-026). Every route in it authenticates its caller before anything else runs, so
- * a request no authenticator recognises is refused with 401 and never reaches a route, nor learns
- * whether the route exists; refuses at registration a route that lacks its schemas; answers
- * errors in one shape; and serves its own OpenAPI description, generated from those schemas
- * (SC-063).
+ * The REST API (SC-026). Every route in it but signing in (SC-052) authenticates its caller before
+ * anything else runs, so a request no authenticator recognises is refused with 401 and never
+ * reaches a route, nor learns whether the route exists; refuses at registration a route that lacks
+ * its schemas; answers errors in one shape; and serves its own OpenAPI description, generated from
+ * those schemas (SC-063).
  */
 export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
   const authenticators = options.authenticators ?? []
@@ -86,6 +88,8 @@ export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
     })
 
     api.addHook('onRequest', async (request) => {
+      // Signing in is reached without being signed in; no other route is (SC-052).
+      if (request.routeOptions.config.public === true) return
       for (const authenticate of authenticators) {
         request.caller = (await authenticate(request)) ?? null
         if (request.caller) return

@@ -127,3 +127,24 @@ export const apiTokens = pgTable(
     index('api_tokens_account_id_idx').on(table.accountId),
   ],
 )
+
+/**
+ * The sign-in sessions (DD-054, SC-052): one for each time a person signed in in a browser, until
+ * they sign out. The browser holds only the session's random id, in a cookie; the database holds
+ * only that id's hash, unique so that a cookie finds its session.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    secretHash: text('secret_hash').notNull(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('sessions_secret_hash_key').on(table.secretHash),
+    index('sessions_account_id_idx').on(table.accountId),
+  ],
+)

@@ -4,6 +4,7 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import { ServiceError, type ServiceErrorKind } from '../service/errors.ts'
 
 const STATUS: Record<ServiceErrorKind, number> = {
+  unauthenticated: 401,
   invalid: 400,
   forbidden: 403,
   // Not 404: the answer must not suggest that the project might not exist (FR-017).

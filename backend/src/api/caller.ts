@@ -12,6 +12,14 @@ export type { Caller }
 export type Authenticator = (request: FastifyRequest) => Promise<Caller | undefined>
 
 declare module 'fastify' {
+  interface FastifyContextConfig {
+    /**
+     * A route any caller reaches, authenticated or not: only signing in (SC-052). Every other
+     * route of the REST API refuses a caller no authenticator recognises.
+     */
+    public?: boolean
+  }
+
   interface FastifyRequest {
     /** Set on every REST API request before its handler runs; not set outside the REST API. */
     caller?: Caller | null

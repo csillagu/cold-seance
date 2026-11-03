@@ -1,11 +1,13 @@
 /**
- * The ways a service-layer call can refuse a request (DD-039). `not-visible` is a refusal of a
- * project the caller cannot see at all (FR-017); `forbidden`, of something their role there, or
- * their account, does not allow. The service layer throws a
+ * The ways a service-layer call can refuse a request (DD-039). The service layer throws a
  * `ServiceError`; the REST API and the MCP server translate it for their callers, so a rule that
- * refuses a change refuses it the same way through every channel (FR-115).
+ * refuses a change refuses it the same way through every channel (FR-115). `unauthenticated`
+ * refuses to sign someone in whose credentials are not right; `not-visible` refuses a project the
+ * caller cannot see at all (FR-017); `forbidden`, something their role there, or their account,
+ * does not allow.
  */
-export type ServiceErrorKind = 'invalid' | 'forbidden' | 'not-visible' | 'not-found' | 'conflict'
+export type ServiceErrorKind =
+  'unauthenticated' | 'invalid' | 'forbidden' | 'not-visible' | 'not-found' | 'conflict'
 
 export class ServiceError extends Error {
   readonly kind: ServiceErrorKind

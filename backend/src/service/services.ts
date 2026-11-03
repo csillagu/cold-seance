@@ -4,6 +4,7 @@ import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { SessionService } from './sessions.ts'
 import { ViewReadFilter } from './view-filter.ts'
 
 /**
@@ -17,6 +18,7 @@ export interface Services {
   audit: AuditLogService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  sessions: SessionService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
 }
@@ -35,6 +37,7 @@ export function createServices(db: Database): Services {
     audit,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles),
+    sessions: new SessionService(db),
     viewFilter: new ViewReadFilter(projectRoles),
   }
 }
