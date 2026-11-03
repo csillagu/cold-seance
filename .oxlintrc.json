@@ -19,7 +19,18 @@
       "rules": {
         "react/rules-of-hooks": "error",
         "react/exhaustive-deps": "error",
-        "react/only-export-components": ["error", { "allowConstantExport": true }]
+        "react/only-export-components": [
+          "error",
+          {
+            "allowConstantExport": true
+          }
+        ]
+      }
+    },
+    {
+      "files": ["backend/**/*.ts"],
+      "rules": {
+        "oxc/no-async-endpoint-handlers": "off"
       }
     }
   ],

@@ -48,6 +48,14 @@ The backend does not start if a required setting is missing, a value is not vali
   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:integration
   ```
 
+### REST API
+
+The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part of the service layer gets a route group, added to `routeGroups` in `backend/src/api/api.ts`. A route only translates the request and calls the service layer, passing it `callerOf(request)`; the rules, permission checks included, live in the service layer (DD-039), which refuses a request by throwing a `ServiceError` (`backend/src/service/errors.ts`). The API:
+
+- refuses with 401, before the route runs, a request that no configured authenticator recognises (there is none yet, so every request is refused until the sign-in and token SCs add theirs);
+- refuses to start if a route lacks a success response schema, a body schema (POST, PUT, PATCH) or a params schema (a URL with parameters), so nothing goes out undescribed;
+- answers every error as `{ statusCode, error, message }`: a `ServiceError` as 400, 403, 404 or 409 with its message, and an unexpected fault as 500 with no detail, logged on the server.
+
 ### Database schema
 
 The schema is TypeScript in `backend/src/db/schema.ts`. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`.
