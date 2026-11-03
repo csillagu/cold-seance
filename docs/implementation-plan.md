@@ -135,3 +135,9 @@ The longest chain of dependent work is:
 ## Coverage
 
 All 114 SCs appear in exactly one block above, apart from B5.2, which names the five tracks again to close them: 67 in the backend lane (effort 203) and 47 in the frontend lane (effort 116). SC-103 and SC-104 are retired and not in the graph.
+
+## Status
+
+| SC | Status | Issue | PR |
+|---|---|---|---|
+| SC-109 | implemented | #21 | https://github.com/csillagu/cold-seance/pull/22 |

@@ -19,6 +19,12 @@ npm run dev -w backend      # backend on http://localhost:3000, restarts on chan
 npm run dev -w frontend     # frontend dev server
 ```
 
+### Configuration
+
+The backend reads its settings at start from a YAML file (DD-059): `config.yaml` in the directory it starts in, or the file named by `COLD_SEANCE_CONFIG_FILE`. [`backend/config.example.yaml`](backend/config.example.yaml) lists every setting. Each one can also be given by an environment variable, named after its path (`database.url` is `COLD_SEANCE_DATABASE_URL`, `github.apps.readIssues.appId` is `COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID`), and **the environment variable wins over the file**; an empty variable counts as not set. A key in the file or a `COLD_SEANCE_` variable that is not a known setting stops the start, so a misspelt setting cannot go unnoticed. Without a file, the environment alone configures the tool.
+
+The backend does not start if a required setting is missing, a value is not valid, or a GitHub App's key file cannot be read; it prints each such setting and exits. To run `npm run dev -w backend`, copy the example to `backend/config.yaml` and fill it in. `config.yaml` is ignored by git, because it holds secrets.
+
 ### Checks
 
 | Command                           | What it runs                                                                                          |

@@ -1,0 +1,25 @@
+# The tool's configuration (DD-059). Copy it to config.yaml next to where the backend starts, or
+# name another file with COLD_SEANCE_CONFIG_FILE. Every setting can also be given by the
+# environment variable shown beside it, which wins over this file. Keep this file and the key
+# files readable only by the user the tool runs as: they hold the tool's secrets.
+
+database:
+  # Required. The PostgreSQL database the tool stores its data in.       COLD_SEANCE_DATABASE_URL
+  url: postgres://cold_seance:change-me@localhost:5432/cold_seance
+  # A direct (not pooled) connection for migrations; url if not set.     COLD_SEANCE_DATABASE_DIRECT_URL
+  # directUrl: postgres://cold_seance:change-me@direct.example:5432/cold_seance
+
+github:
+  # The re-check of linked issues, in minutes; 60 if not set.            COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES
+  # recheckIntervalMinutes: 60
+
+  # One App per function, or the same App for all of them (the YAML anchor below does that).
+  # appId and privateKeyFile are required for each; webhookSecret only if the App sends webhooks.
+  apps:
+    readIssues:
+      &app #                                                   COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID
+      appId: 123456 #                                                    ..._PRIVATE_KEY_FILE, ..._WEBHOOK_SECRET
+      privateKeyFile: /run/secrets/github-app.pem
+      # webhookSecret: change-me
+    writeIssues: *app #                                                  COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_...
+    projectsStatus: *app #                                               COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_...
