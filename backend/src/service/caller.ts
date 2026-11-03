@@ -1,8 +1,10 @@
+import { CHANNELS } from '../db/schema.ts'
+
 /**
  * The channels a change can come through, as the audit log records them (FR-116): the UI, the
  * REST API, the MCP server or GitHub.
  */
-export const CHANNELS = ['ui', 'rest-api', 'mcp', 'github'] as const
+export { CHANNELS }
 
 export type Channel = (typeof CHANNELS)[number]
 

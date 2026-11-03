@@ -106,6 +106,10 @@ describe('GET /api/audit-log', () => {
     [`a limit above ${MAX_PAGE_SIZE}`, { limit: String(MAX_PAGE_SIZE + 1) }],
     ['a limit that is not a whole number', { limit: '2.5' }],
     ['an entry to read before of 0', { before: '0' }],
+    [
+      'an entry to read before beyond the largest safe whole number',
+      { before: '100000000000000000000' },
+    ],
     ['an entry to read before that is not a number', { before: 'last' }],
   ])('refuses %s, before the service is called', async (_, query) => {
     const { app, readLog } = stubbed()

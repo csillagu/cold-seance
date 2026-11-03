@@ -15,7 +15,12 @@ const entry = {
       required: ['accountId', 'username'],
       properties: { accountId: { type: 'string', format: 'uuid' }, username: { type: 'string' } },
     },
-    channels: { type: 'array', items: { type: 'string', enum: [...CHANNELS] } },
+    channels: {
+      type: 'array',
+      items: { type: 'string', enum: [...CHANNELS] },
+      description:
+        "The channels the change came through: one, or for a change an approved AI proposal applied, the proposal's channel and then the approval's.",
+    },
     projectId: { type: ['string', 'null'], format: 'uuid' },
     action: { type: 'string' },
     subject: {
@@ -51,7 +56,7 @@ export const auditLogRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
           properties: {
             projectId: { type: 'string', format: 'uuid' },
             limit: { type: 'integer', minimum: 1, maximum: MAX_PAGE_SIZE },
-            before: { type: 'integer', minimum: 1 },
+            before: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
           },
           additionalProperties: false,
         },

@@ -14,7 +14,6 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-import { CHANNELS } from '../service/caller.ts'
 
 /**
  * The accounts held in the tool itself (DD-027), which system admins create (FR-117, SC-015). A
@@ -33,7 +32,9 @@ export const accounts = pgTable(
   (table) => [uniqueIndex('accounts_username_key').on(sql`lower(${table.username})`)],
 )
 
-/** The channels a change can come through (FR-116). */
+/** The channels a change can come through (FR-116): the UI, the REST API, the MCP server, GitHub. */
+export const CHANNELS = ['ui', 'rest-api', 'mcp', 'github'] as const
+
 export const auditChannel = pgEnum('audit_channel', CHANNELS)
 
 /**

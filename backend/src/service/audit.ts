@@ -28,7 +28,10 @@ export interface AuditEntry {
   at: Date
   /** Who made it. */
   by: { accountId: string; username: string }
-  /** The channels it came through: one, or two for a change from an approved AI proposal. */
+  /**
+   * The channels it came through: one, or two for a change from an approved AI proposal, the
+   * proposal's channel first and the approval's second.
+   */
   channels: Channel[]
   projectId: string | null
   action: string
@@ -77,8 +80,8 @@ export class AuditLogService {
 
   /**
    * Records a change that an approved AI proposal applies. The person who approved it is recorded
-   * as the one who made the change (FR-139), and both channels are recorded: the one the proposal
-   * was made through, and the one it was approved through (FR-164).
+   * as the one who made the change (FR-139), and both channels are recorded, in this order: the
+   * one the proposal was made through, then the one it was approved through (FR-164).
    */
   async recordApprovedProposalChange(
     executor: Executor,
@@ -86,16 +89,16 @@ export class AuditLogService {
     proposalChannel: Channel,
     change: Change,
   ): Promise<void> {
-    const channels =
-      proposalChannel === approver.channel ? [proposalChannel] : [proposalChannel, approver.channel]
-    await this.#write(executor, approver.accountId, channels, change)
+    await this.#write(executor, approver.accountId, [proposalChannel, approver.channel], change)
   }
 
   /**
    * Reads the audit log, newest entry first. A system admin may read the whole log or any
    * project's part of it; a project's admins and read-write members may read that project's part
-   * only (FR-138). Everyone else is refused, before anything else is checked, so a refusal tells
-   * nothing about what the log holds.
+   * only (FR-138). Everyone else is refused before the service checks anything else they sent, so
+   * a refusal tells nothing about what the log holds. (Through the REST API, a query that fails
+   * the route's schema is refused before it reaches the service; that tells nothing about the
+   * log either.)
    */
   async readLog(caller: Caller, query: AuditQuery = {}): Promise<AuditEntry[]> {
     await this.#requireReader(caller, query.projectId)
@@ -106,7 +109,7 @@ export class AuditLogService {
         `The limit must be a whole number from 1 to ${MAX_PAGE_SIZE}`,
       )
     }
-    if (query.before !== undefined && !(Number.isInteger(query.before) && query.before > 0)) {
+    if (query.before !== undefined && !(Number.isSafeInteger(query.before) && query.before > 0)) {
       throw new ServiceError('invalid', 'The entry to read before must be a positive whole number')
     }
 

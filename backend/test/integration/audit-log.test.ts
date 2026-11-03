@@ -182,7 +182,7 @@ describe('the audit log service', () => {
       expect(entry?.channels).toEqual(['mcp', 'ui'])
     })
 
-    it('records one channel when the proposal was made and approved through the same one', async () => {
+    it('records both channels, in that order, even when they are the same one', async () => {
       const project = randomUUID()
       await audit.recordApprovedProposalChange(x.db, via(bob, 'rest-api'), 'rest-api', {
         action: 'task.moved',
@@ -190,7 +190,7 @@ describe('the audit log service', () => {
         projectId: project,
       })
       const [entry] = await audit.readLog(via(root), { projectId: project })
-      expect(entry?.channels).toEqual(['rest-api'])
+      expect(entry?.channels).toEqual(['rest-api', 'rest-api'])
     })
   })
 
@@ -363,8 +363,13 @@ describe('the audit log service', () => {
       }
     })
 
+    it('takes the largest safe whole number as the entry to read before', async () => {
+      const page = await audit.readLog(via(root), { before: Number.MAX_SAFE_INTEGER, limit: 1 })
+      expect(page).toHaveLength(1)
+    })
+
     it('refuses an entry to read before that is not a positive whole number', async () => {
-      for (const before of [0, -3, 2.5, Number.NaN]) {
+      for (const before of [0, -3, 2.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, 1e20]) {
         const error = await refused(audit.readLog(via(root), { before }), 'invalid')
         expect(error.message).toBe('The entry to read before must be a positive whole number')
       }
@@ -543,7 +548,17 @@ describe('test cases through the REST API', () => {
   /** The entries of a log as the REST API sends them. */
   type Sent = Omit<AuditEntry, 'at'> & { at: string }
 
-  const minute = (at: Date | string) => Math.floor(new Date(at).getTime() / 60_000)
+  /**
+   * Expects `at`, as sent, to be the time of a change made after `t`: no earlier than `t`, no
+   * later than the database's clock now, and within the minute after `t`, as "at `t` (to the
+   * minute)" asks.
+   */
+  const expectAtTime = async (at: string, t: Date) => {
+    const sent = new Date(at).getTime()
+    expect(sent).toBeGreaterThanOrEqual(t.getTime())
+    expect(sent).toBeLessThanOrEqual((await now(x.db)).getTime())
+    expect(sent - t.getTime()).toBeLessThan(60_000)
+  }
 
   describe('TC-170: a change in the UI is logged with who, when and the UI channel', () => {
     it('logs a change made through the UI with who made it, when and the UI channel alone', async () => {
@@ -561,10 +576,10 @@ describe('test cases through the REST API', () => {
       expect(log.statusCode).toBe(200)
       const entry = log.json<Sent[]>().find((e) => e.subject.id === created.id)
       expect(entry).toMatchObject({ by: { username: 'root' }, channels: ['ui'] })
-      expect(minute(entry!.at)).toBe(minute(t))
+      await expectAtTime(entry!.at, t)
     })
 
-    // Pending: TC-170 in full: alice renames task T in Apollo in the browser and reads Apollo's log (SC-052, SC-017, SC-014, SC-001).
+    // Pending: TC-170 in full: alice, signed in, renames task T in Apollo in the browser and reads Apollo's log (SC-052, SC-017, SC-014, SC-001).
   })
 
   describe('TC-171: a change through the REST API is logged with the REST API channel', () => {
@@ -580,10 +595,10 @@ describe('test cases through the REST API', () => {
       const entry = (await readLog(root)).json<Sent[]>().find((e) => e.subject.id === created.id)
       expect(entry).toMatchObject({ by: { username: 'root' }, channels: ['rest-api'] })
       expect(entry!.channels).not.toContain('ui')
-      expect(minute(entry!.at)).toBe(minute(t))
+      await expectAtTime(entry!.at, t)
     })
 
-    // Pending: TC-171 in full: with alice's API token, rename task T in Apollo and read Apollo's log (SC-055, SC-017, SC-014, SC-001).
+    // Pending: TC-171 in full: with alice's API token, rename task T in Apollo and read Apollo's log (SC-016, SC-055, SC-017, SC-014, SC-001).
   })
 
   describe('TC-172: creating a proposal through the MCP server is logged with the MCP channel', () => {
@@ -602,11 +617,11 @@ describe('test cases through the REST API', () => {
         channels: ['mcp'],
         action: 'proposal.created',
       })
-      expect(minute(entries[0]!.at)).toBe(minute(t))
+      await expectAtTime(entries[0]!.at, t)
       expect(entries.some((e) => e.subject.type === 'task')).toBe(false)
     })
 
-    // Pending: TC-172 in full: through the MCP server with alice's token, create a proposal moving T (SC-027, SC-010).
+    // Pending: TC-172 in full: through the MCP server with alice's token, create a proposal moving T in Apollo, and check that no entry records a change to T (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-027).
   })
 
   describe('TC-173: a change arriving from GitHub is logged with the GitHub channel', () => {
@@ -621,9 +636,10 @@ describe('test cases through the REST API', () => {
       const [entry] = (await readLog(alice, apollo)).json<Sent[]>()
       expect(entry).toMatchObject({ by: { username: 'alice' }, channels: ['github'] })
       expect(new Date(entry!.at).getTime()).toBeGreaterThanOrEqual(t.getTime())
+      expect(new Date(entry!.at).getTime()).toBeLessThanOrEqual((await now(x.db)).getTime())
     })
 
-    // Pending: TC-173 in full: tc-writer closes issue #1 and T is finished through GitHub (SC-023, SC-054, SC-022).
+    // Pending: TC-173 in full: tc-writer closes issue #1 and T is finished through GitHub (SC-017, SC-014, SC-001, SC-019, SC-110, SC-022, SC-054, SC-023). Open question for the owner: the TC says it is not stated how a GitHub user with no account in the tool is named, and the log now records only accounts as the ones who made a change.
   })
 
   describe('TC-203: a system admin reads the whole audit log', () => {
@@ -705,7 +721,7 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-206 in full: bob approves a proposal alice's AI made through the MCP server (SC-010, SC-048, SC-027).
+    // Pending: TC-206 in full: bob approves a proposal alice's AI made through the MCP server (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-048, SC-027).
   })
 
   describe("TC-239: an approved proposal's change is logged with both the MCP and the UI channel", () => {
@@ -723,6 +739,6 @@ describe('test cases through the REST API', () => {
       expect(move?.channels).not.toContain('github')
     })
 
-    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-010, SC-048, SC-027, SC-052).
+    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-048, SC-027, SC-052). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
   })
 })
