@@ -1,9 +1,8 @@
 import type { FastifyRequest } from 'fastify'
+import type { Caller } from '../service/caller.ts'
 
 /** The account a REST API request is made for, as an authenticator establishes it. */
-export interface Caller {
-  readonly accountId: string
-}
+export type { Caller }
 
 /**
  * Establishes who made a request, for example from a session cookie or an API token, or answers
