@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Any user who can read the project
 ---
 
@@ -24,4 +24,4 @@ See who is busy, who has room and who is overloaded, day by day, across all proj
 
 - The actor can tell, for any person and day, whether that person is overloaded and which of their visible tasks cause it.
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

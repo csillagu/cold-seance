@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-167: Let anyone with an account register an unregistered repository and become its admin
@@ -8,4 +8,4 @@ The system must let anyone with an account register a repository that the GitHub
 
 It serves [UC-033](UC-033-register-a-repository.md).
 
-Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

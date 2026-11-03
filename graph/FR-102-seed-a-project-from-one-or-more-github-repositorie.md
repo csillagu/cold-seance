@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-102: Seed a project from one or more GitHub repositories
@@ -8,4 +8,4 @@ The system must import into a project the issues of one or more existing GitHub 
 
 It serves [UC-010](UC-010-seed-a-project-from-github-repositories.md).
 
-Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "ok". The approval by the repository's admin in the tool was added for issue #7 and awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #5. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

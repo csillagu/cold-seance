@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Group admin
 ---
 
@@ -27,4 +27,4 @@ Keep a group's membership and roles up to date, so the right people have the rig
 
 - The actor cannot leave the group while they are its last admin ([SRC-145](SRC-145-a-group-s-last-admin-cannot-leave.md)).
 
-Origin: composed by Claude from the items linked above, after the stakeholder asked for use cases covering the group rules. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the stakeholder asked for use cases covering the group rules. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: System admin
 ---
 
@@ -28,4 +28,4 @@ Remove a group that is no longer needed.
 
 - Someone who is not a system admin, including the group's own admins, cannot delete the group ([SRC-147](SRC-147-a-group-can-be-deleted.md)).
 
-Origin: composed by Claude from the items linked above, after the stakeholder answered questions on groups in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the stakeholder answered questions on groups in the design session. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

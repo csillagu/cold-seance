@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Project member with the read-write role
 ---
 
@@ -27,4 +27,4 @@ Keep a record of the plan as it stands now, to compare against later.
 
 - A member without the read-write role cannot save a baseline ([SRC-133](SRC-133-saving-a-baseline-needs-the-read-write-role.md)).
 
-Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Confirmed by the stakeholder in the design session of 2026-11-02: "Every uc is ok".
+Origin: composed by Claude from the items linked above, after the requirements graph was recorded. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

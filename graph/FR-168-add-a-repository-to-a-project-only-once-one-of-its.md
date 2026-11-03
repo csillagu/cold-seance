@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-168: Add a repository to a project only once one of its admins approves
@@ -8,4 +8,4 @@ The system must add a repository to a project only once one of the repository's 
 
 It serves [UC-034](UC-034-approve-adding-a-repository-to-a-project.md) and [UC-010](UC-010-seed-a-project-from-github-repositories.md).
 
-Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

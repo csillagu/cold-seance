@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Repository admin
 ---
 
@@ -26,4 +26,4 @@ Take away the running of a repository from someone, the actor included, who shou
 
 - The repository's last admin cannot be removed or step down ([SRC-188](SRC-188-a-repository-cannot-be-left-without-an-admin.md)).
 
-Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.

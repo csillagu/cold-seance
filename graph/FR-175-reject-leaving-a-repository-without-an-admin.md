@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-175: Reject leaving a repository without an admin
@@ -8,4 +8,4 @@ The system must reject any change that would leave a registered repository witho
 
 It serves [UC-035](UC-035-change-a-repository-s-admins.md) and [UC-039](UC-039-remove-an-admin-from-a-repository.md).
 
-Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item.

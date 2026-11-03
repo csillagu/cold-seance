@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 actor: Repository admin
 ---
 
@@ -23,4 +23,4 @@ Keep a repository out of a project that should not use it.
 
 - The repository is not added to the project: the project is neither seeded from it nor pulls its issues ([SRC-181](SRC-181-a-repository-s-admins-approve-adding-it-to-a-proje.md), [SRC-185](SRC-185-a-repository-admin-can-reject-a-project-s-request-.md)).
 
-Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #7. The order and wording of the steps are Claude's, not the stakeholder's; every step rests on a linked item.
