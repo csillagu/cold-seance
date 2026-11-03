@@ -1,6 +1,6 @@
 import { ConfigError } from './config/config.ts'
 import { MigrationError } from './db/migrate.ts'
-import { startBackend } from './start.ts'
+import { closeOnSignals, listen, startBackend } from './start.ts'
 
 let backend
 try {
@@ -11,6 +11,5 @@ try {
   process.exit(1)
 }
 
-// The listen address is not a setting named so far (DD-059), so the server keeps listening on
-// localhost:3000 until a solution component names one.
-await backend.app.listen({ host: '127.0.0.1', port: 3000 })
+closeOnSignals(backend.app)
+await listen(backend)

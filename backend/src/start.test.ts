@@ -1,8 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { EventEmitter } from 'node:events'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildApp } from './app.ts'
 import { createConfigFixture, type ConfigFixture } from '../test/helpers/config.ts'
 import { migrationError } from '../test/helpers/migrations.ts'
 import { ConfigError } from './config/config.ts'
-import { startBackend } from './start.ts'
+import { closeOnSignals, startBackend } from './start.ts'
 
 // The start that succeeds needs a database to migrate, so it is tested in
 // test/integration/migration-step.test.ts; these are the refusals that need none.
@@ -51,5 +53,53 @@ describe('startBackend', () => {
       }),
     )
     expect(message).toContain('ECONNREFUSED 127.0.0.1:1')
+  })
+})
+
+describe('closeOnSignals', () => {
+  it('closes the backend on SIGTERM, as docker stop sends, and stops listening for signals', async () => {
+    const app = buildApp()
+    const closed = vi.fn<() => void>()
+    app.addHook('onClose', async () => closed())
+    await app.ready()
+    const target = new EventEmitter()
+    closeOnSignals(app, undefined, target)
+    expect(target.listenerCount('SIGTERM')).toBe(1)
+    expect(target.listenerCount('SIGINT')).toBe(1)
+
+    target.emit('SIGTERM', 'SIGTERM')
+    await vi.waitFor(() => expect(closed).toHaveBeenCalledOnce())
+    expect(target.listenerCount('SIGTERM')).toBe(0)
+    expect(target.listenerCount('SIGINT')).toBe(0)
+  })
+
+  it('closes the backend on the first of the given signals only', async () => {
+    const app = buildApp()
+    const close = vi.spyOn(app, 'close')
+    const target = new EventEmitter()
+    closeOnSignals(app, ['SIGINT'], target)
+    expect(target.listenerCount('SIGTERM')).toBe(0)
+    target.emit('SIGINT', 'SIGINT')
+    target.emit('SIGINT', 'SIGINT')
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+  })
+
+  it('sets a failing exit code when the backend cannot be closed cleanly', async () => {
+    const app = buildApp()
+    vi.spyOn(app, 'close').mockRejectedValue(new Error('pool would not end'))
+    const logged = vi.spyOn(app.log, 'error')
+    const target = new EventEmitter()
+    const before = process.exitCode
+    try {
+      closeOnSignals(app, ['SIGTERM'], target)
+      target.emit('SIGTERM', 'SIGTERM')
+      await vi.waitFor(() => expect(process.exitCode).toBe(1))
+      expect(logged).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'pool would not end' }),
+        'The backend could not be closed cleanly',
+      )
+    } finally {
+      process.exitCode = before
+    }
   })
 })
