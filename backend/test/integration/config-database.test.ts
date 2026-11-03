@@ -9,7 +9,8 @@ import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 // and applies its migrations there (migration-step.test.ts). Still
 // pending: signing in as the first system admin (SC-053), creating and listing a project (SC-017,
 // and a project listing no SC names yet), and the two installs with the bundled database
-// stopped (SC-028, SC-029).
+// stopped (SC-029). The image's part, two installs of it on one external database, is in
+// test/image/image.test.ts (SC-028).
 describe('TC-259: the tool stores its data in the PostgreSQL database given in its configuration', () => {
   let x: TestDatabase
   let fx: ConfigFixture
