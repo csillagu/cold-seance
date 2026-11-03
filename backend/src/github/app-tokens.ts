@@ -130,8 +130,9 @@ interface App {
   pending: Map<string, Promise<Outcome>>
 }
 
-// GitHub's own rules for owner and repository names. Checking them keeps a name from reaching
-// outside the repository's path in GitHub's API.
+// The characters and lengths GitHub allows in owner and repository names (a little looser than
+// GitHub on hyphens). Checking them keeps a name from reaching outside the repository's path in
+// GitHub's API.
 const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
 const namePattern = /^[A-Za-z0-9._-]{1,100}$/
 
@@ -210,9 +211,12 @@ export function createGitHubAppTokens(
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(requestTimeout),
     })
+    // A body cut short (a timeout while it is read) fails here, and is reported as unreachable;
+    // only a body that arrived whole but is not JSON counts as no answer.
+    const text = await response.text()
     let json: unknown
     try {
-      json = await response.json()
+      json = JSON.parse(text)
     } catch {
       json = undefined
     }
@@ -257,8 +261,7 @@ export function createGitHubAppTokens(
       app.tokens.set(cacheKey(repository), { token, renewAt: expires - tokenRenewalMargin })
       return { token }
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error)
-      return { reason: `GitHub cannot be reached: ${reason}` }
+      return { reason: `GitHub cannot be reached: ${failureReason(error)}` }
     }
   }
 
@@ -297,6 +300,13 @@ function readPrivateKey(pem: string): KeyObject | undefined {
   } catch {
     return undefined
   }
+}
+
+/** The error's message, with its cause's (`fetch failed` alone does not say why). */
+function failureReason(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  const { cause } = error
+  return cause instanceof Error ? `${error.message}: ${cause.message}` : error.message
 }
 
 function base64url(text: string): string {

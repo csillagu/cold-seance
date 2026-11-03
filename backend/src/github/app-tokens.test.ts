@@ -43,6 +43,16 @@ async function rejection<E extends Error>(
   return error
 }
 
+/** A port nothing listens on at the moment. */
+async function closedPort(): Promise<number> {
+  const probe = createServer()
+  await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve))
+  const address = probe.address()
+  await new Promise((resolve) => probe.close(resolve))
+  if (address === null || typeof address === 'string') throw new Error('no port')
+  return address.port
+}
+
 /** Runs `create` expecting it to throw a `ConfigError`, and returns it. */
 function configRefusal(create: () => unknown): ConfigError {
   let error: unknown
@@ -111,7 +121,7 @@ interface Recorded {
   jwt: { header: Record<string, unknown>; payload: Record<string, unknown> } | undefined
 }
 
-type Answer = { status: number; body?: unknown; raw?: string } | 'hang'
+type Answer = { status: number; body?: unknown; raw?: string } | 'hang' | 'stall-body'
 
 /** What the fake GitHub knows and answers, reset before each test. */
 const github = {
@@ -209,6 +219,12 @@ beforeAll(async () => {
       }
       const override = github.override?.(path)
       if (override === 'hang') return
+      if (override === 'stall-body') {
+        // The headers and part of the body, and then nothing more.
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.write('{"id": ')
+        return
+      }
       if (override !== undefined) return send(override.status, override.body, override.raw)
       if (verified === undefined) {
         return send(401, { message: 'A JSON web token could not be decoded' })
@@ -524,11 +540,19 @@ describe('GitHub App tokens (SC-108)', () => {
       )
     })
 
-    it('reports GitHub as unreachable when the connection fails', async () => {
-      const t = createGitHubAppTokens(separateApps, { apiUrl: 'http://127.0.0.1:1', now })
+    it('reports GitHub as unreachable when a body is cut short by the timeout', async () => {
+      github.override = (path) => (path.endsWith('/installation') ? 'stall-body' : undefined)
+      const t = tokens(separateApps, { requestTimeout: 100 })
+      const error = await rejection(t.token('readIssues', one), GitHubAppTokenError)
+      expect(error.message).toMatch(/GitHub cannot be reached: .*(time|abort)/i)
+    })
+
+    it('names the cause of a failed connection', async () => {
+      const port = await closedPort()
+      const t = createGitHubAppTokens(separateApps, { apiUrl: `http://127.0.0.1:${port}`, now })
       const error = await rejection(t.token('readIssues', one), GitHubAppTokenError)
       expect(error.message).toMatch(
-        /^The token of the GitHub App for reading issues \(App 11\) on octo\/one cannot be obtained: GitHub cannot be reached: /,
+        /^The token of the GitHub App for reading issues \(App 11\) on octo\/one cannot be obtained: GitHub cannot be reached: fetch failed: connect ECONNREFUSED /,
       )
       expect(error.status).toBeUndefined()
     })
