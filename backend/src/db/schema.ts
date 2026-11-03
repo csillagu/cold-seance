@@ -91,3 +91,25 @@ export const projectMembers = pgTable(
     index('project_members_account_id_idx').on(table.accountId),
   ],
 )
+
+/**
+ * The personal access tokens people create for the REST API and the MCP server (DD-048, SC-016).
+ * A token's secret is kept only as its hash, unique so that a request's secret finds its token; a
+ * revoked token is deleted. A token with no expiry date never expires.
+ */
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    secretHash: text('secret_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('api_tokens_secret_hash_key').on(table.secretHash),
+    index('api_tokens_account_id_idx').on(table.accountId),
+  ],
+)

@@ -1,5 +1,6 @@
 import type { Database } from '../db/client.ts'
 import { AccountService } from './accounts.ts'
+import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { ProjectRoleService } from './project-roles.ts'
 
@@ -10,6 +11,7 @@ import { ProjectRoleService } from './project-roles.ts'
  */
 export interface Services {
   accounts: AccountService
+  apiTokens: ApiTokenService
   audit: AuditLogService
   projectRoles: ProjectRoleService
 }
@@ -22,5 +24,10 @@ export function createServices(db: Database): Services {
   }
   const audit = new AuditLogService(db, roles)
   const projectRoles = new ProjectRoleService(db, audit)
-  return { accounts: new AccountService(db, audit), audit, projectRoles }
+  return {
+    accounts: new AccountService(db, audit),
+    apiTokens: new ApiTokenService(db, audit),
+    audit,
+    projectRoles,
+  }
 }

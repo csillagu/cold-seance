@@ -19,7 +19,7 @@ import {
   type ProjectRole,
   type ProjectRoles,
 } from '../../src/service/project-roles.ts'
-import type { Services } from '../../src/service/services.ts'
+import { createServices, type Services } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { grantRole, seedProject } from '../helpers/projects.ts'
@@ -522,10 +522,11 @@ describe('test cases through the REST API', () => {
     x = await createTestDatabase()
     roles = roleTable(x.db)
     audit = new AuditLogService(x.db, roles)
+    // The real service layer, but with the audit log that reads the roles given above.
     const services: Services = {
+      ...createServices(x.db),
       accounts: new AccountService(x.db, audit),
       audit,
-      projectRoles: new ProjectRoleService(x.db, audit),
     }
     app = buildApp({}, { authenticators: [testAuthenticator], services })
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })

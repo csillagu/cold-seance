@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
 import type { Services } from '../service/services.ts'
 import { accountRoutes } from './accounts.ts'
+import { apiTokenRoutes } from './api-tokens.ts'
 import { auditLogRoutes } from './audit.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
@@ -36,6 +37,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: accountRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
+  { prefix: '/tokens', routes: apiTokenRoutes },
 ]
 
 /**
@@ -44,6 +46,9 @@ export const routeGroups: readonly ApiRouteGroup[] = [
  */
 const noServices: Services = {
   get accounts(): never {
+    return unavailable()
+  },
+  get apiTokens(): never {
     return unavailable()
   },
   get audit(): never {
