@@ -178,6 +178,8 @@ describe('the OpenAPI description (SC-063)', () => {
 
   it('covers every route the running backend serves under the REST API', async () => {
     const { description, routes } = await describedBy({ groups })
+    // The only HEAD routes left are the ones Fastify adds for each GET: one declared by hand is
+    // refused at start (see below), and the GET it answers like is described.
     const served = routes.filter(
       (route) => route.method !== 'HEAD' && route.url !== DESCRIPTION_URL,
     )
@@ -312,5 +314,93 @@ describe('the OpenAPI description (SC-063)', () => {
       error: 'Unauthorized',
       message: 'Authentication required',
     })
+  })
+})
+
+describe('routes the description could not cover', () => {
+  const ok = { response: { 200: { type: 'object', properties: {} } } } as const
+
+  async function starting(routes: FastifyPluginAsync, more: ApiRouteGroup[] = []) {
+    const app = buildApp({}, { groups: [{ prefix: '/x', routes }, ...more] })
+    closers.push(() => app.close())
+    await app.ready()
+  }
+
+  it('refuses at start a route hidden from the description by `hide`', async () => {
+    await expect(
+      starting(async (g) => {
+        g.get('/', { schema: { ...ok, hide: true } }, async () => ({}))
+      }),
+    ).rejects.toThrow(
+      'REST API route GET /api/x would be hidden from the OpenAPI description by `hide`',
+    )
+  })
+
+  it('refuses at start a route hidden from the description by the hidden tag', async () => {
+    await expect(
+      starting(async (g) => {
+        g.get('/', { schema: { ...ok, tags: ['tasks', 'X-HIDDEN'] } }, async () => ({}))
+      }),
+    ).rejects.toThrow('would be hidden from the OpenAPI description by the X-HIDDEN tag')
+  })
+
+  it('refuses at start a route with a version constraint', async () => {
+    await expect(
+      starting(async (g) => {
+        g.get('/v', { schema: ok, constraints: { version: '1.0.0' } }, async () => ({}))
+      }),
+    ).rejects.toThrow('would be described as one route with its other versions')
+  })
+
+  it('refuses at start a HEAD route declared by hand', async () => {
+    await expect(
+      starting(async (g) => {
+        g.head('/h', { schema: ok }, async () => ({}))
+      }),
+    ).rejects.toThrow(
+      'REST API route HEAD /api/x/h would be left out of the OpenAPI description as a HEAD route',
+    )
+  })
+
+  it('refuses a HEAD declared by hand even beside a GET on the same path', async () => {
+    await expect(
+      starting(async (g) => {
+        g.route({ method: ['GET', 'HEAD'], url: '/both', schema: ok, handler: async () => ({}) })
+      }),
+    ).rejects.toThrow('as a HEAD route declared by hand')
+  })
+
+  it('accepts the HEAD route Fastify adds for each GET, which answers like the GET', async () => {
+    const { app, routes } = appWith({ groups })
+    await app.ready()
+    expect(routes.some((route) => route.method === 'HEAD')).toBe(true)
+    const head = await app.inject({
+      method: 'HEAD',
+      url: '/api/projects',
+      headers: { authorization: TOKEN },
+    })
+    expect(head.statusCode).toBe(200)
+  })
+
+  it('refuses at start one shared schema id added with different content in two groups', async () => {
+    const withItem =
+      (properties: object): FastifyPluginAsync =>
+      async (g) => {
+        g.addSchema({ $id: 'Item', type: 'object', properties })
+        g.get('/', { schema: { response: { 200: { $ref: 'Item#' } } } }, async () => ({}))
+      }
+    await expect(
+      starting(withItem({ a: { type: 'string' } }), [
+        { prefix: '/y', routes: withItem({ b: { type: 'integer' } }) },
+      ]),
+    ).rejects.toThrow('REST API shared schema Item is added twice with different content')
+  })
+
+  it('accepts one shared schema id added with the same content in two groups', async () => {
+    const withItem: FastifyPluginAsync = async (g) => {
+      g.addSchema({ $id: 'Item', type: 'object', properties: { a: { type: 'string' } } })
+      g.get('/', { schema: { response: { 200: { $ref: 'Item#' } } } }, async () => ({}))
+    }
+    await expect(starting(withItem, [{ prefix: '/y', routes: withItem }])).resolves.toBeUndefined()
   })
 })
