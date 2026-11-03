@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
@@ -45,13 +45,15 @@ export function outputOf(error: unknown): { stdout: string; stderr: string } {
 export async function schemaDrift(options: DriftOptions): Promise<string[]> {
   const configUrl = pathToFileURL(join(options.cwd, options.config)).href
   const config: unknown = Reflect.get(await import(configUrl), 'default')
-  const out = Reflect.get(Object(config), 'out')
-  if (typeof out !== 'string') throw new Error(`${options.config} names no migrations folder (out)`)
+  // Imported by Node, not by drizzle-kit's loader: the config must be an ES module, as ours is.
+  const configured: unknown = Reflect.get(Object(config), 'out')
+  // drizzle-kit's own default when the configuration names no migrations folder.
+  const out = typeof configured === 'string' ? configured : 'drizzle'
 
   const scratch = await mkdtemp(join(tmpdir(), 'schema-drift-'))
   try {
     const copy = join(scratch, 'migrations')
-    const migrations = join(options.cwd, out)
+    const migrations = resolve(options.cwd, out)
     if (existsSync(migrations)) await cp(migrations, copy, { recursive: true })
     else await mkdir(copy)
     const before = new Set(await filesIn(copy))

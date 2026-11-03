@@ -63,7 +63,14 @@ describe('the migrations applied to an empty database (SC-073)', () => {
   it('differ in nothing from the schema: types, nullability, keys, indexes, enums', async () => {
     // What drizzle-kit would have to change to make this database match the schema. It catches
     // what the table and column names above do not, such as a committed migration edited by hand.
-    const { statementsToExecute } = await pushSchema(schema, x.db)
+    // A column or table the database has and the schema lacks makes drizzle-kit ask whether it was
+    // renamed, which fails here with its "Interactive prompts require a TTY terminal" error.
+    const schemas = [...new Set([...declaredTables().keys()].map((key) => key.split('.')[0]!))]
+    const { statementsToExecute } = await pushSchema(
+      schema,
+      x.db,
+      schemas.length > 0 ? schemas : ['public'],
+    )
     expect(statementsToExecute).toEqual([])
   })
 

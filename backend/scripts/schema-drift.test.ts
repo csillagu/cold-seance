@@ -117,7 +117,7 @@ describe('schemaDrift (SC-073: generating a migration from the schema yields no 
       projects.replace("pgTable('projects'", "pgTable('plans'"),
     )
     // drizzle-kit exits with 0 here too, having generated nothing, as it has no terminal to ask in.
-    await expect(schemaDrift(options)).rejects.toThrow(/drizzle-kit could not generate/)
+    await expect(schemaDrift(options)).rejects.toThrow(/drizzle-kit could not generate[^]*TTY/)
   })
 
   it('generates with the configuration db:generate uses, not only its paths', async () => {
@@ -132,11 +132,22 @@ describe('schemaDrift (SC-073: generating a migration from the schema yields no 
     await expect(schemaDrift(options)).resolves.toEqual([])
   })
 
-  it('fails when the configuration names no migrations folder', async () => {
-    await writeFile(join(dir, 'drizzle.config.ts'), "export default { dialect: 'postgresql' }\n")
-    await expect(schemaDrift(options)).rejects.toThrow(
-      './drizzle.config.ts names no migrations folder (out)',
+  it("uses drizzle-kit's default migrations folder when the configuration names none", async () => {
+    await writeFile(join(dir, 'drizzle.config.ts'), config.replace(", out: './drizzle'", ''))
+    await writeFile(join(dir, 'schema.ts'), projects)
+    await generate()
+    await expect(listing(join(dir, 'drizzle'))).resolves.toContain('meta/0000_snapshot.json')
+    await expect(schemaDrift(options)).resolves.toEqual([])
+  })
+
+  it('finds the migrations folder when the configuration gives it as an absolute path', async () => {
+    await writeFile(join(dir, 'schema.ts'), projects)
+    await generate()
+    await writeFile(
+      join(dir, 'drizzle.config.ts'),
+      config.replace("out: './drizzle'", `out: ${JSON.stringify(join(dir, 'drizzle'))}`),
     )
+    await expect(schemaDrift(options)).resolves.toEqual([])
   })
 
   it('fails when the migrations folder cannot be copied', async () => {
