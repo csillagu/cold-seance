@@ -29,6 +29,10 @@ The skills load from the next session. To run the engine in the current one, clo
 - Review every item you create or change in substance, with `reqlite review <ID> graph --gateway --model claude-sonnet-5-5`, three at a time. In cloud sessions `--subscription` and key mode are refused because `ANTHROPIC_BASE_URL` is set; `--gateway` goes over the session's own route and is billed like the session. The owner has approved this billing. Say how many reviews a batch will be before running it.
 - Report findings as they are; the owner decides which to act on. Do not invent content to satisfy a finding. Exit 3 is an unreadable response, not a clean item. Do not re-run an unchanged item hoping a finding goes away.
 
+## Code
+
+The code is an npm workspace (`backend/`, `frontend/`); the README's Development section has the commands. Use Node.js 26. Before committing code, `npm run check` must pass, and `npm run test:integration` too when the backend changed (it needs `TEST_DATABASE_URL`, see the README). Add dependencies with `npm install -w <package>` so `package-lock.json` stays the one lockfile.
+
 ## GitHub workflow
 
 Use the `gh` CLI for all GitHub operations (issues, PRs).

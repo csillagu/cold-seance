@@ -1,0 +1,71 @@
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
+import { Client } from 'pg'
+import { createDatabase, type Database } from '../../src/db/client.ts'
+
+const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
+
+/**
+ * The PostgreSQL server the integration tests run against, as a connection URL to a database on
+ * it that the tests may create and drop databases from (usually `postgres`).
+ */
+export function testServerUrl(): string {
+  const url = process.env['TEST_DATABASE_URL']
+  if (!url) {
+    throw new Error(
+      'TEST_DATABASE_URL is not set. Point it at a PostgreSQL server the tests may create ' +
+        'databases on, e.g. postgres://postgres:postgres@localhost:5432/postgres ' +
+        '(`docker compose -f compose.test.yaml up -d` starts one).',
+    )
+  }
+  return url
+}
+
+export interface TestDatabase {
+  name: string
+  url: string
+  db: Database
+  drop(): Promise<void>
+}
+
+/**
+ * Creates a fresh, empty database with every migration applied, as the test cases' "fresh test
+ * deployment: empty database" asks. Each call gets its own database, so test files run in
+ * parallel without seeing each other's data. Call `drop()` when done.
+ */
+export async function createTestDatabase(): Promise<TestDatabase> {
+  const serverUrl = testServerUrl()
+  const name = `test_${randomUUID().replaceAll('-', '')}`
+  await onServer(serverUrl, (client) => client.query(`CREATE DATABASE "${name}"`))
+
+  const url = new URL(serverUrl)
+  url.pathname = `/${name}`
+  const { db, close } = createDatabase(url.toString())
+
+  // Until the first migration is generated (SC-073) there is nothing to apply.
+  if (existsSync(`${migrationsFolder}/meta/_journal.json`)) {
+    await migrate(db, { migrationsFolder })
+  }
+
+  return {
+    name,
+    url: url.toString(),
+    db,
+    async drop() {
+      await close()
+      await onServer(serverUrl, (client) => client.query(`DROP DATABASE "${name}" WITH (FORCE)`))
+    },
+  }
+}
+
+async function onServer(url: string, run: (client: Client) => Promise<unknown>): Promise<void> {
+  const client = new Client({ connectionString: url })
+  await client.connect()
+  try {
+    await run(client)
+  } finally {
+    await client.end()
+  }
+}
