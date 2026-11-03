@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { apiTokens, auditLog } from '../../src/db/schema.ts'
@@ -158,9 +158,8 @@ describe('the token service', () => {
       const [entry] = await x.db
         .select()
         .from(auditLog)
-        .where(eq(auditLog.action, 'api-token.revoked'))
-        .orderBy(auditLog.id)
-      expect(entry).toMatchObject({ actorAccountId: owner.id, subjectId: token.id })
+        .where(and(eq(auditLog.action, 'api-token.revoked'), eq(auditLog.subjectId, token.id)))
+      expect(entry).toMatchObject({ actorAccountId: owner.id, subjectType: 'api-token' })
     })
 
     it("refuses someone else's token as not found and leaves it working", async () => {
@@ -199,12 +198,18 @@ describe('the token service', () => {
     })
   })
 
-  it('refuses a token for an account that does not exist, through the database', async () => {
+  it('refuses a caller who has no account and creates nothing', async () => {
     const nobody = randomUUID()
-    await expect(service.createToken({ accountId: nobody, channel: 'ui' })).rejects.toThrow(
-      'Failed query',
-    )
+    // An id with no account is refused by the database's foreign key (PostgreSQL's 23503).
+    await expect(service.createToken({ accountId: nobody, channel: 'ui' })).rejects.toMatchObject({
+      cause: { code: '23503' },
+    })
     expect(await storedRows(nobody)).toEqual([])
+    const error = await refused(
+      service.createToken({ accountId: 'nobody', channel: 'ui' }),
+      'forbidden',
+    )
+    expect(error.message).toBe('Only people with an account can create a token')
   })
 })
 

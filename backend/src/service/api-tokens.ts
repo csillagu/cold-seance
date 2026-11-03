@@ -62,9 +62,13 @@ export class ApiTokenService {
 
   /**
    * Creates a token for the caller, with an expiry date if one is given, and answers it with its
-   * secret. Refused if the expiry date is not a valid date in the future.
+   * secret. Refused if the caller has no account, or if the expiry date is not a valid date in the
+   * future.
    */
   async createToken(caller: Caller, options: { expiresAt?: Date } = {}): Promise<CreatedApiToken> {
+    if (!isUuid(caller.accountId)) {
+      throw new ServiceError('forbidden', 'Only people with an account can create a token')
+    }
     const { expiresAt } = options
     if (expiresAt !== undefined) {
       if (Number.isNaN(expiresAt.getTime())) {
