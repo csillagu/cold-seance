@@ -440,6 +440,39 @@ github:
       expect(problems).toEqual(['github in the configuration file must be a mapping'])
     })
 
+    it('when the file holds a setting the tool does not know, at any level', () => {
+      const file = `
+databse: { url: ${dbUrl} }
+database: { url: ${dbUrl}, pasword: x }
+github:
+  recheckInterval: 5
+  apps:
+    readIssues: { appId: 1, privateKeyFile: ${fx.keyFiles.readIssues}, webhookSecrt: s }
+    reviewIssues: { appId: 2 }
+`
+      expect(problemsOf(withFile(file, fx.githubEnv))).toEqual([
+        'databse in the configuration file is not a setting the tool knows',
+        'database.pasword in the configuration file is not a setting the tool knows',
+        'github.recheckInterval in the configuration file is not a setting the tool knows',
+        'github.apps.readIssues.webhookSecrt in the configuration file is not a setting the tool knows',
+        'github.apps.reviewIssues in the configuration file is not a setting the tool knows',
+      ])
+    })
+
+    it('when a COLD_SEANCE_ environment variable is not a setting the tool knows', () => {
+      const env = {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+        COLD_SEANCE_DATABSE_URL: dbUrl,
+        COLD_SEANCE_: 'x',
+        UNRELATED_VARIABLE: 'kept out of it',
+      }
+      expect(problemsOf(env)).toEqual([
+        'the environment variable COLD_SEANCE_DATABSE_URL is not a setting the tool knows',
+        'the environment variable COLD_SEANCE_ is not a setting the tool knows',
+      ])
+    })
+
     it('with every problem at once', () => {
       const problems = problemsOf({
         ...fx.githubEnv,

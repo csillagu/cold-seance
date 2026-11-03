@@ -127,6 +127,11 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   // reported as not set as well.
   if (problems.length > 0) throw new ConfigError(problems)
 
+  // A misspelt setting would otherwise be ignored without a word (a risk DD-059 names), so
+  // anything the tool does not know stops the start.
+  reportUnknownFileKeys(file, [], problems)
+  reportUnknownEnv(env, problems)
+
   const values: Values = { numbers: new Map(), strings: new Map(), keyFiles: new Map() }
   for (const setting of settings) {
     const raw = rawValue(setting, file, env, problems)
@@ -200,6 +205,31 @@ function readConfigFile(
     return undefined
   }
   return parsed
+}
+
+const settingPaths = new Set(settings.map((s) => s.path.join('.')))
+const sectionPaths = new Set(
+  settings.flatMap((s) => s.path.slice(0, -1).map((_, i) => s.path.slice(0, i + 1).join('.'))),
+)
+const settingEnvNames = new Set([configFileEnv, ...settings.map((s) => envName(s.path))])
+
+function reportUnknownFileKeys(node: unknown, prefix: readonly string[], problems: string[]): void {
+  if (!isMapping(node)) return
+  for (const [key, child] of Object.entries(node)) {
+    const path = [...prefix, key].join('.')
+    if (sectionPaths.has(path)) reportUnknownFileKeys(child, [...prefix, key], problems)
+    else if (!settingPaths.has(path)) {
+      problems.push(`${path} in the configuration file is not a setting the tool knows`)
+    }
+  }
+}
+
+function reportUnknownEnv(env: Record<string, string | undefined>, problems: string[]): void {
+  for (const key of Object.keys(env)) {
+    if (key.startsWith(envPrefix) && !settingEnvNames.has(key)) {
+      problems.push(`the environment variable ${key} is not a setting the tool knows`)
+    }
+  }
 }
 
 /** The value of a setting, from its environment variable if set, else from the file. */
