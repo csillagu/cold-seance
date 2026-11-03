@@ -1,6 +1,6 @@
 # Implementation plan for the solution components
 
-This plan puts the 111 solution components (SCs) in [`graph/`](../graph/) in the order they are built, and shows which blocks of them can be built at the same time. It sets only the order. What each SC is, what it delivers and when it is done are in the SC's own file, and this plan does not repeat them.
+This plan puts the 114 solution components (SCs) in [`graph/`](../graph/) in the order they are built, and shows which blocks of them can be built at the same time. It sets only the order. What each SC is, what it delivers and when it is done are in the SC's own file, and this plan does not repeat them.
 
 - Drafted by Claude for issue #15, 2026-11-03. It awaits the owner's confirmation.
 - The order comes from what each SC needs in order to work: the FRs, DDs and SCs it links, and the service-layer modules it calls. Where an SC names no dependency, the order shown is Claude's reading of it.
@@ -59,7 +59,7 @@ B0.2 and B0.4 start as soon as [SC-109](../graph/SC-109-configuration-loader.md)
 |---|---|---|---|
 | B1.1 Accounts and sessions | [SC-015](../graph/SC-015-account-administration.md) → ([SC-053](../graph/SC-053-first-system-admin-bootstrap.md); [SC-052](../graph/SC-052-sign-in.md) → [SC-107](../graph/SC-107-session-check.md); [SC-054](../graph/SC-054-github-account-link.md)) | B0 | 10 |
 | B1.2 API tokens | [SC-016](../graph/SC-016-personal-access-token-management.md) → [SC-055](../graph/SC-055-token-authentication.md) | [SC-015](../graph/SC-015-account-administration.md) | 4 |
-| B1.3 Projects and roles | [SC-014](../graph/SC-014-project-role-store.md) → ([SC-049](../graph/SC-049-role-permission-checks.md) ∥ [SC-050](../graph/SC-050-view-read-filter.md) ∥ [SC-051](../graph/SC-051-not-visible-project-response.md); [SC-017](../graph/SC-017-project-creation.md) → [SC-056](../graph/SC-056-project-name-uniqueness-check.md)) | [SC-015](../graph/SC-015-account-administration.md) | 11 |
+| B1.3 Projects and roles | [SC-014](../graph/SC-014-project-role-store.md) → ([SC-049](../graph/SC-049-role-permission-checks.md) ∥ [SC-050](../graph/SC-050-view-read-filter.md) ∥ [SC-051](../graph/SC-051-not-visible-project-response.md) ∥ [SC-116](../graph/SC-116-project-search.md); [SC-017](../graph/SC-017-project-creation.md) → [SC-056](../graph/SC-056-project-name-uniqueness-check.md)) | [SC-015](../graph/SC-015-account-administration.md) |12 |
 | B1.4 Audit log | [SC-013](../graph/SC-013-audit-log.md) | [SC-015](../graph/SC-015-account-administration.md) | 3 |
 
 [SC-015](../graph/SC-015-account-administration.md) is the one SC in this wave that the others wait for. The audit log comes this early so that every module after it records its changes from the start.
@@ -108,11 +108,11 @@ B3.3 joins B3.1 and B3.2. B3.6 and B3.7 do not need the planning engine. They ar
 
 ## Frontend lane
 
-[SC-113](../graph/SC-113-frontend-layout.md) and [SC-075](../graph/SC-075-sign-in-page.md) come first in the frontend, so every other F block also waits for both of them in F1.
+[SC-113](../graph/SC-113-frontend-layout.md) and [SC-075](../graph/SC-075-sign-in-page.md) come first in the frontend, so every other F block also waits for both of them in F1. [SC-115](../graph/SC-115-signed-in-person-menu.md) brings up screens from F1 and F4; each entry works once its screen is done.
 
 | Block | Order | Needs | Σ effort |
 |---|---|---|---|
-| F1 Layout, sign-in, personal settings, audit | [SC-113](../graph/SC-113-frontend-layout.md); [SC-075](../graph/SC-075-sign-in-page.md) → ([SC-076](../graph/SC-076-account-administration-screen.md) ∥ [SC-077](../graph/SC-077-github-account-link-setting.md) ∥ [SC-078](../graph/SC-078-personal-access-token-page.md) ∥ [SC-094](../graph/SC-094-audit-log-viewer.md)) | B1; the project search in [SC-113](../graph/SC-113-frontend-layout.md) also needs a backend search, which no SC covers yet | 12 |
+| F1 Layout, sign-in, personal settings, audit | [SC-113](../graph/SC-113-frontend-layout.md) → ([SC-114](../graph/SC-114-project-search-bar.md) ∥ [SC-115](../graph/SC-115-signed-in-person-menu.md)); [SC-075](../graph/SC-075-sign-in-page.md) → ([SC-076](../graph/SC-076-account-administration-screen.md) ∥ [SC-077](../graph/SC-077-github-account-link-setting.md) ∥ [SC-078](../graph/SC-078-personal-access-token-page.md) ∥ [SC-094](../graph/SC-094-audit-log-viewer.md)) | B1 | 15 |
 | F2 Projects and groups | [SC-079](../graph/SC-079-project-creation-form.md) ∥ [SC-080](../graph/SC-080-project-members-and-roles-screen.md) ∥ [SC-082](../graph/SC-082-group-list-screen.md) ∥ [SC-083](../graph/SC-083-group-members-screen.md) ∥ [SC-084](../graph/SC-084-group-projects-screen.md) | B1.3, B2.1; [SC-082](../graph/SC-082-group-list-screen.md)'s group deletion also [SC-059](../graph/SC-059-group-deletion.md) (B3.5) | 9 |
 | F3 Repositories | [SC-085](../graph/SC-085-repository-registration-screen.md) ∥ [SC-086](../graph/SC-086-repository-admins-screen.md) ∥ [SC-087](../graph/SC-087-repository-request-inbox.md); [SC-081](../graph/SC-081-project-repository-settings-screen.md) → [SC-112](../graph/SC-112-receiving-project-control.md) | B2.2 | 10 |
 | F4 Calendars | [SC-088](../graph/SC-088-capacity-and-absences-screen.md) ∥ [SC-089](../graph/SC-089-personal-working-calendar-screen.md) ∥ [SC-090](../graph/SC-090-company-calendar-screen.md) | B2.3 | 7 |
@@ -134,4 +134,4 @@ The longest chain of dependent work is:
 
 ## Coverage
 
-All 111 SCs appear in exactly one block above, apart from B5.2, which names the five tracks again to close them: 66 in the backend lane (effort 202) and 45 in the frontend lane (effort 113). SC-103 and SC-104 are retired and not in the graph.
+All 114 SCs appear in exactly one block above, apart from B5.2, which names the five tracks again to close them: 67 in the backend lane (effort 203) and 47 in the frontend lane (effort 116). SC-103 and SC-104 are retired and not in the graph.
