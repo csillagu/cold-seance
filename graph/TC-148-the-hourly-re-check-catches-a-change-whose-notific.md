@@ -1,6 +1,6 @@
 # TC-148: The hourly re-check catches a change whose notification never arrived
 
-Verifies [FR-101](FR-101-re-check-all-linked-issues-every-hour.md).
+Verifies [FR-101](FR-101-re-check-all-linked-issues-at-the-configured-in.md).
 
 ## Intent
 
