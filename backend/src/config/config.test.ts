@@ -50,6 +50,9 @@ github:
       appId: 13
       privateKeyFile: ${fx.keyFiles.projectsStatus}
       webhookSecret: hook-status
+firstAdmin:
+  username: root
+  password: root-password
 `
 }
 
@@ -148,6 +151,35 @@ describe('settings', () => {
       ...githubFunctions.map((fn) => `github.tokens.${fn}`),
       'github.webhookSecret',
       'github.recheckIntervalMinutes',
+      'firstAdmin.username',
+      'firstAdmin.password',
+    ])
+  })
+})
+
+describe('the first system admin', () => {
+  const base = () => ({ COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })
+
+  it('is read from its environment variables (FR-165)', () => {
+    const config = loadConfig({
+      env: {
+        ...base(),
+        COLD_SEANCE_FIRST_ADMIN_USERNAME: 'root',
+        COLD_SEANCE_FIRST_ADMIN_PASSWORD: 'root-pw',
+      },
+      cwd: fx.dir,
+    })
+    expect(config.firstAdmin).toEqual({ username: 'root', password: 'root-pw' })
+  })
+
+  it('is not set when neither is given', () => {
+    expect(loadConfig({ env: base(), cwd: fx.dir }).firstAdmin).toBeUndefined()
+  })
+
+  it.each(['USERNAME', 'PASSWORD'])('stops the start when only the %s is given', (part) => {
+    const error = refusal({ ...base(), [`COLD_SEANCE_FIRST_ADMIN_${part}`]: 'x' }, fx.dir)
+    expect(error.problems).toEqual([
+      'firstAdmin.username (COLD_SEANCE_FIRST_ADMIN_USERNAME) and firstAdmin.password (COLD_SEANCE_FIRST_ADMIN_PASSWORD) are given together or not at all',
     ])
   })
 })
@@ -183,6 +215,7 @@ describe('loadConfig', () => {
           },
         },
       },
+      firstAdmin: { username: 'root', password: 'root-password' },
     })
   })
 
@@ -285,6 +318,8 @@ github:
         check: (c) => c.github.recheckIntervalMinutes,
       }),
       'github.webhookSecret': () => ({ env: 'env-repos', check: (c) => c.github.webhookSecret }),
+      'firstAdmin.username': () => ({ env: 'env-root', check: (c) => c.firstAdmin?.username }),
+      'firstAdmin.password': () => ({ env: 'env-pw', check: (c) => c.firstAdmin?.password }),
       ...Object.fromEntries(
         githubFunctions.map((fn) => [
           `github.tokens.${fn}`,

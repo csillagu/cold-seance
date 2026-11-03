@@ -4,6 +4,7 @@ import { loadConfig, type Config, type LoadConfigOptions } from './config/config
 import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
+import { setUpFirstAdmin } from './service/first-admin.ts'
 import { createServices } from './service/services.ts'
 
 export interface Backend {
@@ -24,7 +25,8 @@ export interface StartOptions extends LoadConfigOptions {
  * Prepares the backend from its configuration: loads the settings (SC-109), which throws a
  * `ConfigError` naming each missing or invalid one; applies the pending migrations over the direct
  * connection (SC-074, DD-057), which throws a `MigrationError` if one fails; and only then opens
- * the database given in the settings (FR-177) and builds the HTTP application. The caller starts
+ * the database given in the settings (FR-177), creates the first system admin the settings name while there is none
+ * (SC-053), which throws a `FirstAdminError` if it cannot, and builds the HTTP application. The caller starts
  * listening once this resolves, so no request is served before the schema is up to date. Closing
  * the application closes the database pool.
  */
@@ -32,6 +34,15 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   const config = loadConfig(options)
   await applyMigrations(config.database.directUrl, options.migrationsFolder)
   const { db, close } = createDatabase(config.database.url)
+  let firstAdmin
+  if (config.firstAdmin !== undefined) {
+    try {
+      firstAdmin = await setUpFirstAdmin(db, config.firstAdmin)
+    } catch (error) {
+      await close()
+      throw error
+    }
+  }
   const frontendDir = options.frontendDir ?? defaultFrontendDir
   const servesFrontend = hasFrontend(frontendDir)
   const app = buildApp(
@@ -42,6 +53,7 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   // Running from the repository without building the frontend is normal in development, where
   // Vite serves it; in the Docker image the frontend is always there.
   if (!servesFrontend) app.log.warn(`No built frontend in ${frontendDir}; only the API is served`)
+  if (firstAdmin === 'created') app.log.info('The first system admin was created')
   app.addHook('onClose', close)
   return { config, db, app }
 }

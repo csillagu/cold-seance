@@ -48,3 +48,10 @@ github:
 
   # The one secret of the webhooks set up on repositories and organizations, if any are used.
   # webhookSecret: change-me #                                         COLD_SEANCE_GITHUB_WEBHOOK_SECRET
+
+# The first system admin, created at start while there is no system admin yet; once one exists,
+# these change nothing. Give both, or neither. The environment variables keep the password out of
+# this file; sign in with them, then create everyone else's account.
+# firstAdmin:
+#   username: root #                                                   COLD_SEANCE_FIRST_ADMIN_USERNAME
+#   password: change-me #                                              COLD_SEANCE_FIRST_ADMIN_PASSWORD

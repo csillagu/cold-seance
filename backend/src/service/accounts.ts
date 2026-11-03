@@ -63,22 +63,7 @@ export class AccountService {
    */
   async createAccount(caller: Caller, account: NewAccount): Promise<Account> {
     await this.#requireSystemAdmin(caller)
-    // In one Unicode form, so that the same name typed two ways is one username.
-    const username = account.username.normalize('NFC').trim()
-    if (username === '') throw new ServiceError('invalid', 'A username is required')
-    if (characters(username) > USERNAME_MAX_LENGTH) {
-      throw new ServiceError(
-        'invalid',
-        `A username can have at most ${USERNAME_MAX_LENGTH} characters`,
-      )
-    }
-    if (account.password === '') throw new ServiceError('invalid', 'A password is required')
-    if (characters(account.password) > PASSWORD_MAX_LENGTH) {
-      throw new ServiceError(
-        'invalid',
-        `A password can have at most ${PASSWORD_MAX_LENGTH} characters`,
-      )
-    }
+    const username = checkNewAccount(account)
 
     const passwordHash = await hashPassword(account.password)
     // The unique index on the lower-cased username decides, so two concurrent requests for the
@@ -167,4 +152,28 @@ function violates(error: unknown, index: string): boolean {
     'constraint' in cause &&
     cause.constraint === index
   )
+}
+
+/**
+ * Checks the username and password a new account is to have, and answers the username as it is
+ * kept: trimmed, and in one Unicode form, so that the same name typed two ways is one username.
+ * Refused if the username is empty or too long, or the password is empty or too long.
+ */
+export function checkNewAccount(account: NewAccount): string {
+  const username = account.username.normalize('NFC').trim()
+  if (username === '') throw new ServiceError('invalid', 'A username is required')
+  if (characters(username) > USERNAME_MAX_LENGTH) {
+    throw new ServiceError(
+      'invalid',
+      `A username can have at most ${USERNAME_MAX_LENGTH} characters`,
+    )
+  }
+  if (account.password === '') throw new ServiceError('invalid', 'A password is required')
+  if (characters(account.password) > PASSWORD_MAX_LENGTH) {
+    throw new ServiceError(
+      'invalid',
+      `A password can have at most ${PASSWORD_MAX_LENGTH} characters`,
+    )
+  }
+  return username
 }
