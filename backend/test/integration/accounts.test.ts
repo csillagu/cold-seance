@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import {
@@ -110,6 +111,33 @@ describe('the account service', () => {
       expect(created.username).toBe(username)
     })
 
+    it('takes a name typed in either Unicode form as the same username', async () => {
+      const composed = fresh('Ren\u00e9e')
+      const decomposed = composed.replace('\u00e9', 'e\u0301')
+      expect(decomposed).not.toBe(composed)
+      const created = await service.createAccount(by(root), {
+        username: decomposed,
+        password: 'pw',
+      })
+      expect(created.username).toBe(composed)
+      await expect(
+        service.createAccount(by(root), { username: composed, password: 'pw' }),
+      ).rejects.toMatchObject({ kind: 'conflict' })
+    })
+
+    it('counts the lengths in characters, not in UTF-16 units', async () => {
+      const username = `${fresh('e')}-`.padEnd(USERNAME_MAX_LENGTH - 10, 'x') + '🔑'.repeat(10)
+      expect(Array.from(new Intl.Segmenter().segment(username))).toHaveLength(USERNAME_MAX_LENGTH)
+      expect(username.length).toBeGreaterThan(USERNAME_MAX_LENGTH)
+      const password = '🔑'.repeat(PASSWORD_MAX_LENGTH)
+      await expect(service.createAccount(by(root), { username, password })).resolves.toMatchObject({
+        username,
+      })
+      expect(argon2idMatches((await storedAccount(x.db, username))!.passwordHash, password)).toBe(
+        true,
+      )
+    })
+
     it.each([
       ['empty', ''],
       ['only whitespace', ' \t '],
@@ -168,6 +196,25 @@ describe('the account service', () => {
           'conflict',
         )
         expect(error.message).toBe(`The username ${taken.trim()} is already taken`)
+      }
+    })
+
+    it('passes on a database error other than a taken username, not as a taken username', async () => {
+      const username = fresh('refused-by-the-database')
+      await x.db.execute(
+        sql.raw(
+          `alter table accounts add constraint probe_check check (username <> '${username}')`,
+        ),
+      )
+      try {
+        const error = await service.createAccount(by(root), { username, password: 'pw' }).then(
+          () => undefined,
+          (e: unknown) => e,
+        )
+        expect(error).toBeInstanceOf(Error)
+        expect(error).not.toBeInstanceOf(ServiceError)
+      } finally {
+        await x.db.execute(sql.raw('alter table accounts drop constraint probe_check'))
       }
     })
 

@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, DrizzleQueryError, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts } from '../db/schema.ts'
 import type { Caller } from './caller.ts'
@@ -17,14 +17,17 @@ export interface NewAccount {
   password: string
 }
 
-/** The longest username an account can have. */
+/** The longest username an account can have, in characters. */
 export const USERNAME_MAX_LENGTH = 100
 
 /**
- * The longest password an account can be given. Hashing it is deliberately costly (DD-056), so a
- * bound keeps one request from making it arbitrarily so.
+ * The longest password an account can be given, in characters: a bound on what is
+ * accepted, well above any password a person types.
  */
 export const PASSWORD_MAX_LENGTH = 1024
+
+/** The unique index that keeps usernames apart regardless of case (see the schema). */
+const USERNAME_INDEX = 'accounts_username_key'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -56,16 +59,17 @@ export class AccountService {
    */
   async createAccount(caller: Caller, account: NewAccount): Promise<Account> {
     await this.#requireSystemAdmin(caller)
-    const username = account.username.trim()
+    // In one Unicode form, so that the same name typed two ways is one username.
+    const username = account.username.normalize('NFC').trim()
     if (username === '') throw new ServiceError('invalid', 'A username is required')
-    if (username.length > USERNAME_MAX_LENGTH) {
+    if (characters(username) > USERNAME_MAX_LENGTH) {
       throw new ServiceError(
         'invalid',
         `A username can have at most ${USERNAME_MAX_LENGTH} characters`,
       )
     }
     if (account.password === '') throw new ServiceError('invalid', 'A password is required')
-    if (account.password.length > PASSWORD_MAX_LENGTH) {
+    if (characters(account.password) > PASSWORD_MAX_LENGTH) {
       throw new ServiceError(
         'invalid',
         `A password can have at most ${PASSWORD_MAX_LENGTH} characters`,
@@ -75,14 +79,19 @@ export class AccountService {
     const passwordHash = await hashPassword(account.password)
     // The unique index on the lower-cased username decides, so two concurrent requests for the
     // same username cannot both succeed.
-    const [created] = await this.#db
-      .insert(accounts)
-      .values({ username, passwordHash })
-      .onConflictDoNothing()
-      .returning(columns)
-    if (!created) {
-      throw new ServiceError('conflict', `The username ${username} is already taken`)
+    let created: Account | undefined
+    try {
+      ;[created] = await this.#db
+        .insert(accounts)
+        .values({ username, passwordHash })
+        .returning(columns)
+    } catch (error) {
+      if (violates(error, USERNAME_INDEX)) {
+        throw new ServiceError('conflict', `The username ${username} is already taken`)
+      }
+      throw error
     }
+    if (!created) throw new Error('The new account was not returned')
     return created
   }
 
@@ -124,4 +133,24 @@ export class AccountService {
       throw new ServiceError('forbidden', 'Only system admins can administer accounts')
     }
   }
+}
+
+/** Whether a database error is a violation of the given unique index (PostgreSQL's 23505). */
+function violates(error: unknown, index: string): boolean {
+  const cause = error instanceof DrizzleQueryError ? error.cause : error
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'code' in cause &&
+    cause.code === '23505' &&
+    'constraint' in cause &&
+    cause.constraint === index
+  )
+}
+
+/** The length of a text as a person counts it: in characters, an emoji or accented letter as one. */
+function characters(text: string): number {
+  let count = 0
+  for (const _ of new Intl.Segmenter().segment(text)) count++
+  return count
 }
