@@ -108,11 +108,13 @@ const labels: Record<GitHubFunction, string> = {
   projectsStatus: 'the Projects status field',
 }
 
+const appEnv = (fn: GitHubFunction) => `${envName(['github', 'apps', fn])}_*`
+
 const neither = (fn: GitHubFunction) =>
-  `the GitHub function for ${labels[fn]} is given neither a GitHub App (github.apps.${fn}) nor a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it one of them`
+  `the GitHub function for ${labels[fn]} is given neither a GitHub App (github.apps.${fn}, ${appEnv(fn)}) nor a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it one of them`
 
 const both = (fn: GitHubFunction) =>
-  `the GitHub function for ${labels[fn]} is given both a GitHub App (github.apps.${fn}) and a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it only one of them`
+  `the GitHub function for ${labels[fn]} is given both a GitHub App (github.apps.${fn}, ${appEnv(fn)}) and a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it only one of them`
 
 describe('envName', () => {
   it('derives the environment variable from the setting path', () => {
@@ -260,16 +262,6 @@ github:
     })
   })
 
-  it('does not read the key file of a function given a token instead of an App', () => {
-    // A key file that cannot be read stops the start only for a function given an App.
-    const env = {
-      COLD_SEANCE_DATABASE_URL: dbUrl,
-      ...withoutApp('readIssues'),
-      [tokenEnv('readIssues')]: 'ghp_x',
-    }
-    expect(loadConfig({ env, cwd: fx.dir }).github.tokens).toEqual({ readIssues: 'ghp_x' })
-  })
-
   describe('the environment variable wins over the file', () => {
     const otherKey = () => fx.write('other.pem', 'other-key')
     const overrides: Record<
@@ -380,8 +372,8 @@ github:
     const config = loadConfig({ env: withFile(file) })
     for (const fn of githubFunctions) {
       expect(config.github.apps[fn]).toMatchObject({ appId: 7, privateKey: 'key-readIssues' })
-      expect(config.github.tokens).toEqual({})
     }
+    expect(config.github.tokens).toEqual({})
   })
 
   it('reads config.yaml from the working directory when no file is named', () => {
@@ -450,6 +442,23 @@ github:
         ...withoutApp('readIssues'),
         COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: '1',
         [tokenEnv('readIssues')]: 'ghp_x',
+      }
+      expect(problemsOf(env)).toEqual([both('readIssues')])
+    })
+
+    it('when one function is given neither, naming that function alone', () => {
+      const env = { COLD_SEANCE_DATABASE_URL: dbUrl, ...withoutApp('writeIssues') }
+      expect(problemsOf(env)).toEqual([neither('writeIssues')])
+    })
+
+    it('when a function is given both, without reading its App’s key file or checking its token', () => {
+      // The key file cannot be read and the token holds a space: only "both" is reported, since
+      // the function is to be given one of the two, and which one is not known.
+      const env = {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+        COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE: join(fx.dir, 'missing.pem'),
+        [tokenEnv('readIssues')]: 'ghp_x y',
       }
       expect(problemsOf(env)).toEqual([both('readIssues')])
     })
@@ -717,8 +726,33 @@ github:
         'github.recheckInterval in the configuration file is not a setting the tool knows',
         'github.apps.readIssues.webhookSecrt in the configuration file is not a setting the tool knows',
         'github.apps.reviewIssues in the configuration file is not a setting the tool knows',
-        'github.tokens.readIssue in the configuration file is not a setting the tool knows',
+        'a key under github.tokens in the configuration file is not one of readIssues, writeIssues, projectsStatus; it is not shown, since it may be a token',
       ])
+    })
+
+    it('when a key under github.tokens is not a function, without echoing it, since it may be a token', () => {
+      // A token written without a space after the colon is one key, `writeIssues:ghp_…`; a token
+      // pasted alone is a key as well.
+      const file = `github: { tokens: { writeIssues:ghp_hunter2, ghp_hunter3: } }`
+      const problems = problemsOf(
+        withFile(file, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      const unknown =
+        'a key under github.tokens in the configuration file is not one of readIssues, writeIssues, projectsStatus; it is not shown, since it may be a token'
+      expect(problems).toEqual([unknown, unknown])
+      expect(problems.join()).not.toMatch(/hunter/)
+    })
+
+    it('when a key elsewhere does not look like a setting name, without echoing it', () => {
+      const file = `github: { apps: { readIssues: { webhookSecret:hunter2 } } }\n"hunter3 x": 1\n`
+      const problems = problemsOf(
+        withFile(file, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      expect(problems).toEqual([
+        'a key under github.apps.readIssues in the configuration file is not a setting the tool knows; it is not shown, since it may hold a secret',
+        'a key at the top level in the configuration file is not a setting the tool knows; it is not shown, since it may hold a secret',
+      ])
+      expect(problems.join()).not.toMatch(/hunter/)
     })
 
     it('when a COLD_SEANCE_ environment variable is not a setting the tool knows', () => {

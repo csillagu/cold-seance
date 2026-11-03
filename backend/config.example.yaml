@@ -39,7 +39,8 @@ github:
 
 
   # A personal access token, as its value, used as the GitHub account that owns it. The environment
-  # variable keeps it out of this file. Remove a function from apps above before giving it a token.
+  # variable keeps it out of this file. Remove a function from apps above before giving it a token;
+  # to remove readIssues, which holds the &app anchor, move the anchor to a function that stays.
   # tokens:
   #   readIssues: &token github_pat_change-me #                        COLD_SEANCE_GITHUB_TOKENS_READ_ISSUES
   #   writeIssues: *token #                                            COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES

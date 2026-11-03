@@ -69,7 +69,7 @@ type Kind = 'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' |
 export interface Setting {
   path: readonly string[]
   kind: Kind
-  /** For a setting of a function's App (`of.via` is `app`): required when the function is given an App. */
+  /** Whether the setting must be set; for a setting of a function's App, only when the function is given an App alone. */
   required: boolean
   /** The GitHub function whose App or token the setting gives. */
   of?: { fn: GitHubFunction; via: 'app' | 'token' }
@@ -187,12 +187,15 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
 
   const values: Values = { numbers: new Map(), strings: new Map(), keyFiles: new Map() }
   for (const setting of settings) {
+    // A function given both an App and a token, or neither, is reported below instead of its
+    // settings: they are neither required nor read, its App's key file included.
+    const of = setting.of && access.get(setting.of.fn)!
+    if (of !== undefined && of.app === of.token) continue
     const raw = raws.get(setting)
     if (raw === undefined) {
-      // A setting of a function's App is required only when the function is given an App alone:
-      // given both or neither, the function is reported below instead.
-      const of = setting.of && access.get(setting.of.fn)!
-      const required = setting.required && (of === undefined || (of.app && !of.token))
+      // A setting of a function's App is required only when the function is given an App (alone,
+      // since a function given both was skipped above).
+      const required = setting.required && (of === undefined || of.app)
       if (required) problems.push(`${settingName(setting)} is required but not set`)
       continue
     }
@@ -244,7 +247,7 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
 
 /** A GitHub function given both an App and a token (`both`), or neither, named with its settings. */
 function githubFunctionProblem(fn: GitHubFunction, both: boolean): string {
-  const app = `a GitHub App (github.apps.${fn})`
+  const app = `a GitHub App (github.apps.${fn}, ${envName(['github', 'apps', fn])}_*)`
   const tokenPath = ['github', 'tokens', fn]
   const token = `a personal access token (${tokenPath.join('.')}, ${envName(tokenPath)})`
   const what = both ? `both ${app} and ${token}` : `neither ${app} nor ${token}`
@@ -293,15 +296,35 @@ const sectionPaths = new Set(
 )
 const settingEnvNames = new Set([configFileEnv, ...settings.map((s) => envName(s.path))])
 
+/** What a setting's name may look like; any other key is reported without being quoted. */
+const keyPattern = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/
+
+/** The section whose keys sit beside secrets as values: a token pasted as a key is a name there too. */
+const tokensSection = 'github.tokens'
+
 function reportUnknownFileKeys(node: unknown, prefix: readonly string[], problems: string[]): void {
   if (!isMapping(node)) return
   for (const [key, child] of Object.entries(node)) {
     const path = [...prefix, key].join('.')
     if (sectionPaths.has(path)) reportUnknownFileKeys(child, [...prefix, key], problems)
-    else if (!settingPaths.has(path)) {
-      problems.push(`${path} in the configuration file is not a setting the tool knows`)
-    }
+    else if (!settingPaths.has(path)) problems.push(unknownKeyProblem(prefix, key))
   }
+}
+
+/**
+ * An unknown key is named unless it may be a secret written as a key, such as `writeIssues:ghp_…`
+ * without a space after the colon, or a bare token under `github.tokens`.
+ */
+function unknownKeyProblem(prefix: readonly string[], key: string): string {
+  const section = prefix.join('.')
+  if (section === tokensSection) {
+    return `a key under ${tokensSection} in the configuration file is not one of ${githubFunctions.join(', ')}; it is not shown, since it may be a token`
+  }
+  if (keyPattern.test(key)) {
+    return `${[...prefix, key].join('.')} in the configuration file is not a setting the tool knows`
+  }
+  const where = prefix.length === 0 ? 'at the top level' : `under ${section}`
+  return `a key ${where} in the configuration file is not a setting the tool knows; it is not shown, since it may hold a secret`
 }
 
 function reportUnknownEnv(env: Record<string, string | undefined>, problems: string[]): void {

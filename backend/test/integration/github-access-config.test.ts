@@ -41,7 +41,11 @@ async function freePort(): Promise<number> {
   return address.port
 }
 
-/** The test GitHub App `tc-app`, as the configuration file gives it to one function. */
+/**
+ * The test GitHub App `tc-app`, as the configuration file gives it to one function. Its key file
+ * is not a real key: the start reads it but signs nothing with it yet, since no GitHub client is
+ * built at start. A test that starts the tool needs a real RSA key once one is.
+ */
 const tcApp = () => `{ appId: 260, privateKeyFile: ${fx.keyFiles.readIssues} }`
 
 /** A personal access token of the GitHub account `tc-bot`. */
@@ -95,7 +99,7 @@ describe('TC-262: a function given neither an App nor a token stops the start', 
 
     expect(await tool.exited).toBe(1)
     expect(tool.out.text).toContain(
-      'the GitHub function for writing to issues is given neither a GitHub App (github.apps.writeIssues) nor a personal access token',
+      'the GitHub function for writing to issues is given neither a GitHub App (github.apps.writeIssues, COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_*) nor a personal access token',
     )
     // Only writing to issues is named.
     expect(tool.out.text).not.toContain('reading issues is given')
@@ -117,7 +121,7 @@ describe('TC-263: a function given both an App and a token stops the start', () 
 
     expect(await tool.exited).toBe(1)
     expect(tool.out.text).toContain(
-      'the GitHub function for writing to issues is given both a GitHub App (github.apps.writeIssues) and a personal access token',
+      'the GitHub function for writing to issues is given both a GitHub App (github.apps.writeIssues, COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_*) and a personal access token',
     )
     expect(tool.out.text).not.toContain('reading issues is given')
     expect(tool.out.text).not.toContain('Projects status field is given')
