@@ -14,8 +14,8 @@ export type Authenticator = (request: FastifyRequest) => Promise<Caller | undefi
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Set on every REST API request before its handler runs; `null` outside the REST API. */
-    caller: Caller | null
+    /** Set on every REST API request before its handler runs; not set outside the REST API. */
+    caller?: Caller | null
   }
 }
 

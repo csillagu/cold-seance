@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify'
 import type { Authenticator } from './caller.ts'
-import { handleApiError } from './errors.ts'
+import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { missingSchemas } from './schema-guard.ts'
 
 /** Where the REST API is served. */
@@ -32,8 +32,9 @@ export interface ApiOptions {
 
 /**
  * The REST API (SC-026). Every route in it authenticates its caller before anything else runs, so
- * a request no authenticator recognises is refused with 401 and never reaches a route; refuses at
- * registration a route that lacks its schemas; and answers errors in one shape.
+ * a request no authenticator recognises is refused with 401 and never reaches a route, nor learns
+ * whether the route exists; refuses at registration a route that lacks its schemas; and answers
+ * errors in one shape.
  */
 export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
   const authenticators = options.authenticators ?? []
@@ -56,10 +57,15 @@ export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
         request.caller = (await authenticate(request)) ?? null
         if (request.caller) return
       }
-      throw Object.assign(new Error('Authentication required'), { statusCode: 401 })
+      throw new UnauthenticatedError()
     })
 
     api.setErrorHandler(handleApiError)
+    // Unknown routes under the API answer in the API's own shape, and only to an authenticated
+    // caller: the onRequest hook above runs first, so a stranger cannot map which routes exist.
+    api.setNotFoundHandler(async (_request, reply) =>
+      reply.code(404).send(errorBody(404, 'Not Found')),
+    )
 
     for (const group of groups) {
       await api.register(group.routes, { prefix: group.prefix })

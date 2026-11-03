@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.ts'
 import { ServiceError } from '../service/errors.ts'
-import { API_PREFIX, routeGroups, type ApiOptions, type ApiRouteGroup } from './api.ts'
+import { API_PREFIX, type ApiOptions, type ApiRouteGroup } from './api.ts'
 import { callerOf, type Authenticator } from './caller.ts'
 
 const TOKEN = 'Bearer alice-token'
@@ -53,9 +53,20 @@ const echoRoutes: FastifyPluginAsync = async (group) => {
     // The extra field shows that the response schema keeps undeclared data out of the answer.
     async (request) => ({ ...callerOf(request), secret: 'not for the caller' }),
   )
-  group.get('/broken', { schema: { response: { 200: { type: 'object' } } } }, async () => {
-    throw new Error('connection to db-internal:5432 refused')
-  })
+  group.get(
+    '/broken',
+    { schema: { response: { 200: { type: 'object', properties: {} } } } },
+    async () => {
+      throw new Error('connection to db-internal:5432 refused')
+    },
+  )
+  group.get(
+    '/leaky',
+    { schema: { response: { 200: { type: 'object', properties: {} } } } },
+    async () => {
+      throw Object.assign(new Error('pg host db-internal not found'), { statusCode: 404 })
+    },
+  )
 }
 
 const echoGroup: ApiRouteGroup = { prefix: '/echo', routes: echoRoutes }
@@ -84,10 +95,6 @@ describe('the REST API', () => {
     expect(API_PREFIX).toBe('/api')
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ accountId: 'alice' })
-  })
-
-  it('has no route groups yet: each backend block adds its own', () => {
-    expect(routeGroups).toEqual([])
   })
 
   it('serves what its response schema declares and nothing more', async () => {
@@ -119,7 +126,7 @@ describe('authentication', () => {
     const group: ApiRouteGroup = {
       prefix: '/spy',
       routes: async (g) => {
-        g.get('/', { schema: { response: { 200: { type: 'object' } } } }, handler)
+        g.get('/', { schema: { response: { 200: { type: 'object', properties: {} } } } }, handler)
       },
     }
     const app = appWith({ authenticators: [aliceByHeader], groups: [group] })
@@ -187,6 +194,27 @@ describe('authentication', () => {
   })
 })
 
+describe('unknown routes under the API', () => {
+  it('refuses a stranger with 401, so the routes cannot be mapped', async () => {
+    const app = appWith({ authenticators: [aliceByHeader], groups: [echoGroup] })
+    const unknown = await app.inject({ method: 'GET', url: '/api/no-such-route' })
+    const known = await app.inject({ method: 'GET', url: '/api/echo/whoami' })
+    expect(unknown.statusCode).toBe(401)
+    expect(unknown.json()).toEqual(known.json())
+  })
+
+  it('answers an authenticated caller with 404 in the API error shape', async () => {
+    const app = appWith({ authenticators: [aliceByHeader], groups: [echoGroup] })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/no-such-route',
+      headers: { authorization: TOKEN },
+    })
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toEqual({ statusCode: 404, error: 'Not Found', message: 'Not Found' })
+  })
+})
+
 describe('errors', () => {
   const as = { authorization: TOKEN }
 
@@ -234,6 +262,31 @@ describe('errors', () => {
     expect(response.json()).toMatchObject({ statusCode: 415, error: 'Unsupported Media Type' })
   })
 
+  it('keeps the Fastify answer to a body that is not JSON', async () => {
+    const app = appWith({ authenticators: [aliceByHeader], groups: [echoGroup] })
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/echo/rename',
+      headers: { ...as, 'content-type': 'application/json' },
+      payload: '{"name":',
+    })
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toMatchObject({ statusCode: 400, error: 'Bad Request' })
+  })
+
+  it('treats an error with a status of its own, not raised by Fastify, as a fault', async () => {
+    const logged: string[] = []
+    const app = buildApp(
+      { logger: { level: 'error', stream: { write: (line: string) => logged.push(line) } } },
+      { authenticators: [aliceByHeader], groups: [echoGroup] },
+    )
+    closers.push(() => app.close())
+    const response = await app.inject({ method: 'GET', url: '/api/echo/leaky', headers: as })
+    expect(response.statusCode).toBe(500)
+    expect(response.body).not.toContain('db-internal')
+    expect(logged.join('')).toContain('db-internal')
+  })
+
   it('answers an unexpected fault with 500 and no internal detail, and logs it', async () => {
     const logged: string[] = []
     const app = buildApp(
@@ -267,10 +320,22 @@ describe('route schemas', () => {
     ).rejects.toThrow('REST API route GET /api/x lacks a response schema for its success status')
   })
 
+  it('refuses at start a response schema that does not say what is sent', async () => {
+    await expect(
+      registering(async (g) => {
+        g.get('/', { schema: { response: { 200: {} } } }, async () => ({ secret: 1 }))
+      }),
+    ).rejects.toThrow('lacks a response schema for 200 that names its type')
+  })
+
   it('refuses at start a change route without a body schema', async () => {
     await expect(
       registering(async (g) => {
-        g.post('/', { schema: { response: { 201: { type: 'object' } } } }, async () => ({}))
+        g.post(
+          '/',
+          { schema: { response: { 201: { type: 'object', properties: {} } } } },
+          async () => ({}),
+        )
       }),
     ).rejects.toThrow('lacks a body schema')
   })
@@ -278,7 +343,11 @@ describe('route schemas', () => {
   it('refuses at start a route with URL parameters but no params schema', async () => {
     await expect(
       registering(async (g) => {
-        g.get('/:id', { schema: { response: { 200: { type: 'object' } } } }, async () => ({}))
+        g.get(
+          '/:id',
+          { schema: { response: { 200: { type: 'object', properties: {} } } } },
+          async () => ({}),
+        )
       }),
     ).rejects.toThrow('lacks a params schema')
   })
@@ -291,7 +360,7 @@ describe('route schemas', () => {
           {
             schema: {
               params: { type: 'object', properties: { id: { type: 'string' } } },
-              body: { type: 'object' },
+              body: { type: 'object', properties: {} },
               response: { 204: { type: 'null' } },
             },
           },

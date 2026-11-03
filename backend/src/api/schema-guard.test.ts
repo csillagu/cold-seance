@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { missingSchemas } from './schema-guard.ts'
 
-const ok = { 200: { type: 'object' } }
+const ok = { 200: { type: 'object', properties: { id: { type: 'string' } } } }
 
 describe('missingSchemas', () => {
   it('finds nothing missing on a read route with a success response schema', () => {
@@ -10,13 +10,21 @@ describe('missingSchemas', () => {
 
   it('accepts a 2xx range as the success response', () => {
     expect(
-      missingSchemas({ method: 'GET', url: '/tasks', schema: { response: { '2xx': {} } } }),
+      missingSchemas({
+        method: 'GET',
+        url: '/tasks',
+        schema: { response: { '2xx': { type: 'array' } } },
+      }),
     ).toEqual([])
   })
 
   it('does not count an error response as the success response', () => {
     expect(
-      missingSchemas({ method: 'GET', url: '/tasks', schema: { response: { 404: {} } } }),
+      missingSchemas({
+        method: 'GET',
+        url: '/tasks',
+        schema: { response: { 404: { type: 'object', properties: {} } } },
+      }),
     ).toEqual(['a response schema for its success status'])
   })
 
@@ -61,5 +69,28 @@ describe('missingSchemas', () => {
     expect(missingSchemas({ method: 'GET', url: '/tasks/a:b', schema: { response: ok } })).toEqual(
       [],
     )
+  })
+
+  it.each([
+    ['an empty schema', {}],
+    ['an object with nothing declared', { type: 'object' }],
+    ['an object open to anything', { type: 'object', additionalProperties: true }],
+    ['something that is not a schema', true],
+    ['null', null],
+  ])('refuses %s as the success response', (_name, body) => {
+    expect(
+      missingSchemas({ method: 'GET', url: '/x', schema: { response: { 200: body } } }),
+    ).toEqual(['a response schema for 200 that names its type'])
+  })
+
+  it.each([
+    ['a shared schema', { $ref: 'task#' }],
+    ['a type other than object', { type: 'null' }],
+    ['an object with properties', { type: 'object', properties: {} }],
+    ['a map of described values', { type: 'object', additionalProperties: { type: 'number' } }],
+  ])('accepts %s as the success response', (_name, body) => {
+    expect(
+      missingSchemas({ method: 'GET', url: '/x', schema: { response: { 201: body } } }),
+    ).toEqual([])
   })
 })
