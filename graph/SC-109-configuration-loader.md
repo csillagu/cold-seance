@@ -10,5 +10,6 @@ The backend module that, at start, reads the YAML configuration file, applies th
 It delivers:
 
 - [FR-177](FR-177-use-the-postgresql-database-given-in-the-configura.md): Use the PostgreSQL database given in the configuration
+- [FR-187](FR-187-refuse-to-start-when-a-github-function-is-given-ne.md): Refuse to start when a GitHub function is given neither an App nor a token, or both
 
-Origin: added by Claude for issue #11, after the owner proposed configuration over typing secrets into the tool in the design session of 2026-11-03 (SRC-210). The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate. The owner confirmed it in the design session of 2026-11-03: "Efforts ok". The check of a function given both an App and a token, or neither, was added by Claude for issue #37 (DD-060); it awaits the owner's confirmation.
+Origin: added by Claude for issue #11, after the owner proposed configuration over typing secrets into the tool in the design session of 2026-11-03 (SRC-210). The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate. The owner confirmed it in the design session of 2026-11-03: "Efforts ok". The check of a function given both an App and a token, or neither, was added by Claude for issue #37 (DD-060); the owner accepted it in the same session ("ok"), adding that an installation without an App or a token must not deploy (SRC-233).
