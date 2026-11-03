@@ -268,7 +268,7 @@ beforeEach(() => {
 })
 
 function tokens(
-  apps: Record<GitHubFunction, GitHubAppConfig> = separateApps,
+  apps: Partial<Record<GitHubFunction, GitHubAppConfig>> = separateApps,
   options: GitHubAppTokensOptions = {},
 ) {
   return createGitHubAppTokens(apps, { apiUrl, now, ...options })
@@ -326,6 +326,36 @@ describe('GitHub App tokens (SC-108)', () => {
         { repositories: ['one'] },
         { repositories: ['two'] },
       ])
+    })
+  })
+
+  describe('holds only the Apps of the functions given an App (DD-060)', () => {
+    // Writing to issues is given a personal access token: the configuration leaves it out of `apps`.
+    const mixed = {
+      readIssues: separateApps.readIssues,
+      projectsStatus: separateApps.projectsStatus,
+    }
+
+    it('returns a token of its own App for each function given one', async () => {
+      const t = tokens(mixed)
+      expect(tokenIsValid(await t.token('readIssues', one), 11, 'octo/one')).toBe(true)
+      expect(tokenIsValid(await t.token('projectsStatus', one), 13, 'octo/one')).toBe(true)
+      expect(new Set(github.requests.map((r) => r.appId))).toEqual(new Set([11, 13]))
+    })
+
+    it('refuses a function given no App, without calling GitHub', async () => {
+      const t = tokens(mixed)
+      const error = await rejection(t.token('writeIssues', one), TypeError)
+      expect(error.message).toBe(
+        'The GitHub function for writing to issues is not given a GitHub App',
+      )
+      expect(github.requests).toEqual([])
+    })
+
+    it('holds no App and calls GitHub for none when every function is given a token', async () => {
+      const t = tokens({})
+      for (const fn of githubFunctions) await rejection(t.token(fn, one), TypeError)
+      expect(github.requests).toEqual([])
     })
   })
 

@@ -2,14 +2,16 @@ import { createPrivateKey, sign, type KeyObject } from 'node:crypto'
 import {
   ConfigError,
   envName,
+  githubFunctionLabels,
   githubFunctions,
   type GitHubAppConfig,
   type GitHubFunction,
 } from '../config/config.ts'
 
 /**
- * The GitHub App tokens (SC-108, DD-058): holds the GitHub Apps given in the configuration (DD-059),
- * one per function or one for all; signs the App's own requests with its private key; obtains the
+ * The GitHub App tokens (SC-108, DD-058): holds the GitHub Apps given in the configuration (DD-059)
+ * for the functions given an App rather than a personal access token (DD-060), one per function or
+ * one for several or all of them; signs the App's own requests with its private key; obtains the
  * token of the App's installation on each repository; and keeps each token until shortly before it
  * expires. A function whose App is not installed on a repository is reported by name.
  */
@@ -18,13 +20,6 @@ import {
 export interface Repository {
   owner: string
   name: string
-}
-
-/** How each function reads in a message. */
-export const githubFunctionLabels: Record<GitHubFunction, string> = {
-  readIssues: 'reading issues',
-  writeIssues: 'writing to issues',
-  projectsStatus: 'the Projects status field',
 }
 
 export const defaultGitHubApiUrl = 'https://api.github.com'
@@ -107,7 +102,9 @@ export interface GitHubAppTokens {
    * A valid token of the installation, on `repository`, of the App given for `fn`. It is the one
    * kept from an earlier call unless that one expires within `tokenRenewalMargin`. Throws a
    * `GitHubAppNotInstalledError` if the App is not installed on the repository, and a
-   * `GitHubAppTokenError` if GitHub refuses the token or cannot be reached.
+   * `GitHubAppTokenError` if GitHub refuses the token or cannot be reached. A function given no
+   * App, since it is given a personal access token, is refused with a `TypeError`: its token is
+   * the configured one, not this module's.
    */
   token(fn: GitHubFunction, repository: Repository): Promise<string>
 }
@@ -144,12 +141,14 @@ function checkRepository(repository: Repository): void {
 }
 
 /**
- * Reads each App's private key. A key that is not an RSA private key, which GitHub Apps sign with,
- * is reported as a `ConfigError` naming the setting, as the configuration loader reports a key
- * file it cannot read (DD-059). Functions given the same App share it, and so share its tokens.
+ * Reads the private key of each App given for a function; `apps` holds the functions given an App,
+ * as the configuration does, and leaves out those given a token. A key that is not an RSA private
+ * key, which GitHub Apps sign with, is reported as a `ConfigError` naming the setting, as the
+ * configuration loader reports a key file it cannot read (DD-059). Functions given the same App
+ * share it, and so share its tokens.
  */
 export function createGitHubAppTokens(
-  apps: Record<GitHubFunction, GitHubAppConfig>,
+  apps: Partial<Record<GitHubFunction, GitHubAppConfig>>,
   options: GitHubAppTokensOptions = {},
 ): GitHubAppTokens {
   const apiUrl = (options.apiUrl ?? defaultGitHubApiUrl).replace(/\/+$/, '')
@@ -162,6 +161,7 @@ export function createGitHubAppTokens(
   const appOf = new Map<GitHubFunction, App>()
   for (const fn of githubFunctions) {
     const config = apps[fn]
+    if (config === undefined) continue
     const shared = `${config.appId}\0${config.privateKey}`
     let app = byKey.get(shared)
     if (app === undefined) {
@@ -267,9 +267,14 @@ export function createGitHubAppTokens(
 
   return {
     async token(fn, repository) {
+      // A key that could not be read stopped the construction, so a function given an App has it.
+      const app = appOf.get(fn)
+      if (app === undefined) {
+        throw new TypeError(
+          `The GitHub function for ${githubFunctionLabels[fn]} is not given a GitHub App`,
+        )
+      }
       checkRepository(repository)
-      // Every function has its App: a key that could not be read stopped the construction.
-      const app = appOf.get(fn)!
       const key = cacheKey(repository)
       const kept = app.tokens.get(key)
       if (kept !== undefined && now() < kept.renewAt) return kept.token

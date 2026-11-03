@@ -9,6 +9,7 @@ import {
   githubFunctions,
   loadConfig,
   settings,
+  type GitHubFunction,
   type Setting,
 } from './config.ts'
 
@@ -35,6 +36,7 @@ database:
   directUrl: postgres://tool:secret@direct.example:5432/tool
 github:
   recheckIntervalMinutes: 15
+  webhookSecret: hook-repos
   apps:
     readIssues:
       appId: 11
@@ -49,6 +51,29 @@ github:
       privateKeyFile: ${fx.keyFiles.projectsStatus}
       webhookSecret: hook-status
 `
+}
+
+/** A file that gives every GitHub function its own personal access token, and nothing else. */
+function tokenFile(): string {
+  return `
+database:
+  url: ${dbUrl}
+github:
+  tokens:
+    readIssues: ghp_read
+    writeIssues: github_pat_write
+    projectsStatus: ghp_status
+`
+}
+
+const tokenEnv = (fn: GitHubFunction) => envName(['github', 'tokens', fn])
+
+/** `fx.githubEnv` without the settings of `fn`'s App. */
+function withoutApp(fn: GitHubFunction): Record<string, string> {
+  const prefix = envName(['github', 'apps', fn])
+  return Object.fromEntries(
+    Object.entries(fx.githubEnv).filter(([key]) => !key.startsWith(`${prefix}_`)),
+  )
 }
 
 function withFile(contents: string, extraEnv: Record<string, string> = {}) {
@@ -77,6 +102,20 @@ const problemsOf = (env: Record<string, string | undefined>, cwd = fx.dir) =>
 
 const name = (s: Setting) => s.path.join('.')
 
+const labels: Record<GitHubFunction, string> = {
+  readIssues: 'reading issues',
+  writeIssues: 'writing to issues',
+  projectsStatus: 'the Projects status field',
+}
+
+const appEnv = (fn: GitHubFunction) => `${envName(['github', 'apps', fn])}_*`
+
+const neither = (fn: GitHubFunction) =>
+  `the GitHub function for ${labels[fn]} is given neither a GitHub App (github.apps.${fn}, ${appEnv(fn)}) nor a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it one of them`
+
+const both = (fn: GitHubFunction) =>
+  `the GitHub function for ${labels[fn]} is given both a GitHub App (github.apps.${fn}, ${appEnv(fn)}) and a personal access token (github.tokens.${fn}, ${tokenEnv(fn)}); give it only one of them`
+
 describe('envName', () => {
   it('derives the environment variable from the setting path', () => {
     expect(envName(['database', 'url'])).toBe('COLD_SEANCE_DATABASE_URL')
@@ -87,11 +126,15 @@ describe('envName', () => {
     expect(envName(['github', 'recheckIntervalMinutes'])).toBe(
       'COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES',
     )
+    expect(envName(['github', 'tokens', 'writeIssues'])).toBe(
+      'COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES',
+    )
+    expect(envName(['github', 'webhookSecret'])).toBe('COLD_SEANCE_GITHUB_WEBHOOK_SECRET')
   })
 })
 
 describe('settings', () => {
-  it('names the listen address and every setting of DD-059: the database, each function’s App, the re-check interval', () => {
+  it('names the listen address and every setting of DD-059: the database, each function’s App or token, the repository webhook secret, the re-check interval', () => {
     expect(settings.map(name)).toEqual([
       'server.host',
       'server.port',
@@ -102,6 +145,8 @@ describe('settings', () => {
         `github.apps.${fn}.privateKeyFile`,
         `github.apps.${fn}.webhookSecret`,
       ]),
+      ...githubFunctions.map((fn) => `github.tokens.${fn}`),
+      'github.webhookSecret',
       'github.recheckIntervalMinutes',
     ])
   })
@@ -115,6 +160,8 @@ describe('loadConfig', () => {
       database: { url: dbUrl, directUrl: 'postgres://tool:secret@direct.example:5432/tool' },
       github: {
         recheckIntervalMinutes: 15,
+        webhookSecret: 'hook-repos',
+        tokens: {},
         apps: {
           readIssues: {
             appId: 11,
@@ -150,30 +197,81 @@ describe('loadConfig', () => {
       COLD_SEANCE_GITHUB_APPS_READ_ISSUES_WEBHOOK_SECRET: 'r',
       COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_WEBHOOK_SECRET: 'w',
       COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_WEBHOOK_SECRET: 'p',
+      COLD_SEANCE_GITHUB_WEBHOOK_SECRET: 'repos',
     }
     // fx.dir has no config.yaml, so the default file is absent.
     const config = loadConfig({ env, cwd: fx.dir })
     expect(config.server).toEqual({ host: '::', port: 8443 })
     expect(config.database).toEqual({ url: dbUrl, directUrl: 'postgresql://direct.example/tool' })
     expect(config.github.recheckIntervalMinutes).toBe(30)
+    expect(config.github.webhookSecret).toBe('repos')
+    expect(config.github.tokens).toEqual({})
     expect(config.github.apps.readIssues).toEqual({
       appId: 1,
       privateKeyFile: fx.keyFiles.readIssues,
       privateKey: 'key-readIssues',
       webhookSecret: 'r',
     })
-    expect(config.github.apps.writeIssues.appId).toBe(2)
-    expect(config.github.apps.writeIssues.webhookSecret).toBe('w')
-    expect(config.github.apps.projectsStatus.appId).toBe(3)
-    expect(config.github.apps.projectsStatus.privateKey).toBe('key-projectsStatus')
-    expect(config.github.apps.projectsStatus.webhookSecret).toBe('p')
+    expect(config.github.apps.writeIssues?.appId).toBe(2)
+    expect(config.github.apps.writeIssues?.webhookSecret).toBe('w')
+    expect(config.github.apps.projectsStatus?.appId).toBe(3)
+    expect(config.github.apps.projectsStatus?.privateKey).toBe('key-projectsStatus')
+    expect(config.github.apps.projectsStatus?.webhookSecret).toBe('p')
+  })
+
+  it('reads a personal access token for each function from the file, and no App', () => {
+    const config = loadConfig({ env: withFile(tokenFile()) })
+    expect(config.github.tokens).toEqual({
+      readIssues: 'ghp_read',
+      writeIssues: 'github_pat_write',
+      projectsStatus: 'ghp_status',
+    })
+    expect(config.github.apps).toEqual({})
+  })
+
+  it('reads a personal access token from the environment alone, with no file', () => {
+    const env = {
+      COLD_SEANCE_DATABASE_URL: dbUrl,
+      ...withoutApp('writeIssues'),
+      [tokenEnv('writeIssues')]: 'ghp_fromEnv',
+    }
+    const config = loadConfig({ env, cwd: fx.dir })
+    expect(config.github.tokens).toEqual({ writeIssues: 'ghp_fromEnv' })
+    expect(Object.keys(config.github.apps)).toEqual(['readIssues', 'projectsStatus'])
+  })
+
+  it('accepts Apps and tokens mixed across functions, and one token for several, given with a YAML anchor', () => {
+    const file = `
+database: { url: ${dbUrl} }
+github:
+  apps:
+    projectsStatus: { appId: 5, privateKeyFile: ${fx.keyFiles.projectsStatus} }
+  tokens:
+    readIssues: &token ghp_shared
+    writeIssues: *token
+`
+    const config = loadConfig({ env: withFile(file) })
+    expect(config.github.tokens).toEqual({ readIssues: 'ghp_shared', writeIssues: 'ghp_shared' })
+    expect(config.github.apps).toEqual({
+      projectsStatus: {
+        appId: 5,
+        privateKeyFile: fx.keyFiles.projectsStatus,
+        privateKey: 'key-projectsStatus',
+        webhookSecret: undefined,
+      },
+    })
   })
 
   describe('the environment variable wins over the file', () => {
     const otherKey = () => fx.write('other.pem', 'other-key')
     const overrides: Record<
       string,
-      () => { env: string; check: (c: ReturnType<typeof loadConfig>) => unknown }
+      () => {
+        env: string
+        check: (c: ReturnType<typeof loadConfig>) => unknown
+        /** The file the variable overrides, if not `fullFile()`. */
+        file?: string
+      }
     > = {
       'server.host': () => ({ env: '::1', check: (c) => c.server.host }),
       'server.port': () => ({ env: '4000', check: (c) => c.server.port }),
@@ -186,27 +284,38 @@ describe('loadConfig', () => {
         env: '5',
         check: (c) => c.github.recheckIntervalMinutes,
       }),
+      'github.webhookSecret': () => ({ env: 'env-repos', check: (c) => c.github.webhookSecret }),
+      ...Object.fromEntries(
+        githubFunctions.map((fn) => [
+          `github.tokens.${fn}`,
+          () => ({
+            env: 'ghp_env',
+            check: (c: ReturnType<typeof loadConfig>) => c.github.tokens[fn],
+            file: tokenFile(),
+          }),
+        ]),
+      ),
       ...Object.fromEntries(
         githubFunctions.flatMap((fn) => [
           [
             `github.apps.${fn}.appId`,
             () => ({
               env: '99',
-              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].appId,
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn]?.appId,
             }),
           ],
           [
             `github.apps.${fn}.privateKeyFile`,
             () => ({
               env: otherKey(),
-              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].privateKey,
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn]?.privateKey,
             }),
           ],
           [
             `github.apps.${fn}.webhookSecret`,
             () => ({
               env: 'env-secret',
-              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].webhookSecret,
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn]?.webhookSecret,
             }),
           ],
         ]),
@@ -221,7 +330,7 @@ describe('loadConfig', () => {
       it(`for ${name(setting)}`, () => {
         const override = overrides[name(setting)]!()
         const config = loadConfig({
-          env: withFile(fullFile(), { [envName(setting.path)]: override.env }),
+          env: withFile(override.file ?? fullFile(), { [envName(setting.path)]: override.env }),
         })
         const expected =
           setting.kind === 'positiveInteger' || setting.kind === 'port'
@@ -239,7 +348,7 @@ describe('loadConfig', () => {
     expect(config.database.url).toBe(dbUrl)
   })
 
-  it('applies the defaults: localhost:3000, direct URL is the URL, one-hour re-check, no webhook secret', () => {
+  it('applies the defaults: localhost:3000, direct URL is the URL, one-hour re-check, no webhook secrets', () => {
     const config = loadConfig({
       env: { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv },
       cwd: fx.dir,
@@ -247,7 +356,8 @@ describe('loadConfig', () => {
     expect(config.server).toEqual({ host: '127.0.0.1', port: 3000 })
     expect(config.database.directUrl).toBe(dbUrl)
     expect(config.github.recheckIntervalMinutes).toBe(60)
-    for (const fn of githubFunctions) expect(config.github.apps[fn].webhookSecret).toBeUndefined()
+    for (const fn of githubFunctions) expect(config.github.apps[fn]?.webhookSecret).toBeUndefined()
+    expect(config.github.webhookSecret).toBeUndefined()
   })
 
   it('accepts one App for all functions, given with a YAML anchor', () => {
@@ -263,6 +373,7 @@ github:
     for (const fn of githubFunctions) {
       expect(config.github.apps[fn]).toMatchObject({ appId: 7, privateKey: 'key-readIssues' })
     }
+    expect(config.github.tokens).toEqual({})
   })
 
   it('reads config.yaml from the working directory when no file is named', () => {
@@ -301,15 +412,113 @@ github:
       })
     }
 
-    it('with a message that lists every missing setting', () => {
+    it('with a message that lists every missing setting, and every function given neither an App nor a token', () => {
       const error = refusal({})
-      const { message } = error
-      for (const setting of settings.filter((s) => s.required)) {
-        expect(message).toContain(
-          `- ${name(setting)} (${envName(setting.path)}) is required but not set`,
-        )
-      }
+      expect(error.problems).toEqual([
+        'database.url (COLD_SEANCE_DATABASE_URL) is required but not set',
+        ...githubFunctions.map((fn) => neither(fn)),
+      ])
+      for (const problem of error.problems) expect(error.message).toContain(`- ${problem}`)
       expect(error.name).toBe('ConfigError')
+    })
+
+    it('when an App is given only its webhook secret, naming its id and key file as missing', () => {
+      const env = {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...withoutApp('projectsStatus'),
+        COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_WEBHOOK_SECRET: 's',
+      }
+      expect(problemsOf(env)).toEqual([
+        'github.apps.projectsStatus.appId (COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_APP_ID) is required but not set',
+        'github.apps.projectsStatus.privateKeyFile (COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_PRIVATE_KEY_FILE) is required but not set',
+      ])
+    })
+
+    it('when a function is given both an App and a token, naming the function and not the App’s other settings', () => {
+      // The App is given by its id alone: its missing key file is not reported, since the
+      // function is to be given one of the two, not both.
+      const env = {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...withoutApp('readIssues'),
+        COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: '1',
+        [tokenEnv('readIssues')]: 'ghp_x',
+      }
+      expect(problemsOf(env)).toEqual([both('readIssues')])
+    })
+
+    it('when one function is given neither, naming that function alone', () => {
+      const env = { COLD_SEANCE_DATABASE_URL: dbUrl, ...withoutApp('writeIssues') }
+      expect(problemsOf(env)).toEqual([neither('writeIssues')])
+    })
+
+    it('when a function is given both, without reading its App’s key file or checking its token', () => {
+      // The key file cannot be read and the token holds a space: only "both" is reported, since
+      // the function is to be given one of the two, and which one is not known.
+      const env = {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+        COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE: join(fx.dir, 'missing.pem'),
+        [tokenEnv('readIssues')]: 'ghp_x y',
+      }
+      expect(problemsOf(env)).toEqual([both('readIssues')])
+    })
+
+    it('when every function is given both, each by name, with the file giving the Apps and the environment the tokens', () => {
+      const env = withFile(fullFile(), {
+        [tokenEnv('readIssues')]: 'ghp_a',
+        [tokenEnv('writeIssues')]: 'ghp_b',
+        [tokenEnv('projectsStatus')]: 'ghp_c',
+      })
+      expect(problemsOf(env)).toEqual(githubFunctions.map((fn) => both(fn)))
+    })
+
+    it('when a token in the file is not a string, without echoing it', () => {
+      const env = withFile(`github: { tokens: { writeIssues: 1234567 } }`, {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...withoutApp('writeIssues'),
+      })
+      const problems = problemsOf(env)
+      expect(problems).toEqual([
+        'github.tokens.writeIssues (COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES) must be a string; quote it in the configuration file',
+      ])
+      expect(problems.join()).not.toContain('1234567')
+    })
+
+    for (const [what, bad] of [
+      ['a space', 'ghp_hunter2 x'],
+      ['a line break', 'ghp_hunter2\n'],
+      ['a character outside ASCII', 'ghp_hunter2é'],
+    ] as const) {
+      it(`when a token holds ${what}, without echoing it`, () => {
+        const env = {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...withoutApp('readIssues'),
+          [tokenEnv('readIssues')]: bad,
+        }
+        const problems = problemsOf(env)
+        expect(problems).toEqual([
+          'github.tokens.readIssues (COLD_SEANCE_GITHUB_TOKENS_READ_ISSUES) must be the token alone: printable ASCII characters, with no spaces or line breaks',
+        ])
+        expect(problems.join()).not.toContain('hunter2')
+      })
+    }
+
+    it('when the tokens section is not a mapping', () => {
+      const env = withFile(`github: { tokens: ghp_x }`, {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+      })
+      expect(problemsOf(env)).toEqual(['github.tokens in the configuration file must be a mapping'])
+    })
+
+    it('when the repository webhook secret in the file is not a string', () => {
+      const env = withFile(`github: { webhookSecret: 42 }`, {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+      })
+      expect(problemsOf(env)).toEqual([
+        'github.webhookSecret (COLD_SEANCE_GITHUB_WEBHOOK_SECRET) must be a string; quote it in the configuration file',
+      ])
     })
 
     it('when a key file does not exist', () => {
@@ -421,7 +630,7 @@ github:
           COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: '',
         }),
       })
-      expect(config.github.apps.readIssues.appId).toBe(42)
+      expect(config.github.apps.readIssues?.appId).toBe(42)
     })
 
     it('when the database address is not a PostgreSQL URL, without echoing it', () => {
@@ -508,6 +717,8 @@ github:
   apps:
     readIssues: { appId: 1, privateKeyFile: ${fx.keyFiles.readIssues}, webhookSecrt: s }
     reviewIssues: { appId: 2 }
+  tokens:
+    readIssue: ghp_x
 `
       expect(problemsOf(withFile(file, fx.githubEnv))).toEqual([
         'databse in the configuration file is not a setting the tool knows',
@@ -515,7 +726,33 @@ github:
         'github.recheckInterval in the configuration file is not a setting the tool knows',
         'github.apps.readIssues.webhookSecrt in the configuration file is not a setting the tool knows',
         'github.apps.reviewIssues in the configuration file is not a setting the tool knows',
+        'a key under github.tokens in the configuration file is not one of readIssues, writeIssues, projectsStatus; it is not shown, since it may be a token',
       ])
+    })
+
+    it('when a key under github.tokens is not a function, without echoing it, since it may be a token', () => {
+      // A token written without a space after the colon is one key, `writeIssues:ghp_…`; a token
+      // pasted alone is a key as well.
+      const file = `github: { tokens: { writeIssues:ghp_hunter2, ghp_hunter3: } }`
+      const problems = problemsOf(
+        withFile(file, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      const unknown =
+        'a key under github.tokens in the configuration file is not one of readIssues, writeIssues, projectsStatus; it is not shown, since it may be a token'
+      expect(problems).toEqual([unknown, unknown])
+      expect(problems.join()).not.toMatch(/hunter/)
+    })
+
+    it('when a key elsewhere does not look like a setting name, without echoing it', () => {
+      const file = `github: { apps: { readIssues: { webhookSecret:hunter2 } } }\n"hunter3 x": 1\n`
+      const problems = problemsOf(
+        withFile(file, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      expect(problems).toEqual([
+        'a key under github.apps.readIssues in the configuration file is not a setting the tool knows; it is not shown, since it may hold a secret',
+        'a key at the top level in the configuration file is not a setting the tool knows; it is not shown, since it may hold a secret',
+      ])
+      expect(problems.join()).not.toMatch(/hunter/)
     })
 
     it('when a COLD_SEANCE_ environment variable is not a setting the tool knows', () => {

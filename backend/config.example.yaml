@@ -22,8 +22,12 @@ github:
   # The re-check of linked issues, in minutes; 60 if not set.            COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES
   # recheckIntervalMinutes: 60
 
-  # One App per function, or the same App for all of them (the YAML anchor below does that).
-  # appId and privateKeyFile are required for each; webhookSecret only if the App sends webhooks.
+  # Each function (readIssues, writeIssues, projectsStatus) is given either a GitHub App, under
+  # apps, or a personal access token, under tokens: not both, and not neither, or the tool does not
+  # start. Apps and tokens can be mixed across functions, and one App or one token can serve several
+  # (the YAML anchors below do that).
+  #
+  # An App: appId and privateKeyFile are required; webhookSecret only if the App sends webhooks.
   apps:
     readIssues:
       &app #                                                   COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID
@@ -32,3 +36,15 @@ github:
       # webhookSecret: change-me
     writeIssues: *app #                                                  COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_...
     projectsStatus: *app #                                               COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_...
+
+
+  # A personal access token, as its value, used as the GitHub account that owns it. The environment
+  # variable keeps it out of this file. Remove a function from apps above before giving it a token;
+  # to remove readIssues, which holds the &app anchor, move the anchor to a function that stays.
+  # tokens:
+  #   readIssues: &token github_pat_change-me #                        COLD_SEANCE_GITHUB_TOKENS_READ_ISSUES
+  #   writeIssues: *token #                                            COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES
+  #   projectsStatus: *token #                                         COLD_SEANCE_GITHUB_TOKENS_PROJECTS_STATUS
+
+  # The one secret of the webhooks set up on repositories and organizations, if any are used.
+  # webhookSecret: change-me #                                         COLD_SEANCE_GITHUB_WEBHOOK_SECRET

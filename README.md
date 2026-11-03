@@ -25,7 +25,9 @@ The backend listens on `server.host` and `server.port` (127.0.0.1:3000 unless se
 
 The backend reads its settings at start from a YAML file (DD-059): `config.yaml` in the directory it starts in, or the file named by `COLD_SEANCE_CONFIG_FILE`. [`backend/config.example.yaml`](backend/config.example.yaml) lists every setting. Each one can also be given by an environment variable, named after its path (`database.url` is `COLD_SEANCE_DATABASE_URL`, `github.apps.readIssues.appId` is `COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID`), and **the environment variable wins over the file**; an empty variable counts as not set. A key in the file or a `COLD_SEANCE_` variable that is not a known setting stops the start, so a misspelt setting cannot go unnoticed. Without a file, the environment alone configures the tool.
 
-The backend does not start if a required setting is missing, a value is not valid, or a GitHub App's key file cannot be read; it prints each such setting and exits. To run `npm run dev -w backend`, copy the example to `backend/config.yaml` and fill it in. `config.yaml` is ignored by git, because it holds secrets.
+Each GitHub function (reading issues, writing to issues, the Projects status field) is given either a GitHub App, under `github.apps.<function>`, or a personal access token, under `github.tokens.<function>` (DD-060); Apps and tokens can be mixed across functions, and one can serve several. A token is given as its value, so an environment variable such as `COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES` can keep it out of the file; the function must then not also be given an App under `github.apps`, in the file or the environment, or the two count as both. `github.webhookSecret` is the one secret of the webhooks set up on repositories and organizations, if any are used.
+
+The backend does not start if a required setting is missing, a value is not valid, a GitHub App's key file cannot be read, or a GitHub function is given both an App and a token, or neither; it prints each such setting or function and exits. To run `npm run dev -w backend`, copy the example to `backend/config.yaml` and fill it in. `config.yaml` is ignored by git, because it holds secrets.
 
 ### Checks
 
@@ -77,7 +79,7 @@ TEST_IMAGE=cold-seance:test TEST_DATABASE_URL=postgres://postgres:postgres@local
 [`compose.yaml`](compose.yaml) is the tool's installation (SC-029, DD-040): the application image, `ghcr.io/csillagu/cold-seance:latest`, next to the official PostgreSQL 18 image, which keeps its data in the Compose volume `database`. In a directory holding `compose.yaml`:
 
 ```sh
-cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps and the database address
+cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps or tokens and the database address
 mkdir secrets && cp <key files> secrets/      # mounted at /run/secrets
 docker compose up -d
 ```

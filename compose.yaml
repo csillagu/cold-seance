@@ -2,7 +2,7 @@
 # Registry, next to the official PostgreSQL image, which keeps its data in the volume `database`.
 # Put the configuration and the key files beside this file, then start it with one command:
 #
-#   config.yaml    from backend/config.example.yaml, with the GitHub Apps filled in and
+#   config.yaml    from backend/config.example.yaml, with the GitHub Apps or tokens filled in and
 #                  database.url: postgres://cold_seance:cold_seance@database:5432/cold_seance
 #   secrets/       the GitHub Apps' key files, mounted at /run/secrets
 #   docker compose up -d
