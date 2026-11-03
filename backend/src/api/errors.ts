@@ -13,6 +13,9 @@ const STATUS: Record<ServiceErrorKind, number> = {
   conflict: 409,
 }
 
+/** The `error` of the response to a request about a project the caller cannot see (SC-051). */
+export const NOT_VISIBLE = 'Not Visible'
+
 /** The body of every REST API error response, in the shape Fastify uses for its own errors. */
 export interface ApiErrorBody {
   statusCode: number
@@ -20,8 +23,8 @@ export interface ApiErrorBody {
   message: string
 }
 
-export function errorBody(statusCode: number, message: string): ApiErrorBody {
-  return { statusCode, error: STATUS_CODES[statusCode] ?? 'Error', message }
+export function errorBody(statusCode: number, message: string, error?: string): ApiErrorBody {
+  return { statusCode, error: error ?? STATUS_CODES[statusCode] ?? 'Error', message }
 }
 
 /** Thrown when no authenticator recognises the caller of a REST API request. */
@@ -46,7 +49,10 @@ export function handleApiError(
 ): FastifyReply {
   if (error instanceof ServiceError) {
     const statusCode = STATUS[error.kind]
-    return reply.code(statusCode).send(errorBody(statusCode, error.message))
+    // A project the caller cannot see is named for what it is, not "Forbidden", which reads as
+    // "no permission" (FR-017), and so a client can tell it from a refusal by role.
+    const name = error.kind === 'not-visible' ? NOT_VISIBLE : undefined
+    return reply.code(statusCode).send(errorBody(statusCode, error.message, name))
   }
   if (error instanceof UnauthenticatedError) {
     return reply.code(401).send(errorBody(401, error.message))

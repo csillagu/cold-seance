@@ -132,7 +132,7 @@ describe('GET /api/projects/:projectId', () => {
     expect(response.statusCode).toBe(403)
     expect(response.json()).toEqual({
       statusCode: 403,
-      error: 'Forbidden',
+      error: 'Not Visible',
       message: 'This project is not visible to you',
     })
   })
@@ -153,5 +153,6 @@ describe('the OpenAPI description', () => {
     ).json().paths
     expect(Object.keys(paths['/api/projects/']).sort()).toEqual(['get', 'post'])
     expect(paths['/api/projects/{projectId}/members']).toBeDefined()
+    expect(Object.keys(paths['/api/projects/{projectId}'])).toEqual(['get'])
   })
 })

@@ -147,8 +147,8 @@ export class ProjectRoleService implements ProjectRoles {
 
   /**
    * The people who hold a role in the project directly, by username, with their roles. Anyone who
-   * holds a role in the project, of whatever kind, may read them (FR-106); everyone else is
-   * refused.
+   * holds a role in the project, of whatever kind, may read them (FR-106); everyone else is told
+   * that the project is not visible to them (FR-017).
    */
   async listMembers(caller: Caller, projectId: string): Promise<ProjectMember[]> {
     await this.permissions.require(caller, projectId, 'read')
@@ -162,7 +162,8 @@ export class ProjectRoleService implements ProjectRoles {
 
   /**
    * Gives the person `accountId` the role `role` in the project directly, adding them as a member
-   * or changing the role they hold (UC-025). Refused unless the caller is the project's admin;
+   * or changing the role they hold (UC-025). Refused as not visible to someone with no role in the
+   * project (FR-017), and as forbidden to a member who is not its admin (FR-109);
    * refused if the role is not one of the four, if there is no such account, or if it would take
    * the admin role from the project's last admin (FR-110).
    */
@@ -213,7 +214,8 @@ export class ProjectRoleService implements ProjectRoles {
 
   /**
    * Takes away the role the person `accountId` holds in the project directly (UC-025). Roles they
-   * hold through groups stay with the groups. Refused unless the caller is the project's admin;
+   * hold through groups stay with the groups. Refused as not visible to someone with no role in the
+   * project (FR-017), and as forbidden to a member who is not its admin (FR-109);
    * refused as not found if the person holds no role there directly, and refused if they are the
    * project's last admin (FR-110).
    */

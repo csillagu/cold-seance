@@ -124,7 +124,8 @@ export class ProjectPermissions {
   }
 
   /**
-   * Refuses with `forbidden` a status change the caller's role in the project does not allow. The
+   * Refuses with `not-visible` a status change by someone with no role in the project (FR-017), and
+   * with `forbidden` one the caller's role there does not allow. The
    * task's assignees and its status (`from`) must be read in the transaction `executor` that makes
    * the change, with the task locked, so that what is checked is what is changed: otherwise a
    * contributor could, say, reopen a task someone else finished in the meantime.
@@ -142,7 +143,7 @@ export class ProjectPermissions {
         'forbidden',
         role === 'contributor'
           ? 'A contributor can only mark a task they are assigned to as in progress, on hold or finished'
-          : "Only the project's read-write members and admins can set the status of its tasks",
+          : "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
       )
     }
   }

@@ -259,8 +259,9 @@ describe('ProjectPermissions', () => {
           to: 'in-progress',
         }),
       )
+      expect(error.kind).toBe('forbidden')
       expect(error.message).toBe(
-        "Only the project's read-write members and admins can set the status of its tasks",
+        "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
       )
     })
 
@@ -274,6 +275,7 @@ describe('ProjectPermissions', () => {
         }),
       )
       expect(error.kind).toBe('not-visible')
+      expect(error.message).toBe('This project is not visible to you')
     })
   })
 })

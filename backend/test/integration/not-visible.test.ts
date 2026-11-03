@@ -55,11 +55,13 @@ describe('a project someone cannot see', () => {
       expect(response.statusCode).toBe(403)
       expect(response.json()).toEqual({
         statusCode: 403,
-        error: 'Forbidden',
+        error: 'Not Visible',
         message: 'This project is not visible to you',
       })
       // Negative: neither "not found", "deleted" nor "no permission", and no data of Borealis.
       expect(response.json().message).not.toMatch(VAGUE)
+      expect(response.json().error).not.toMatch(VAGUE)
+      expect(response.json().error).not.toBe('Forbidden')
       expect(response.body).not.toContain('Borealis')
       expect(response.body).not.toContain(borealis)
     })
@@ -118,7 +120,7 @@ describe('a project someone cannot see', () => {
     ])
     for (const response of responses) {
       expect(response.statusCode).toBe(403)
-      expect(response.json().message).toBe(NOT_VISIBLE_MESSAGE)
+      expect(response.json()).toMatchObject({ error: 'Not Visible', message: NOT_VISIBLE_MESSAGE })
     }
   })
 
@@ -137,12 +139,14 @@ describe('a project someone cannot see', () => {
       payload: { role: 'admin' },
     })
     expect(response.statusCode).toBe(403)
-    expect(response.json().message).toBe(
-      "Only the project's admins can manage its members, roles, repositories and settings",
-    )
+    expect(response.json()).toEqual({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: "Only the project's admins can manage its members, roles, repositories and settings",
+    })
   })
 
-  // TC-024: depending on an unreadable project's milestone is rejected. Pending: it needs tasks,
-  // milestones and blocked-by relations (SC-001, SC-002), whose refusal for a milestone in a
-  // project the caller cannot see will come through the same check and the same answer.
+  // TC-024 (depending on an unreadable project's milestone is rejected) verifies FR-016, which the
+  // task relation module (SC-002) delivers; it asks that the refusal reveal nothing beyond what
+  // FR-017 allows. Pending: tasks, milestones and blocked-by relations (SC-001, SC-002).
 })

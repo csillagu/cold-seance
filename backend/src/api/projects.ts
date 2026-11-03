@@ -13,8 +13,8 @@ const project = {
 
 /**
  * The routes of projects (SC-017, SC-051, SC-026): create a project, list the projects the caller
- * holds a role in, and read one, which someone who cannot see it is told is not visible to them. They only translate the request; the project service decides what is allowed
- * (DD-039).
+ * holds a role in, and read one, which someone who cannot see it is told is not visible to them.
+ * They only translate the request; the project service decides what is allowed (DD-039).
  */
 export const projectRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
   group.get(
