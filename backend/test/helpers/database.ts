@@ -1,11 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Client } from 'pg'
 import { createDatabase, type Database } from '../../src/db/client.ts'
-
-const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
+import { applyMigrations } from '../../src/db/migrate.ts'
 
 /**
  * The PostgreSQL server the integration tests run against, as a connection URL to a database on
@@ -31,23 +27,29 @@ export interface TestDatabase {
 }
 
 /**
- * Creates a fresh, empty database with every migration applied, as the test cases' "fresh test
- * deployment: empty database" asks. Each call gets its own database, so test files run in
- * parallel without seeing each other's data. Call `drop()` when done.
+ * Creates a fresh, empty database with every migration applied by the backend's own migration
+ * step (SC-074), as the test cases' "fresh test deployment: empty database" asks. Each call gets
+ * its own database, so test files run in parallel without seeing each other's data. Call `drop()`
+ * when done. `{ migrate: false }` leaves the database empty, for tests of the migration step.
  */
-export async function createTestDatabase(): Promise<TestDatabase> {
+export async function createTestDatabase(
+  options: { migrate?: boolean } = {},
+): Promise<TestDatabase> {
   const serverUrl = testServerUrl()
   const name = `test_${randomUUID().replaceAll('-', '')}`
   await onServer(serverUrl, (client) => client.query(`CREATE DATABASE "${name}"`))
 
   const url = new URL(serverUrl)
   url.pathname = `/${name}`
-  const { db, close } = createDatabase(url.toString())
-
-  // Until the first migration is generated (SC-073) there is nothing to apply.
-  if (existsSync(`${migrationsFolder}/meta/_journal.json`)) {
-    await migrate(db, { migrationsFolder })
+  if (options.migrate !== false) {
+    try {
+      await applyMigrations(url.toString())
+    } catch (error) {
+      await onServer(serverUrl, (client) => client.query(`DROP DATABASE "${name}" WITH (FORCE)`))
+      throw error
+    }
   }
+  const { db, close } = createDatabase(url.toString())
 
   return {
     name,

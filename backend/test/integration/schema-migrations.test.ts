@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { is, sql } from 'drizzle-orm'
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
@@ -23,7 +23,6 @@ function declaredTables(): Map<string, string[]> {
 
 /** The migrations the journal lists, in the order the migrator applies them. */
 function journalTags(): string[] {
-  if (!existsSync(journalFile)) return []
   const journal: unknown = JSON.parse(readFileSync(journalFile, 'utf8'))
   const entries = typeof journal === 'object' && journal !== null && 'entries' in journal
   return entries && Array.isArray(journal.entries)
@@ -76,19 +75,13 @@ describe('the migrations applied to an empty database (SC-073)', () => {
 
   it('are each recorded as applied, once, so a later start applies only newer ones', async () => {
     const tags = journalTags()
-    const table = await x.db.execute<{ found: boolean }>(
-      sql`select to_regclass('drizzle.__drizzle_migrations') is not null as found`,
-    )
-    const found = table.rows[0]?.found === true
-    // Until the first migration exists the migrator has nothing to run, and records nothing.
-    const recorded = found
-      ? await x.db
-          .execute<{ count: number }>(
-            sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
-          )
-          .then((result) => result.rows[0]?.count)
-      : 0
-    expect(found).toBe(tags.length > 0)
+    // The migration step runs Drizzle's migrator even when the journal lists nothing (SC-074), so
+    // its record of applied migrations always exists.
+    const recorded = await x.db
+      .execute<{ count: number }>(
+        sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
+      )
+      .then((result) => result.rows[0]?.count)
     expect(recorded).toBe(tags.length)
   })
 })

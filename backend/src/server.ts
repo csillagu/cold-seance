@@ -1,11 +1,12 @@
 import { ConfigError } from './config/config.ts'
+import { MigrationError } from './db/migrate.ts'
 import { startBackend } from './start.ts'
 
 let backend
 try {
-  backend = startBackend({ server: { logger: true } })
+  backend = await startBackend({ server: { logger: true } })
 } catch (error) {
-  if (!(error instanceof ConfigError)) throw error
+  if (!(error instanceof ConfigError || error instanceof MigrationError)) throw error
   console.error(error.message)
   process.exit(1)
 }

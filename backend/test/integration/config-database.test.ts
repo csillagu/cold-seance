@@ -4,8 +4,9 @@ import { startBackend } from '../../src/start.ts'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 
-// TC-259 (FR-177), the part SC-109 supports: the backend uses the database whose address is in
-// its configuration, here a database on the test server standing in for the external one. Still
+// TC-259 (FR-177), the part SC-109 and SC-074 support: the backend uses the database whose address
+// is in its configuration, here a database on the test server standing in for the external one,
+// and applies its migrations there (migration-step.test.ts). Still
 // pending: signing in as the first system admin (SC-053), creating and listing a project (SC-017,
 // and a project listing no SC names yet), and the two installs with the bundled database
 // stopped (SC-028, SC-029).
@@ -23,7 +24,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     await x?.drop()
   })
 
-  async function currentDatabase(backend: ReturnType<typeof startBackend>) {
+  async function currentDatabase(backend: Awaited<ReturnType<typeof startBackend>>) {
     try {
       const result = await backend.db.execute<{ name: string }>(
         sql`select current_database() as name`,
@@ -36,7 +37,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
 
   it('TC-259: uses the database whose address is given in the configuration file', async () => {
     const path = fx.write('config.yaml', `database:\n  url: ${x.url}\n`)
-    const backend = startBackend({
+    const backend = await startBackend({
       env: { COLD_SEANCE_CONFIG_FILE: path, ...fx.githubEnv },
       cwd: fx.dir,
     })
@@ -49,7 +50,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
       'stopped.yaml',
       'database:\n  url: postgres://postgres:postgres@127.0.0.1:1/installed\n',
     )
-    const backend = startBackend({
+    const backend = await startBackend({
       env: { COLD_SEANCE_CONFIG_FILE: path, COLD_SEANCE_DATABASE_URL: x.url, ...fx.githubEnv },
       cwd: fx.dir,
     })
