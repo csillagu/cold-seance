@@ -18,6 +18,7 @@ It delivers:
 - [FR-170](FR-170-add-a-repository-at-once-when-its-adder-is-admin-o.md): Add a repository at once when its adder is admin of both it and the project
 - [FR-171](FR-171-let-a-repository-admin-reject-a-project-s-request-.md): Let a repository admin reject a project's request for the repository
 - [FR-172](FR-172-let-a-repository-admin-withdraw-an-approval-given-.md): Let a repository admin withdraw an approval given to a project
+- [FR-178](FR-178-keep-a-project-s-tasks-from-a-repository-after-i.md): Keep a project's tasks from a repository after its approval is withdrawn
 - [FR-174](FR-174-let-a-repository-s-admins-add-other-admins.md): Let a repository's admins add other admins
 - [FR-175](FR-175-reject-leaving-a-repository-without-an-admin.md): Reject leaving a repository without an admin
 - [FR-176](FR-176-let-a-repository-s-admins-remove-other-admins-or-s.md): Let a repository's admins remove other admins or step down
