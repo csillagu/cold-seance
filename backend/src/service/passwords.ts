@@ -37,10 +37,14 @@ function unpadded(bytes: Buffer): string {
 
 const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
 
-/** The bounds a stored hash's parameters must keep within to be checked at all. */
-const MAX_MEMORY = 1_048_576
-const MAX_PASSES = 16
-const MAX_PARALLELISM = 16
+/**
+ * The bounds a stored hash's parameters must keep within to be checked at all: a few times the
+ * parameters new hashes are made with, so that a hash written by hand cannot make one sign-in
+ * take far longer, or far more memory, than any other.
+ */
+const MAX_MEMORY = 4 * ARGON2ID.memory
+const MAX_PASSES = 4 * ARGON2ID.passes
+const MAX_PARALLELISM = 4
 
 /**
  * Whether `password` is the password `hash`, a PHC string written by `hashPassword`, was made

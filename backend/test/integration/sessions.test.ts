@@ -66,6 +66,14 @@ describe('the session service', () => {
     expect(signedIn.accountId).toBe(alice.id)
   })
 
+  it('finds a username whose capitals PostgreSQL and JavaScript lower differently', async () => {
+    // JavaScript lowers İ to i and a combining dot; PostgreSQL, as the unique index does, to i.
+    const ipek = await seedAccount(x.db, { username: 'İpek', password: 'ipek-pw' })
+    expect((await service.signIn({ username: 'İpek', password: 'ipek-pw' })).accountId).toBe(
+      ipek.id,
+    )
+  })
+
   it('refuses a wrong password and creates no session', async () => {
     const before = (await sessionsOf(alice.id)).length
     for (const password of ['alice-W', 'ALICE-C', '', 'alice-C ']) {

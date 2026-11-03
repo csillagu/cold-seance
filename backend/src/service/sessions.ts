@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts, sessions } from '../db/schema.ts'
 import { hashSecret } from './api-tokens.ts'
@@ -45,7 +45,8 @@ export class SessionService {
     const [account] = await this.#db
       .select({ id: accounts.id, passwordHash: accounts.passwordHash })
       .from(accounts)
-      .where(eq(sql`lower(${accounts.username})`, username.toLowerCase()))
+      // PostgreSQL's lower() on both sides, as the unique index on usernames uses it.
+      .where(sql`lower(${accounts.username}) = lower(${username})`)
     this.#standIn ??= hashPassword(randomBytes(32).toString('base64'))
     const hash = account?.passwordHash ?? (await this.#standIn)
     const matches = await verifyPassword(hash, credentials.password)

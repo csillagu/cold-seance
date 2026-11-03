@@ -90,11 +90,11 @@ describe('verifyPassword', () => {
   })
 
   it.each([
-    ['too much memory', 'm=2000000,t=2,p=1'],
-    ['too many passes', 'm=19456,t=99,p=1'],
-    ['too many lanes', 'm=19456,t=2,p=99'],
+    ['too much memory', 'm=77825,t=2,p=1'],
+    ['too many passes', 'm=19456,t=9,p=1'],
+    ['too many lanes', 'm=19456,t=2,p=5'],
   ])(
-    'refuses to check a hash asking for %s, so a stored hash cannot stall the backend',
+    'refuses to check a hash asking for %s, more than a few times what new hashes use',
     async (_, params) => {
       const hash = ['', 'argon2id', 'v=19', params, SALT, TAG].join('$')
       expect(await verifyPassword(hash, 'pw')).toBe(false)

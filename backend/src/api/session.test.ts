@@ -106,3 +106,33 @@ describe('public routes', () => {
     expect((await app.inject({ method: 'GET', url: '/api/x/none' })).statusCode).toBe(401)
   })
 })
+
+describe('the REST API’s own routes', () => {
+  it('have exactly one public route: signing in', async () => {
+    const app = buildApp()
+    closers.push(() => app.close())
+    const open: string[] = []
+    app.addHook('onRoute', (route) => {
+      if (route.config?.public === true) open.push(`${String(route.method)} ${route.url}`)
+    })
+    await app.ready()
+    expect(open).toEqual(['POST /api/session'])
+  })
+
+  it('take a sign-in only as JSON, so another site cannot post one from a form', async () => {
+    const { app, signIn } = stubbed()
+    for (const [type, payload] of [
+      ['application/x-www-form-urlencoded', 'username=alice&password=pw'],
+      ['text/plain', '{"username":"alice","password":"pw"}'],
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/session',
+        headers: { 'content-type': type! },
+        payload,
+      })
+      expect(response.statusCode).toBeGreaterThanOrEqual(400)
+    }
+    expect(signIn).not.toHaveBeenCalled()
+  })
+})

@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import type { Authenticator } from '../../src/api/caller.ts'
 import type { Database } from '../../src/db/client.ts'
 import { accounts } from '../../src/db/schema.ts'
@@ -56,6 +56,6 @@ export async function storedAccount(db: Database, username: string) {
   const [row] = await db
     .select()
     .from(accounts)
-    .where(eq(sql`lower(${accounts.username})`, username.toLowerCase()))
+    .where(sql`lower(${accounts.username}) = lower(${username})`)
   return row
 }
