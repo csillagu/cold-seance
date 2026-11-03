@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { is, sql } from 'drizzle-orm'
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
+import { pushSchema } from 'drizzle-kit/api'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import * as schema from '../../src/db/schema.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
@@ -59,15 +60,28 @@ describe('the migrations applied to an empty database (SC-073)', () => {
     expect(Object.fromEntries(created)).toEqual(Object.fromEntries(declaredTables()))
   })
 
+  it('differ in nothing from the schema: types, nullability, keys, indexes, enums', async () => {
+    // What drizzle-kit would have to change to make this database match the schema. It catches
+    // what the table and column names above do not, such as a committed migration edited by hand.
+    const { statementsToExecute } = await pushSchema(schema, x.db)
+    expect(statementsToExecute).toEqual([])
+  })
+
   it('are each recorded as applied, once, so a later start applies only newer ones', async () => {
     const tags = journalTags()
-    const recorded = await x.db
-      .execute<{ count: number }>(
-        sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
-      )
-      .then((result) => result.rows[0]?.count)
-      // Until the first migration exists the migrator has not run, so it has no record yet.
-      .catch(() => 0)
+    const table = await x.db.execute<{ found: boolean }>(
+      sql`select to_regclass('drizzle.__drizzle_migrations') is not null as found`,
+    )
+    const found = table.rows[0]?.found === true
+    // Until the first migration exists the migrator has nothing to run, and records nothing.
+    const recorded = found
+      ? await x.db
+          .execute<{ count: number }>(
+            sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
+          )
+          .then((result) => result.rows[0]?.count)
+      : 0
+    expect(found).toBe(tags.length > 0)
     expect(recorded).toBe(tags.length)
   })
 })

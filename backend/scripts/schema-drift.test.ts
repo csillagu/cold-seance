@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BACKEND_SCHEMA, main, schemaDrift, type DriftOptions } from './schema-drift.ts'
+import { BACKEND_SCHEMA, main, outputOf, schemaDrift, type DriftOptions } from './schema-drift.ts'
 
 const run = promisify(execFile)
 const drizzleKit = join(dirname(createRequire(import.meta.url).resolve('drizzle-kit')), 'bin.cjs')
@@ -30,13 +30,16 @@ export const projects = pgTable('projects', {
 })
 `
 
+const config = `export default { dialect: 'postgresql', schema: './schema.ts', out: './drizzle' }\n`
+
 let dir: string
 let options: DriftOptions
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'schema-drift-test-'))
   await symlink(nodeModules, join(dir, 'node_modules'), 'dir')
-  options = { schema: './schema.ts', migrations: './drizzle', cwd: dir }
+  await writeFile(join(dir, 'drizzle.config.ts'), config)
+  options = { config: './drizzle.config.ts', cwd: dir }
 })
 
 afterEach(async () => {
@@ -46,20 +49,9 @@ afterEach(async () => {
 
 /** Generates the schema's migration into the migrations folder, as `npm run db:generate` does. */
 async function generate(): Promise<void> {
-  await run(
-    process.execPath,
-    [
-      drizzleKit,
-      'generate',
-      '--dialect',
-      'postgresql',
-      '--schema',
-      './schema.ts',
-      '--out',
-      './drizzle',
-    ],
-    { cwd: dir },
-  )
+  await run(process.execPath, [drizzleKit, 'generate', '--config', './drizzle.config.ts'], {
+    cwd: dir,
+  })
 }
 
 async function listing(folder: string): Promise<string[]> {
@@ -106,13 +98,44 @@ describe('schemaDrift (SC-073: generating a migration from the schema yields no 
     await writeFile(join(dir, 'schema.ts'), "throw new Error('broken schema')\n")
     // drizzle-kit itself exits with 0 here; the check must still fail.
     await expect(schemaDrift(options)).rejects.toThrow(
-      /drizzle-kit could not generate from \.\/schema\.ts\n[^]*broken schema/,
+      /drizzle-kit could not generate with \.\/drizzle\.config\.ts\n[^]*broken schema/,
     )
   })
 
   it('fails when drizzle-kit itself fails, for a schema file that does not exist', async () => {
-    await expect(schemaDrift({ ...options, schema: './missing.ts' })).rejects.toThrow(
-      /drizzle-kit could not generate from \.\/missing\.ts\n[^]*No schema files found/,
+    await writeFile(join(dir, 'drizzle.config.ts'), config.replace('./schema.ts', './missing.ts'))
+    await expect(schemaDrift(options)).rejects.toThrow(
+      /drizzle-kit could not generate with \.\/drizzle\.config\.ts\n[^]*No schema files found/,
+    )
+  })
+
+  it('fails when generating would need to ask whether a table was renamed', async () => {
+    await writeFile(join(dir, 'schema.ts'), projects)
+    await generate()
+    await writeFile(
+      join(dir, 'schema.ts'),
+      projects.replace("pgTable('projects'", "pgTable('plans'"),
+    )
+    // drizzle-kit exits with 0 here too, having generated nothing, as it has no terminal to ask in.
+    await expect(schemaDrift(options)).rejects.toThrow(/drizzle-kit could not generate/)
+  })
+
+  it('generates with the configuration db:generate uses, not only its paths', async () => {
+    const snakeCase = config.replace("out: './drizzle'", "out: './drizzle', casing: 'snake_case'")
+    await writeFile(join(dir, 'drizzle.config.ts'), snakeCase)
+    await writeFile(
+      join(dir, 'schema.ts'),
+      `import { pgTable, text } from 'drizzle-orm/pg-core'\nexport const plans = pgTable('plans', { projectName: text() })\n`,
+    )
+    await generate()
+    // Without the casing, the check would find project_name changed to projectName.
+    await expect(schemaDrift(options)).resolves.toEqual([])
+  })
+
+  it('fails when the configuration names no migrations folder', async () => {
+    await writeFile(join(dir, 'drizzle.config.ts'), "export default { dialect: 'postgresql' }\n")
+    await expect(schemaDrift(options)).rejects.toThrow(
+      './drizzle.config.ts names no migrations folder (out)',
     )
   })
 
@@ -120,6 +143,22 @@ describe('schemaDrift (SC-073: generating a migration from the schema yields no 
     await writeFile(join(dir, 'schema.ts'), projects)
     await writeFile(join(dir, 'drizzle'), 'not a folder')
     await expect(schemaDrift(options)).rejects.toThrow(/directory/)
+  })
+})
+
+describe('outputOf', () => {
+  it('reads what a failed child process wrote', () => {
+    expect(outputOf(Object.assign(new Error('x'), { stdout: 'out', stderr: 'err' }))).toEqual({
+      stdout: 'out',
+      stderr: 'err',
+    })
+  })
+
+  it('reads nothing from an error that carries no output, such as a process that did not start', () => {
+    expect(outputOf(Object.assign(new Error('spawn ENOENT'), { stdout: undefined }))).toEqual({
+      stdout: '',
+      stderr: '',
+    })
   })
 })
 
@@ -140,6 +179,13 @@ describe('the db:check command', () => {
       expect.stringMatching(/generating would add 0000_\w+\.sql, meta\/0000_snapshot\.json/),
     )
     expect(error).toHaveBeenCalledWith(expect.stringContaining('npm run db:generate -w backend'))
+  })
+
+  it('fails with the reason, and how to answer a rename, when drizzle-kit cannot generate', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await writeFile(join(dir, 'schema.ts'), "throw new Error('broken schema')\n")
+    await expect(main(options)).resolves.toBe(1)
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/broken schema[^]*in a terminal/))
   })
 
   it("checks the backend's own schema by default", async () => {

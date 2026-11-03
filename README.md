@@ -41,7 +41,7 @@ The backend does not start if a required setting is missing, a value is not vali
 
 ### Tests
 
-- **Unit tests** sit next to the code they test, as `*.test.ts(x)` under `src/`. They need no database. Backend tests drive the HTTP layer with Fastify's `inject()`; frontend tests use Testing Library in jsdom.
+- **Unit tests** sit next to the code they test, as `*.test.ts(x)` under `src/` (and `backend/scripts/`). They need no database. Backend tests drive the HTTP layer with Fastify's `inject()`; frontend tests use Testing Library in jsdom.
 - **Integration tests** are in `backend/test/integration/`. They run against a real PostgreSQL. `createTestDatabase()` in `backend/test/helpers/database.ts` gives each test file a fresh, empty database with every migration applied, matching the test cases' "fresh test deployment". Start a server and point the tests at it:
 
   ```sh
@@ -60,15 +60,15 @@ The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part o
 
 ### Database schema
 
-The schema is TypeScript in `backend/src/db/schema.ts` (DD-057). Each backend block adds its tables there. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`, together with the change: a migration exists only as the change of the schema it is generated from, so write none by hand and edit none that is committed. If drizzle-kit asks whether a column or table was renamed, it needs a terminal to answer in.
+The schema is TypeScript in `backend/src/db/schema.ts` (DD-057). Each backend block adds its tables there, exported, since drizzle-kit sees only exported tables. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`, together with the change: a migration exists only as the change of the schema it is generated from, so write none by hand and edit none that is committed. If drizzle-kit asks whether a column or table was renamed, it needs a terminal to answer in.
 
 Two checks keep the schema and the migrations in agreement (SC-073):
 
-- `npm run db:check` generates a migration from the schema into a scratch copy of `backend/drizzle/` and fails, naming what it would add, if that is anything. It is part of `npm run check` and CI.
-- The integration test `backend/test/integration/schema-migrations.test.ts` applies every migration in order to an empty database and checks that the result has exactly the schema's tables and columns, with each migration recorded as applied.
+- `npm run db:check` generates a migration from the schema, with `backend/drizzle.config.ts` changed only in writing to a scratch copy of `backend/drizzle/`, and fails, naming what it would add, if that is anything, or if drizzle-kit could not generate (a schema that does not load, a rename it would have to ask about). It is part of `npm run check` and CI. It compares the schema with the migrations' snapshots, so it cannot see a committed migration edited by hand; the integration test below does.
+- The integration test `backend/test/integration/schema-migrations.test.ts` applies every migration in order to an empty database and checks that the result has exactly the schema's tables and columns, that drizzle-kit finds nothing to change to make it match the schema (types, nullability, keys, indexes, enums), and that each migration is recorded as applied.
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint and typecheck, the unit tests, the integration tests (with a PostgreSQL 18 service) and the build on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service) and the build on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [Dependabot](.github/dependabot.yml) proposes npm and GitHub Actions updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.
