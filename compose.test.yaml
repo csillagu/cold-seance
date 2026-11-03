@@ -1,0 +1,16 @@
+# A PostgreSQL server for running the backend's integration tests locally:
+#
+#   docker compose -f compose.test.yaml up -d
+#   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:integration
+#
+# This is not the tool's installation Compose file (SC-029); it holds no application and no data
+# worth keeping.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    tmpfs:
+      - /var/lib/postgresql

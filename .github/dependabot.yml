@@ -1,0 +1,35 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Leave new releases a week to be found out if they are broken or compromised.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 10
+    groups:
+      # Packages that must move together, majors included.
+      react:
+        patterns: [react, react-dom, '@types/react', '@types/react-dom']
+      vite-and-vitest:
+        patterns: [vite, vitest, '@vitejs/*', '@vitest/*']
+      drizzle:
+        patterns: [drizzle-orm, drizzle-kit]
+      oxlint:
+        patterns: [oxlint, oxlint-tsgolint]
+      # Everything else: minor and patch updates in one weekly PR; each major gets its own.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']

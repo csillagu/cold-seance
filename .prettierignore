@@ -1,0 +1,7 @@
+# The requirements graph and the stakeholder input are authored by hand and checked by reqlite.
+graph/
+docs/
+ruleset/
+CLAUDE.md
+package-lock.json
+backend/drizzle/
