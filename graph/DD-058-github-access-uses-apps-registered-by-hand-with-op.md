@@ -1,3 +1,7 @@
+---
+certainty: verified
+---
+
 # DD-058: GitHub access uses Apps registered by hand, with optional webhooks
 
 ## Decision
@@ -35,4 +39,4 @@ The owner set registration by hand as the only way ([SRC-208](SRC-208-github-app
 
 This decision serves [SRC-207](SRC-207-github-access-may-use-one-app-per-function.md), [SRC-214](SRC-214-a-github-app-is-given-by-its-id-and-private-key.md), [SRC-208](SRC-208-github-apps-are-registered-by-hand-only.md), [SRC-209](SRC-209-github-webhooks-are-optional-beside-the-hourly-re.md), [SRC-099](SRC-099-the-github-app-is-installed-per-repo-by-the-repo-s.md), [SRC-073](SRC-073-hourly-reconciliation-of-all-linked-issues.md), [SRC-191](SRC-191-an-hour-is-an-acceptable-delay-for-github-sync-and.md), [SRC-199](SRC-199-people-can-install-the-tool-simply.md), [SRC-001](SRC-001-the-tool-is-self-hosted-and-open-source.md), [DD-015](DD-015-start-and-hold-come-from-the-github-projects-statu.md), [DD-051](DD-051-the-re-check-runs-on-a-timer-in-the-backend.md), [DD-059](DD-059-settings-come-from-a-yaml-file-overridable-by-envi.md).
 
-Origin: replaces DD-053, which the owner chose and confirmed in the design session of 2026-11-02 ("Gh app A", "Certainty verified") and overtook in the design session of 2026-11-03 with SRC-207, SRC-208, SRC-209 and SRC-214. The limit on Projects webhooks comes from GitHub's documentation of webhook events (https://docs.github.com/en/webhooks/webhook-events-and-payloads), read on 2026-11-02, and is carried over from DD-053. Accepting webhooks only from an App whose secret is configured is Claude's proposal. The wording, alternatives, rationale, trade-offs and risks are Claude's, and they await the owner's confirmation.
+Origin: replaces DD-053, which the owner chose and confirmed in the design session of 2026-11-02 ("Gh app A", "Certainty verified") and overtook in the design session of 2026-11-03 with SRC-207, SRC-208, SRC-209 and SRC-214. The limit on Projects webhooks comes from GitHub's documentation of webhook events (https://docs.github.com/en/webhooks/webhook-events-and-payloads), read on 2026-11-02, and is carried over from DD-053. Accepting webhooks only from an App whose secret is configured was Claude's proposal. The wording, alternatives, rationale, trade-offs and risks are Claude's. The owner confirmed the decision in the design session of 2026-11-03: "DD-058 confirmed".
