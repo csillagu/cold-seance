@@ -74,23 +74,22 @@ TEST_IMAGE=cold-seance:test TEST_DATABASE_URL=postgres://postgres:postgres@local
 
 ### Installing with Docker Compose
 
-[`compose.yaml`](compose.yaml) is the tool's installation (SC-029, DD-040): the application image next to the official PostgreSQL 18 image, which keeps its data in the Compose volume `database`. In a directory holding `compose.yaml` (and, until the image is published, the repository to build it from):
+[`compose.yaml`](compose.yaml) is the tool's installation (SC-029, DD-040): the application image, `ghcr.io/csillagu/cold-seance:latest`, next to the official PostgreSQL 18 image, which keeps its data in the Compose volume `database`. In a directory holding `compose.yaml`:
 
 ```sh
-cp .env.example .env                          # set POSTGRES_PASSWORD in it, letters and digits only
-cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps; leave database.url out
+cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps and the database address
 mkdir secrets && cp <key files> secrets/      # mounted at /run/secrets
 docker compose up -d
 ```
 
-- After updating the repository, `docker compose up -d --build` rebuilds the image and restarts the tool.
-- `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They hold secrets: make them readable by the `node` user (uid 1000) and no one else. `.env` holds the database password and is read by Compose on the host: keep it readable by you only.
-- The tool is published on `127.0.0.1:3000`, this machine only. `COLD_SEANCE_PUBLISH` in `.env` changes that, for example to `0.0.0.0:3000`. The database is not published at all.
-- Under Compose the database address comes from `COLD_SEANCE_DATABASE_URL` in `.env`, the bundled database's if it is not set. As the environment wins over the file (DD-059), `database.url` in `config.yaml` has no effect here.
-- To use an existing or hosted PostgreSQL instead (FR-177), set `COLD_SEANCE_DATABASE_URL` (and `COLD_SEANCE_DATABASE_DIRECT_URL` behind a pooler) in `.env` and start the application alone: `docker compose up -d --no-deps app`. `POSTGRES_PASSWORD` is then not needed.
+- The database address is `database.url` in `config.yaml` (FR-177, DD-059). The bundled database is `postgres://cold_seance:cold_seance@database:5432/cold_seance`. Its password is a default: the database is not published, so only the application reaches it, over the Compose network.
+- To use an existing or hosted PostgreSQL instead, put its address in `database.url` (and `database.directUrl` behind a pooler) and start the application alone: `docker compose up -d --no-deps app`.
+- The tool is published on port 3000 of every interface of the machine.
+- `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They hold secrets: make them readable by the `node` user (uid 1000) and no one else.
+- `docker compose pull && docker compose up -d` updates the tool to the latest image.
 - **The volume is the data.** `docker compose down --volumes`, or removing the volume, deletes everything. Back it up with `docker compose exec -T database pg_dump -U cold_seance cold_seance > backup.sql`, and restore it into an empty volume with `docker compose exec -T database psql -U cold_seance -d cold_seance < backup.sql`. The PostgreSQL major version is fixed in `compose.yaml`; moving to a new one needs a dump and a restore, which Compose does not do.
 
-The image tests (`npm run test:image`, above) also run the Compose file from a scratch install directory: with its bundled database, and with an external one while the bundled one is stopped.
+The image tests (`npm run test:image`, above) also run the Compose file from a scratch install directory, with the image under test in place of the published one: with its bundled database, and with an external one while the bundled one is stopped.
 
 ### REST API
 
@@ -114,6 +113,6 @@ At start, before it serves any request, the backend applies the migrations the d
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, tagged `latest` and `sha-<commit>`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.

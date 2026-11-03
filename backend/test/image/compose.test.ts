@@ -11,7 +11,7 @@ import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { docker, fromContainer, testImage } from '../helpers/docker.ts'
 
 // SC-029: the installation Compose file, run as an installer runs it, from a directory of its own
-// holding compose.yaml, .env, config.yaml and secrets/. TC-259 (FR-177), the part the Compose
+// holding compose.yaml, config.yaml and secrets/. TC-259 (FR-177), the part the Compose
 // install supports: an install configured with the address of an external database `X` comes up
 // on `X` with the database it was installed with stopped, and a second install on the same address
 // uses the same `X`. The test server's database stands in for the hosted one, and a second Compose
@@ -54,31 +54,28 @@ interface Install {
   remove(): void
 }
 
+/** The bundled database's address, as compose.yaml's instructions give it. */
+const bundled = 'postgres://cold_seance:cold_seance@database:5432/cold_seance'
+
 /**
- * An install directory as the instructions in compose.yaml leave it: the Compose file, a .env
- * holding `env`, a config.yaml naming the GitHub Apps' key files, and those key files in secrets/.
- * `override` adds a Compose override file, as test scaffolding only.
+ * An install directory as the instructions in compose.yaml leave it: the Compose file, a
+ * config.yaml with `databaseUrl` and the GitHub Apps, and the Apps' key files in secrets/.
+ * A Compose override, test scaffolding only, runs the image under test instead of the published
+ * one and publishes it on a free port of this machine, so installs run side by side; `override`
+ * adds to it.
  */
-function install(env: Record<string, string>, override?: string): Install {
+function install(databaseUrl: string, override = ''): Install {
   const dir = mkdtempSync(join(tmpdir(), 'cold-seance-install-'))
   try {
-    return installIn(dir, env, override)
+    return installIn(dir, databaseUrl, override)
   } catch (error) {
     rmSync(dir, { recursive: true, force: true })
     throw error
   }
 }
 
-function installIn(dir: string, env: Record<string, string>, override?: string): Install {
+function installIn(dir: string, databaseUrl: string, override: string): Install {
   copyFileSync(composeFile, join(dir, 'compose.yaml'))
-  // A free port of this host for each install, so installs run side by side.
-  const dotenv = { COLD_SEANCE_IMAGE: image, COLD_SEANCE_PUBLISH: '127.0.0.1:', ...env }
-  writeFileSync(
-    join(dir, '.env'),
-    Object.entries(dotenv)
-      .map(([name, value]) => `${name}=${value}\n`)
-      .join(''),
-  )
   mkdirSync(join(dir, 'secrets'))
   const apps = Object.entries(fx.keyFiles)
     .map(([fn, path], index) => {
@@ -86,14 +83,17 @@ function installIn(dir: string, env: Record<string, string>, override?: string):
       return `    ${fn}:\n      appId: ${index + 1}\n      privateKeyFile: /run/secrets/${fn}.pem\n`
     })
     .join('')
-  writeFileSync(join(dir, 'config.yaml'), `github:\n  apps:\n${apps}`)
+  writeFileSync(
+    join(dir, 'config.yaml'),
+    `database:\n  url: ${databaseUrl}\ngithub:\n  apps:\n${apps}`,
+  )
   // The image runs as the unprivileged `node` user, which must be able to read the mounted files.
   for (const path of ['', 'secrets']) chmodSync(join(dir, path), 0o755)
-  const files = ['-f', join(dir, 'compose.yaml')]
-  if (override) {
-    writeFileSync(join(dir, 'compose.override.test.yaml'), override)
-    files.push('-f', join(dir, 'compose.override.test.yaml'))
-  }
+  writeFileSync(
+    join(dir, 'compose.test-override.yaml'),
+    `services:\n  app:\n    image: ${image}\n    ports: !override\n      - 127.0.0.1::3000\n${override}`,
+  )
+  const files = ['-f', join(dir, 'compose.yaml'), '-f', join(dir, 'compose.test-override.yaml')]
   const project = `cold-seance-test-${randomUUID().slice(0, 8)}`
   const args = (rest: string[]) => [
     'compose',
@@ -104,20 +104,13 @@ function installIn(dir: string, env: Record<string, string>, override?: string):
     ...files,
     ...rest,
   ]
-  // Only the install's .env configures it, not this process's environment.
-  const processEnv = Object.fromEntries(
-    Object.entries(process.env).filter(
-      ([name]) => !name.startsWith('COLD_SEANCE_') && !name.startsWith('POSTGRES_'),
-    ),
-  )
   const compose = (...rest: string[]) =>
     execFileSync('docker', args(rest), {
       encoding: 'utf8',
-      env: processEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
     }).trim()
   const tryCompose = (...rest: string[]) => {
-    const result = spawnSync('docker', args(rest), { encoding: 'utf8', env: processEnv })
+    const result = spawnSync('docker', args(rest), { encoding: 'utf8' })
     return { status: result.status, output: result.stdout + result.stderr }
   }
   const self: Install = {
@@ -197,15 +190,11 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
 
   // Scaffolding: the test server is on this host, which a container reaches as host.docker.internal.
   // A hosted database has an address of its own and needs nothing of the kind.
-  const reachHost =
-    'services:\n  app:\n    extra_hosts:\n      - host.docker.internal:host-gateway\n'
+  const reachHost = '    extra_hosts:\n      - host.docker.internal:host-gateway\n'
 
   it('TC-259: two Compose installs, one after the other, use the external database X with the bundled one stopped', async () => {
     // I1: installed with its bundled database, and configured with X's address.
-    const i1 = install(
-      { POSTGRES_PASSWORD: 'bundled-password', COLD_SEANCE_DATABASE_URL: fromContainer(x.url) },
-      reachHost,
-    )
+    const i1 = install(fromContainer(x.url), reachHost)
     i1.compose('up', '--detach', '--wait', '--no-build')
     expect(i1.running('database')).toBe(true)
     // The bundled database was not used: I1 migrated X, and the bundled one has no record.
@@ -226,9 +215,9 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     expect((await fetch(`${base1}/api/openapi.json`)).status).toBe(401)
     i1.compose('down', '--timeout', '10')
 
-    // I2: a second install with no bundled database at all, not even a password for one, started as
-    // .env.example says for an external database.
-    const i2 = install({ COLD_SEANCE_DATABASE_URL: fromContainer(x.url) }, reachHost)
+    // I2: a second install with no bundled database at all, started as compose.yaml says for an
+    // external database.
+    const i2 = install(fromContainer(x.url), reachHost)
     i2.compose('up', '--detach', '--wait', '--no-build', '--no-deps', 'app')
     expect(i2.running('database')).toBe(false)
     const base2 = await serving(i2)
@@ -241,7 +230,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
 
 describe('the Compose file', () => {
   it('installs with one command: the application next to the bundled PostgreSQL, which it migrates', async () => {
-    const at = install({ POSTGRES_PASSWORD: 'bundled-password' })
+    const at = install(bundled)
     at.compose('up', '--detach', '--wait', '--no-build')
     const base = await serving(at)
     expect((await fetch(`${base}/`)).status).toBe(200)
@@ -253,7 +242,7 @@ describe('the Compose file', () => {
   })
 
   it('keeps the data in a volume, across the containers being removed and recreated', async () => {
-    const at = install({ POSTGRES_PASSWORD: 'bundled-password' })
+    const at = install(bundled)
     at.compose('up', '--detach', '--wait', '--no-build')
     at.psql(`create table kept (value text); insert into kept values ('still here')`)
     at.compose('down', '--timeout', '10')
@@ -265,34 +254,35 @@ describe('the Compose file', () => {
   })
 
   it('does not publish the bundled database, only the application', () => {
-    const at = install({ POSTGRES_PASSWORD: 'bundled-password' })
+    const at = install(bundled)
     at.compose('up', '--detach', '--wait', '--no-build')
     expect(docker('port', at.compose('ps', '--quiet', 'database'))).toBe('')
     expect(docker('port', at.compose('ps', '--quiet', 'app'))).not.toBe('')
     expect(at.base()).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
   })
 
-  it('publishes the application on this machine only, port 3000, unless told otherwise', () => {
-    const at = install({ POSTGRES_PASSWORD: 'p' })
-    // The install's .env without COLD_SEANCE_PUBLISH, as .env.example leaves it.
-    writeFileSync(join(at.dir, '.env'), `COLD_SEANCE_IMAGE=${image}\nPOSTGRES_PASSWORD=p\n`)
-    const config: unknown = JSON.parse(at.compose('config', '--format', 'json'))
+  it('runs the published image, on every interface of this machine, port 3000', () => {
+    // compose.yaml alone, as an installer gets it, without the tests' override.
+    const config: unknown = JSON.parse(
+      execFileSync('docker', ['compose', '-f', composeFile, 'config', '--format', 'json'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
+    )
+    expect(config).toHaveProperty(
+      ['services', 'app', 'image'],
+      'ghcr.io/csillagu/cold-seance:latest',
+    )
     expect(config).toHaveProperty(
       ['services', 'app', 'ports'],
-      [expect.objectContaining({ host_ip: '127.0.0.1', published: '3000', target: 3000 })],
+      [expect.objectContaining({ published: '3000', target: 3000 })],
     )
-  })
-
-  it('does not bring the bundled database up without a password, and says why', () => {
-    const at = install({})
-    const result = at.tryCompose('up', '--detach', '--wait', '--no-build')
-    expect(result.status).not.toBe(0)
-    expect(at.running('app')).toBe(false)
-    expect(at.compose('logs', 'database')).toContain('superuser password is not specified')
+    expect(config).not.toHaveProperty(['services', 'app', 'ports', 0, 'host_ip'])
+    expect(config).not.toHaveProperty(['services', 'database', 'ports'])
   })
 
   it('does not start without config.yaml, rather than mounting an empty directory in its place', () => {
-    const at = install({ POSTGRES_PASSWORD: 'bundled-password' })
+    const at = install(bundled)
     rmSync(join(at.dir, 'config.yaml'))
     const result = at.tryCompose('up', '--detach', '--no-build')
     expect(result.status).not.toBe(0)

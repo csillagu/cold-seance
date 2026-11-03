@@ -12,6 +12,8 @@ server:
 
 database:
   # Required. The PostgreSQL database the tool stores its data in.       COLD_SEANCE_DATABASE_URL
+  # The Compose install's bundled database (compose.yaml) is
+  # postgres://cold_seance:cold_seance@database:5432/cold_seance
   url: postgres://cold_seance:change-me@localhost:5432/cold_seance
   # A direct (not pooled) connection for migrations; url if not set.     COLD_SEANCE_DATABASE_DIRECT_URL
   # directUrl: postgres://cold_seance:change-me@direct.example:5432/cold_seance
