@@ -4,6 +4,7 @@ import { accounts, PROJECT_ROLES, projectMembers } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
+import { ProjectPermissions } from './permissions.ts'
 import { isUuid } from './system-admins.ts'
 
 /** The four roles a person can hold in a project (FR-105), lowest first. */
@@ -78,11 +79,14 @@ export class ProjectRoleService implements ProjectRoles {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #groups: GroupRoles
+  /** The role permission checks (SC-049), over the roles this store holds. */
+  readonly permissions: ProjectPermissions
 
   constructor(db: Database, audit: AuditLogService, groups: GroupRoles = noGroupRoles) {
     this.#db = db
     this.#audit = audit
     this.#groups = groups
+    this.permissions = new ProjectPermissions(this)
   }
 
   /**
@@ -118,12 +122,7 @@ export class ProjectRoleService implements ProjectRoles {
    * refused.
    */
   async listMembers(caller: Caller, projectId: string): Promise<ProjectMember[]> {
-    if ((await this.roleOf(caller.accountId, projectId)) === undefined) {
-      throw new ServiceError(
-        'forbidden',
-        'Only people with a role in the project can see its members',
-      )
-    }
+    await this.permissions.require(caller, projectId, 'read')
     return this.#db
       .select(memberColumns)
       .from(projectMembers)
@@ -246,14 +245,9 @@ export class ProjectRoleService implements ProjectRoles {
     return account
   }
 
-  /** Checked inside the change's transaction, after the admins are locked, so it still holds. */
+  /** Checked inside the change's transaction, so that it still holds when the change is made. */
   async #requireAdmin(tx: Executor, caller: Caller, projectId: string): Promise<void> {
-    if ((await this.roleOf(caller.accountId, projectId, tx)) !== 'admin') {
-      throw new ServiceError(
-        'forbidden',
-        "Only the project's admins can manage its members and their roles",
-      )
-    }
+    await this.permissions.require(caller, projectId, 'manage-project', tx)
   }
 }
 

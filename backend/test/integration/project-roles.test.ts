@@ -194,7 +194,7 @@ describe('the project role store', () => {
         await grantRole(x.db, bob, p, role)
         const error = await refused(store.setRole(by(bob), p, carol.id, 'admin'), 'forbidden')
         expect(error.message).toBe(
-          "Only the project's admins can manage its members and their roles",
+          "Only the project's admins can manage its members, roles, repositories and settings",
         )
         expect(await store.roleOf(carol.id, p)).toBeUndefined()
         expect(await store.roleOf(bob.id, p)).toBe(role)
@@ -212,7 +212,9 @@ describe('the project role store', () => {
     it('refuses a non-admin before it checks the role or the person', async () => {
       const p = await seedProject(x.db, alice)
       const error = await refused(store.setRole(by(bob), p, 'nobody', 'owner'), 'forbidden')
-      expect(error.message).toBe("Only the project's admins can manage its members and their roles")
+      expect(error.message).toBe(
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      )
     })
 
     it('refuses a role outside the four', async () => {
@@ -236,7 +238,9 @@ describe('the project role store', () => {
         store.setRole(by(alice), 'apollo', bob.id, 'read-only'),
         'forbidden',
       )
-      expect(error.message).toBe("Only the project's admins can manage its members and their roles")
+      expect(error.message).toBe(
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      )
     })
 
     it("refuses to take the admin role from the project's last admin, alice herself included", async () => {
@@ -374,7 +378,7 @@ describe('the project role store', () => {
       const p = await seedProject(x.db, alice)
       for (const caller of [by(bob), by(root)]) {
         const error = await refused(store.listMembers(caller, p), 'forbidden')
-        expect(error.message).toBe('Only people with a role in the project can see its members')
+        expect(error.message).toBe('Only people with a role in the project can read it')
       }
     })
   })
@@ -551,6 +555,61 @@ describe('test cases through the REST API', () => {
     ])
     expect((await read(bob)).statusCode).toBe(403)
   })
+
+  describe("TC-160: a project admin manages the project's members and their roles", () => {
+    it('lets alice add bob as read-only, make him read-write, then remove him, staying admin', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/projects',
+        headers: as(alice),
+        payload: { name: 'Apollo' },
+      })
+      const apollo = created.json<{ id: string }>().id
+      const roleOf = async (who: Seeded) => {
+        const response = await members(alice, apollo)
+        expect(response.statusCode).toBe(200)
+        return response
+          .json<{ accountId: string; role: string }[]>()
+          .find((m) => m.accountId === who.id)?.role
+      }
+
+      expect((await setRole(alice, apollo, bob, 'read-only')).statusCode).toBe(200)
+      expect(await roleOf(bob)).toBe('read-only')
+      expect(await roleOf(alice)).toBe('admin')
+
+      expect((await setRole(alice, apollo, bob, 'read-write')).statusCode).toBe(200)
+      expect(await roleOf(bob)).toBe('read-write')
+      expect(await roleOf(alice)).toBe('admin')
+
+      const removed = await app.inject({
+        method: 'DELETE',
+        url: `/api/projects/${apollo}/members/${bob.id}`,
+        headers: as(alice),
+      })
+      expect(removed.statusCode).toBe(204)
+      expect(await roleOf(bob)).toBeUndefined()
+      expect((await members(alice, apollo)).json()).toEqual([
+        { accountId: alice.id, username: 'alice', role: 'admin' },
+      ])
+    })
+
+    it('refuses the same changes to bob while he is read-write, since managing members is the admin’s', async () => {
+      const apollo = await seedProject(x.db, alice)
+      await grantRole(x.db, bob, apollo, 'read-write')
+      const response = await setRole(bob, apollo, bob, 'admin')
+      expect(response.statusCode).toBe(403)
+      expect(response.json().message).toBe(
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      )
+    })
+  })
+
+  // TC-154 to TC-159 (FR-106, FR-107, FR-108) check the roles on tasks, views, baselines and AI
+  // proposals, none of which exist yet. Pending: TC-154 (views SC-030, SC-031, SC-032, SC-033 and
+  // baselines SC-009), TC-155 to TC-158 (tasks SC-001, statuses SC-003, assignment SC-005),
+  // TC-159 (proposals SC-010, SC-048, MCP server SC-027). Each of those modules asks the role
+  // permission checks (SC-049) before it reads or changes anything; the checks themselves are
+  // tested role by role in src/service/permissions.test.ts.
 
   // TC-162, TC-163 and TC-164 need groups, so their tests are with the role store above.
 })
