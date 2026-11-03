@@ -31,11 +31,14 @@ export interface GroupRoles {
     accountId: string,
     projectId: string,
   ): Promise<ProjectRole[]>
+  /** The projects the person holds a role in through groups. */
+  projectsThroughGroups(executor: Executor, accountId: string): Promise<string[]>
 }
 
 /** The group roles until groups hold members and projects (SC-057, SC-058): none. */
 export const noGroupRoles: GroupRoles = {
   rolesThroughGroups: async () => [],
+  projectsThroughGroups: async () => [],
 }
 
 /** Whether `value` is one of the four project roles. */
@@ -105,6 +108,20 @@ export class ProjectRoleService implements ProjectRoles {
       .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.accountId, accountId)))
     const throughGroups = await this.#groups.rolesThroughGroups(executor, accountId, projectId)
     return highestRole([...(direct ? [direct.role] : []), ...throughGroups])
+  }
+
+  /**
+   * The projects the person holds a role in, of whatever kind, directly or through groups: the
+   * projects they can read (FR-106).
+   */
+  async readableProjects(accountId: string, executor: Executor = this.#db): Promise<Set<string>> {
+    if (!isUuid(accountId)) return new Set()
+    const direct = await executor
+      .select({ projectId: projectMembers.projectId })
+      .from(projectMembers)
+      .where(eq(projectMembers.accountId, accountId))
+    const throughGroups = await this.#groups.projectsThroughGroups(executor, accountId)
+    return new Set([...direct.map((row) => row.projectId), ...throughGroups])
   }
 
   /**

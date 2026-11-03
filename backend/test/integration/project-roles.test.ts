@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
-import type { Executor } from '../../src/db/client.ts'
 import { auditLog, projectMembers } from '../../src/db/schema.ts'
 import { AuditLogService } from '../../src/service/audit.ts'
 import type { Caller } from '../../src/service/caller.ts'
@@ -12,12 +11,12 @@ import {
   isProjectRole,
   PROJECT_ROLES,
   ProjectRoleService,
-  type GroupRoles,
   type ProjectRole,
 } from '../../src/service/project-roles.ts'
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
+import { groupTable } from '../helpers/group-roles.ts'
 import { grantRole, seedProject } from '../helpers/projects.ts'
 
 // The project role store (SC-014) against a real PostgreSQL: its rules, then the test cases of
@@ -38,24 +37,6 @@ async function refused(promise: Promise<unknown>, kind: ServiceError['kind']) {
   }
   expect(error.kind).toBe(kind)
   return error
-}
-
-/** Group roles from a table, standing in for group membership and projects (SC-057, SC-058). */
-function groupTable(): GroupRoles & {
-  give(a: Seeded, p: string, role: ProjectRole): void
-  takeAway(a: Seeded, p: string): void
-} {
-  let roles: { accountId: string; projectId: string; role: ProjectRole }[] = []
-  return {
-    give: (account, projectId, role) => roles.push({ accountId: account.id, projectId, role }),
-    takeAway: (account, projectId) => {
-      roles = roles.filter((r) => !(r.accountId === account.id && r.projectId === projectId))
-    },
-    rolesThroughGroups: async (_executor: Executor, accountId, projectId) =>
-      roles
-        .filter((r) => r.accountId === accountId && r.projectId === projectId)
-        .map((r) => r.role),
-  }
 }
 
 describe('the roles and their order', () => {
