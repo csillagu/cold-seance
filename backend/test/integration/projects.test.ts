@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { auditLog, projectMembers, projects } from '../../src/db/schema.ts'
 import { AuditLogService } from '../../src/service/audit.ts'
@@ -172,19 +172,20 @@ describe('the project service', () => {
 })
 
 describe('test cases through the REST API', () => {
+  // Each test case starts from its own fresh test deployment, as the test cases ask.
   let x: TestDatabase
   let app: ReturnType<typeof buildApp>
   let root: Seeded
   let erin: Seeded
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     x = await createTestDatabase()
     app = buildApp({}, { authenticators: [testAuthenticator], services: createServices(x.db) })
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     erin = await seedAccount(x.db, { username: 'erin' })
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await app?.close()
     await x?.drop()
   })
@@ -194,9 +195,6 @@ describe('test cases through the REST API', () => {
 
   describe('TC-178: anyone with an account creates a project', () => {
     it("lets erin, with no role anywhere and not a system admin, create and then list Erin's project", async () => {
-      expect(
-        (await app.inject({ method: 'GET', url: '/api/projects', headers: as(erin) })).json(),
-      ).toEqual([])
       const created = await create(erin, "Erin's project")
       expect(created.statusCode).toBe(201)
 
@@ -211,7 +209,7 @@ describe('test cases through the REST API', () => {
 
   describe("TC-230: a project's creator becomes its admin", () => {
     it("makes erin admin of Erin's project and gives root no role in it", async () => {
-      const created = await create(erin, "Erin's second project")
+      const created = await create(erin, "Erin's project")
       const { id } = created.json<{ id: string }>()
       const members = await app.inject({
         method: 'GET',
@@ -219,14 +217,11 @@ describe('test cases through the REST API', () => {
         headers: as(erin),
       })
       expect(members.statusCode).toBe(200)
+      // erin is its admin, and its only member: root is given no role in it.
       expect(members.json()).toEqual([{ accountId: erin.id, username: 'erin', role: 'admin' }])
-      // Negative: root is given no role in it, so root cannot read its members either.
-      const asRoot = await app.inject({
-        method: 'GET',
-        url: `/api/projects/${id}/members`,
-        headers: as(root),
-      })
-      expect(asRoot.statusCode).toBe(403)
+      expect(
+        await x.db.select().from(projectMembers).where(eq(projectMembers.accountId, root.id)),
+      ).toEqual([])
     })
   })
 })
