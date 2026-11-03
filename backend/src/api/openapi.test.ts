@@ -7,7 +7,7 @@ import { OPENAPI_INFO, OPENAPI_PATH } from './openapi.ts'
 
 const TOKEN = 'Bearer alice-token'
 const aliceByHeader: Authenticator = async (request) =>
-  request.headers.authorization === TOKEN ? { accountId: 'alice' } : undefined
+  request.headers.authorization === TOKEN ? { accountId: 'alice', channel: 'rest-api' } : undefined
 
 const DESCRIPTION_URL = `${API_PREFIX}${OPENAPI_PATH}`
 

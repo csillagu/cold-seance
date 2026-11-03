@@ -19,7 +19,9 @@ let app: FastifyInstance | undefined
 
 /** Recognises one fixed header, standing in for the authenticators of later SCs. */
 const byHeader: Authenticator = async (request) =>
-  request.headers.authorization === 'Bearer alice' ? { accountId: 'alice' } : undefined
+  request.headers.authorization === 'Bearer alice'
+    ? { accountId: 'alice', channel: 'rest-api' }
+    : undefined
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'cold-seance-frontend-'))

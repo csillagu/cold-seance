@@ -11,7 +11,7 @@ const TOKEN = 'Bearer alice-token'
 
 /** Recognises one fixed header as `alice`, standing in for the authenticators of later SCs. */
 const aliceByHeader: Authenticator = async (request) =>
-  request.headers.authorization === TOKEN ? { accountId: 'alice' } : undefined
+  request.headers.authorization === TOKEN ? { accountId: 'alice', channel: 'rest-api' } : undefined
 
 /** A stand-in for a service-layer module: it holds the rule, the route only calls it. */
 const echoService = {
@@ -168,8 +168,8 @@ describe('authentication', () => {
 
   it('asks the authenticators in turn and takes the first caller one recognises', async () => {
     const first = vi.fn<Authenticator>(async () => undefined)
-    const second = vi.fn<Authenticator>(async () => ({ accountId: 'bob' }))
-    const third = vi.fn<Authenticator>(async () => ({ accountId: 'carol' }))
+    const second = vi.fn<Authenticator>(async () => ({ accountId: 'bob', channel: 'rest-api' }))
+    const third = vi.fn<Authenticator>(async () => ({ accountId: 'carol', channel: 'rest-api' }))
     const app = appWith({ authenticators: [first, second, third], groups: [echoGroup] })
     const response = await app.inject({ method: 'GET', url: '/api/echo/whoami' })
     expect(response.json()).toEqual({ accountId: 'bob' })
@@ -333,14 +333,14 @@ describe('the service layer', () => {
 
   it("serves the backend's own route groups by default, failing a route that needs the missing service layer as a fault", async () => {
     const app = appWith({ authenticators: [aliceByHeader] })
-    const response = await app.inject({
-      method: 'GET',
-      url: '/api/accounts',
-      headers: { authorization: TOKEN },
-    })
-    expect(response.statusCode).toBe(500)
-    expect(response.json()).toMatchObject({ message: 'Internal Server Error' })
-    expect(routeGroups.map((g) => g.prefix)).toContain('/accounts')
+    for (const url of ['/api/accounts', '/api/audit-log']) {
+      const response = await app.inject({ method: 'GET', url, headers: { authorization: TOKEN } })
+      expect(response.statusCode).toBe(500)
+      expect(response.json()).toMatchObject({ message: 'Internal Server Error' })
+    }
+    expect(routeGroups.map((g) => g.prefix)).toEqual(
+      expect.arrayContaining(['/accounts', '/audit-log']),
+    )
   })
 })
 

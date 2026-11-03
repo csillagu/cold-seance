@@ -18,7 +18,9 @@ const ERIN: Account = {
 }
 
 const asRoot: Authenticator = async (request) =>
-  request.headers.authorization === 'Bearer root' ? { accountId: ROOT } : undefined
+  request.headers.authorization === 'Bearer root'
+    ? { accountId: ROOT, channel: 'rest-api' }
+    : undefined
 
 let closers: (() => Promise<unknown>)[] = []
 afterEach(async () => {
@@ -61,7 +63,7 @@ describe('GET /api/accounts', () => {
     })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual([ERIN])
-    expect(accounts.listAccounts).toHaveBeenCalledWith({ accountId: ROOT })
+    expect(accounts.listAccounts).toHaveBeenCalledWith({ accountId: ROOT, channel: 'rest-api' })
   })
 })
 
@@ -78,7 +80,7 @@ describe('POST /api/accounts', () => {
     expect(response.statusCode).toBe(201)
     expect(response.json()).toEqual(ERIN)
     expect(accounts.createAccount).toHaveBeenCalledWith(
-      { accountId: ROOT },
+      { accountId: ROOT, channel: 'rest-api' },
       { username: 'erin', password: 'erin-password' },
     )
   })
@@ -110,7 +112,7 @@ describe('POST /api/accounts', () => {
     })
     expect(response.statusCode).toBe(201)
     expect(accounts.createAccount).toHaveBeenCalledWith(
-      { accountId: ROOT },
+      { accountId: ROOT, channel: 'rest-api' },
       { username: 'erin', password: 'x' },
     )
   })
@@ -158,7 +160,10 @@ describe('POST /api/accounts/system-admins', () => {
     })
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ ...ERIN, systemAdmin: true })
-    expect(accounts.makeSystemAdmin).toHaveBeenCalledWith({ accountId: ROOT }, ERIN.id)
+    expect(accounts.makeSystemAdmin).toHaveBeenCalledWith(
+      { accountId: ROOT, channel: 'rest-api' },
+      ERIN.id,
+    )
   })
 
   it('refuses a body without the account, before the service is called', async () => {

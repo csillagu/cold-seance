@@ -6,6 +6,8 @@ import {
   PASSWORD_MAX_LENGTH,
   USERNAME_MAX_LENGTH,
 } from '../../src/service/accounts.ts'
+import { AuditLogService } from '../../src/service/audit.ts'
+import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, storedAccount, testAuthenticator } from '../helpers/accounts.ts'
@@ -18,7 +20,7 @@ import { argon2idMatches } from '../helpers/passwords.ts'
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
 /** The caller that is the given account. */
-const by = (account: Seeded) => ({ accountId: account.id })
+const by = (account: Seeded): Caller => ({ accountId: account.id, channel: 'ui' })
 
 /** Expects `promise` to be refused by the service layer with the given kind of error. */
 async function refused(promise: Promise<unknown>, kind: ServiceError['kind']) {
@@ -43,7 +45,7 @@ describe('the account service', () => {
 
   beforeAll(async () => {
     x = await createTestDatabase()
-    service = new AccountService(x.db)
+    service = new AccountService(x.db, new AuditLogService(x.db))
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
   })
@@ -85,7 +87,7 @@ describe('the account service', () => {
       const username = fresh('erin')
       for (const accountId of ['00000000-0000-4000-8000-000000000000', 'root', '']) {
         await refused(
-          service.createAccount({ accountId }, { username, password: 'pw' }),
+          service.createAccount({ accountId, channel: 'ui' }, { username, password: 'pw' }),
           'forbidden',
         )
       }
