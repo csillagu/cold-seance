@@ -48,7 +48,7 @@ export interface GitHubAppTokensOptions {
   requestTimeout?: number
 }
 
-function repositoryName(repository: Repository): string {
+export function repositoryName(repository: Repository): string {
   return `${repository.owner}/${repository.name}`
 }
 
@@ -133,7 +133,8 @@ interface App {
 const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
 const namePattern = /^[A-Za-z0-9._-]{1,100}$/
 
-function checkRepository(repository: Repository): void {
+/** Refuses, with a `TypeError`, a name GitHub does not allow, so it cannot reach outside its path. */
+export function checkRepository(repository: Repository): void {
   const { owner, name } = repository
   if (!ownerPattern.test(owner) || !namePattern.test(name) || name === '.' || name === '..') {
     throw new TypeError(`${owner}/${name} is not a GitHub repository name`)
@@ -308,7 +309,7 @@ function readPrivateKey(pem: string): KeyObject | undefined {
 }
 
 /** The error's message, with its cause's (`fetch failed` alone does not say why). */
-function failureReason(error: unknown): string {
+export function failureReason(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
   const { cause } = error
   return cause instanceof Error ? `${error.message}: ${cause.message}` : error.message
