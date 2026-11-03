@@ -1,0 +1,71 @@
+# The tool's installation (SC-029, DD-040): the application image next to the official PostgreSQL
+# image, which keeps its data in the volume `database`. Put the configuration and the key files
+# beside this file, then start it with one command:
+#
+#   cp .env.example .env              # and set POSTGRES_PASSWORD in it
+#   cp backend/config.example.yaml config.yaml   # and fill in the GitHub Apps
+#   mkdir secrets && cp <key files> secrets/     # mounted at /run/secrets
+#   docker compose up -d
+#
+# The database is the one in the configuration (FR-177). Unless COLD_SEANCE_DATABASE_URL is set in
+# .env, that is the bundled one. Set it to use an existing or hosted PostgreSQL instead; the bundled
+# one is then not needed: start only the application with `docker compose up -d --no-deps app`.
+# Under Compose the address always comes from the environment, which wins over `database.url` in
+# config.yaml (DD-059), so it is set in .env and not in config.yaml.
+name: cold-seance
+
+services:
+  app:
+    build: .
+    image: ${COLD_SEANCE_IMAGE:-cold-seance}
+    restart: unless-stopped
+    environment:
+      COLD_SEANCE_DATABASE_URL: ${COLD_SEANCE_DATABASE_URL:-postgres://cold_seance:${POSTGRES_PASSWORD:-}@database:5432/cold_seance}
+      COLD_SEANCE_DATABASE_DIRECT_URL: ${COLD_SEANCE_DATABASE_DIRECT_URL:-}
+    ports:
+      # This machine only, unless COLD_SEANCE_PUBLISH says otherwise (for example 0.0.0.0:3000).
+      - ${COLD_SEANCE_PUBLISH:-127.0.0.1:3000}:3000
+    volumes:
+      # Both must exist: Compose would otherwise create them as empty directories. They hold
+      # secrets, so keep them readable by the user the image runs as (uid 1000) and no one else.
+      - type: bind
+        source: ./config.yaml
+        target: /app/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./secrets
+        target: /run/secrets
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    # The major version is fixed: moving to a new one needs a dump and a restore (DD-040), which
+    # Compose does not do. Dependabot proposes each new minor release.
+    image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cold_seance
+      POSTGRES_DB: cold_seance
+      # Required by the image to create the database: without it, the bundled database refuses to
+      # start and says why in `docker compose logs database`. Not needed with an external database.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      # Removing this volume (docker compose down --volumes) deletes all of the tool's data. Back
+      # it up with pg_dump, for example:
+      #   docker compose exec database pg_dump -U cold_seance cold_seance > backup.sql
+      - database:/var/lib/postgresql
+    # Not published: only the application reaches it, over the Compose network.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cold_seance -d cold_seance']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  database:
