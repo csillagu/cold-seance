@@ -3,6 +3,13 @@
 # environment variable shown beside it, which wins over this file. Keep this file and the key
 # files readable only by the user the tool runs as: they hold the tool's secrets.
 
+server:
+  # The address the backend listens on; 127.0.0.1 if not set.           COLD_SEANCE_SERVER_HOST
+  # The Docker image sets 0.0.0.0, so that its published port reaches it.
+  # host: 127.0.0.1
+  # The port it listens on; 3000 if not set.                             COLD_SEANCE_SERVER_PORT
+  # port: 3000
+
 database:
   # Required. The PostgreSQL database the tool stores its data in.       COLD_SEANCE_DATABASE_URL
   url: postgres://cold_seance:change-me@localhost:5432/cold_seance

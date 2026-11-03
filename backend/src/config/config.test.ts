@@ -27,6 +27,9 @@ const dbUrl = 'postgres://tool:secret@db.example:5432/tool'
 /** A file that sets every setting DD-059 names. */
 function fullFile(): string {
   return `
+server:
+  host: 0.0.0.0
+  port: 8080
 database:
   url: ${dbUrl}
   directUrl: postgres://tool:secret@direct.example:5432/tool
@@ -88,8 +91,10 @@ describe('envName', () => {
 })
 
 describe('settings', () => {
-  it('names every setting of DD-059: the database, each function’s App, the re-check interval', () => {
+  it('names the listen address and every setting of DD-059: the database, each function’s App, the re-check interval', () => {
     expect(settings.map(name)).toEqual([
+      'server.host',
+      'server.port',
       'database.url',
       'database.directUrl',
       ...githubFunctions.flatMap((fn) => [
@@ -106,6 +111,7 @@ describe('loadConfig', () => {
   it('reads every setting from the YAML file and reads the key files', () => {
     const config = loadConfig({ env: withFile(fullFile()) })
     expect(config).toEqual({
+      server: { host: '0.0.0.0', port: 8080 },
       database: { url: dbUrl, directUrl: 'postgres://tool:secret@direct.example:5432/tool' },
       github: {
         recheckIntervalMinutes: 15,
@@ -135,6 +141,8 @@ describe('loadConfig', () => {
 
   it('reads every setting from environment variables alone, with no file', () => {
     const env = {
+      COLD_SEANCE_SERVER_HOST: '::',
+      COLD_SEANCE_SERVER_PORT: '8443',
       COLD_SEANCE_DATABASE_URL: dbUrl,
       COLD_SEANCE_DATABASE_DIRECT_URL: 'postgresql://direct.example/tool',
       COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES: '30',
@@ -145,6 +153,7 @@ describe('loadConfig', () => {
     }
     // fx.dir has no config.yaml, so the default file is absent.
     const config = loadConfig({ env, cwd: fx.dir })
+    expect(config.server).toEqual({ host: '::', port: 8443 })
     expect(config.database).toEqual({ url: dbUrl, directUrl: 'postgresql://direct.example/tool' })
     expect(config.github.recheckIntervalMinutes).toBe(30)
     expect(config.github.apps.readIssues).toEqual({
@@ -166,6 +175,8 @@ describe('loadConfig', () => {
       string,
       () => { env: string; check: (c: ReturnType<typeof loadConfig>) => unknown }
     > = {
+      'server.host': () => ({ env: '::1', check: (c) => c.server.host }),
+      'server.port': () => ({ env: '4000', check: (c) => c.server.port }),
       'database.url': () => ({ env: 'postgres://env.example/db', check: (c) => c.database.url }),
       'database.directUrl': () => ({
         env: 'postgres://env-direct.example/db',
@@ -213,7 +224,7 @@ describe('loadConfig', () => {
           env: withFile(fullFile(), { [envName(setting.path)]: override.env }),
         })
         const expected =
-          setting.kind === 'positiveInteger'
+          setting.kind === 'positiveInteger' || setting.kind === 'port'
             ? Number(override.env)
             : setting.kind === 'keyFile'
               ? 'other-key'
@@ -228,11 +239,12 @@ describe('loadConfig', () => {
     expect(config.database.url).toBe(dbUrl)
   })
 
-  it('applies the defaults: direct URL is the URL, one-hour re-check, no webhook secret', () => {
+  it('applies the defaults: localhost:3000, direct URL is the URL, one-hour re-check, no webhook secret', () => {
     const config = loadConfig({
       env: { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv },
       cwd: fx.dir,
     })
+    expect(config.server).toEqual({ host: '127.0.0.1', port: 3000 })
     expect(config.database.directUrl).toBe(dbUrl)
     expect(config.github.recheckIntervalMinutes).toBe(60)
     for (const fn of githubFunctions) expect(config.github.apps[fn].webhookSecret).toBeUndefined()
@@ -351,6 +363,53 @@ github:
       )
       expect(problems).toEqual([
         'github.recheckIntervalMinutes (COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES) must be a whole number greater than 0',
+      ])
+    })
+
+    for (const bad of ['0', '65536', '-1', 'http', '80.5']) {
+      it(`when the port is ${bad}`, () => {
+        const env = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+        expect(problemsOf({ ...env, COLD_SEANCE_SERVER_PORT: bad })).toEqual([
+          'server.port (COLD_SEANCE_SERVER_PORT) must be a port number from 1 to 65535',
+        ])
+      })
+    }
+
+    it('when the port in the file is not a whole number', () => {
+      const env = withFile(`server: { port: 80.5 }`, {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+      })
+      expect(problemsOf(env)).toEqual([
+        'server.port (COLD_SEANCE_SERVER_PORT) must be a port number from 1 to 65535',
+      ])
+    })
+
+    it('accepts the lowest and highest port, and a quoted port in the file', () => {
+      const env = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+      expect(
+        loadConfig({ env: { ...env, COLD_SEANCE_SERVER_PORT: '1' }, cwd: fx.dir }).server.port,
+      ).toBe(1)
+      expect(
+        loadConfig({ env: { ...env, COLD_SEANCE_SERVER_PORT: '65535' }, cwd: fx.dir }).server.port,
+      ).toBe(65535)
+      expect(loadConfig({ env: withFile(`server: { port: "8080" }`, env) }).server.port).toBe(8080)
+    })
+
+    it('when the host holds a space', () => {
+      const env = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+      expect(problemsOf({ ...env, COLD_SEANCE_SERVER_HOST: '0.0.0.0 ' })).toEqual([
+        'server.host (COLD_SEANCE_SERVER_HOST) must be a host name or an IP address',
+      ])
+    })
+
+    it('when the host in the file is not a string', () => {
+      const env = withFile(`server: { host: [a, b] }`, {
+        COLD_SEANCE_DATABASE_URL: dbUrl,
+        ...fx.githubEnv,
+      })
+      expect(problemsOf(env)).toEqual([
+        'server.host (COLD_SEANCE_SERVER_HOST) must be a host name or an IP address',
       ])
     })
 

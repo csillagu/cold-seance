@@ -24,6 +24,12 @@ export interface GitHubAppConfig {
 }
 
 export interface Config {
+  server: {
+    /** The address the backend listens on: `127.0.0.1` unless set; the image sets `0.0.0.0`. */
+    host: string
+    /** The port the backend listens on, 3000 unless set. */
+    port: number
+  }
   database: {
     /** The address of the PostgreSQL database the tool uses (FR-177). */
     url: string
@@ -37,7 +43,7 @@ export interface Config {
   }
 }
 
-type Kind = 'databaseUrl' | 'secret' | 'positiveInteger' | 'keyFile'
+type Kind = 'databaseUrl' | 'secret' | 'positiveInteger' | 'keyFile' | 'host' | 'port'
 
 /** One setting: where it sits in the YAML file, the environment variable that overrides it. */
 export interface Setting {
@@ -56,8 +62,17 @@ export const defaultConfigFile = 'config.yaml'
 
 export const defaultRecheckIntervalMinutes = 60
 
-/** Every setting named in DD-059. */
+/** The listen address when none is set: this machine only, outside the Docker image. */
+export const defaultServerHost = '127.0.0.1'
+export const defaultServerPort = 3000
+
+/**
+ * Every setting named in DD-059, and the listen address, which the owner added for the Docker
+ * image (SC-028, design session of 2026-11-03).
+ */
 export const settings: readonly Setting[] = [
+  { path: ['server', 'host'], kind: 'host', required: false },
+  { path: ['server', 'port'], kind: 'port', required: false },
   { path: ['database', 'url'], kind: 'databaseUrl', required: true },
   { path: ['database', 'directUrl'], kind: 'databaseUrl', required: false },
   ...githubFunctions.flatMap((fn): Setting[] => [
@@ -157,6 +172,10 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
     }
   }
   return {
+    server: {
+      host: values.strings.get(key('server', 'host')) ?? defaultServerHost,
+      port: values.numbers.get(key('server', 'port')) ?? defaultServerPort,
+    },
     database: { url, directUrl: values.strings.get(key('database', 'directUrl')) ?? url },
     github: {
       apps: {
@@ -274,16 +293,22 @@ function convert(
   const { value } = raw
   switch (setting.kind) {
     case 'positiveInteger': {
-      const n =
-        typeof value === 'number'
-          ? value
-          : typeof value === 'string' && /^\s*\d+\s*$/.test(value)
-            ? Number(value)
-            : NaN
+      const n = wholeNumber(value)
       if (Number.isSafeInteger(n) && n > 0) values.numbers.set(path, n)
       else problems.push(`${name} must be a whole number greater than 0`)
       return
     }
+    case 'port': {
+      const n = wholeNumber(value)
+      if (Number.isSafeInteger(n) && n > 0 && n <= 65_535) values.numbers.set(path, n)
+      else problems.push(`${name} must be a port number from 1 to 65535`)
+      return
+    }
+    case 'host':
+      if (typeof value === 'string' && /^\S+$/.test(value)) {
+        values.strings.set(path, value)
+      } else problems.push(`${name} must be a host name or an IP address`)
+      return
     case 'databaseUrl':
       // The value is never echoed: a database address usually carries a password.
       if (typeof value === 'string' && isPostgresUrl(value)) values.strings.set(path, value)
@@ -307,6 +332,12 @@ function convert(
         problems.push(`${name}: the key file ${value} cannot be read: ${errorCode(error)}`)
       }
   }
+}
+
+/** A number, or a string of digits, as a number; anything else as NaN. */
+function wholeNumber(value: unknown): number {
+  if (typeof value === 'number') return value
+  return typeof value === 'string' && /^\s*\d+\s*$/.test(value) ? Number(value) : NaN
 }
 
 function isPostgresUrl(value: string): boolean {
