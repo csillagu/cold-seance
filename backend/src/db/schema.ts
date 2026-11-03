@@ -65,3 +65,29 @@ export const auditLog = pgTable(
     check('audit_log_channels_not_empty', sql`cardinality(${table.channels}) > 0`),
   ],
 )
+
+/** The four roles a person can hold in a project, lowest first (FR-105). */
+export const PROJECT_ROLES = ['read-only', 'contributor', 'read-write', 'admin'] as const
+
+export const projectRole = pgEnum('project_role', PROJECT_ROLES)
+
+/**
+ * The roles people hold in projects directly (FR-105, SC-014): at most one role for each person in
+ * each project. Roles that come through groups are held with the groups (SC-057, SC-058).
+ * `project_id` gets its foreign key once the projects table exists (SC-017).
+ */
+export const projectMembers = pgTable(
+  'project_members',
+  {
+    projectId: uuid('project_id').notNull(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    role: projectRole('role').notNull(),
+  },
+  (table) => [
+    // A unique index, not a composite primary key: drizzle-kit cannot introspect the latter.
+    uniqueIndex('project_members_key').on(table.projectId, table.accountId),
+    index('project_members_account_id_idx').on(table.accountId),
+  ],
+)
