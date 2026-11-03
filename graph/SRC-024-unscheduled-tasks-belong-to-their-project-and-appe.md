@@ -1,4 +1,5 @@
 ---
+certainty: verified
 source: design session
 evidence: docs/initial-requirements.md; design session 2026-10-31
 ---

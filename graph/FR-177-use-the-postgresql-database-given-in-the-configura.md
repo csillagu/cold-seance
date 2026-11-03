@@ -1,5 +1,5 @@
 ---
-certainty: assumed
+certainty: verified
 ---
 
 # FR-177: Use the PostgreSQL database given in the configuration
@@ -8,4 +8,4 @@ The system must use the PostgreSQL database whose address is given in its config
 
 No use case covers installing the tool; this obligation rests on the linked items directly.
 
-Origin: composed by Claude from the items linked above, for issue #11. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Awaits the stakeholder's confirmation.
+Origin: composed by Claude from the items linked above, for issue #11. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. Verified by the owner in the design session of 2026-11-03, asked to close the open points: "close these".

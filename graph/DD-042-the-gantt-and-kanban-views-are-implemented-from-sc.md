@@ -15,7 +15,7 @@ An existing Gantt or Kanban library, versus building the views from scratch.
 
 ## Rationale
 
-Not stated.
+The stakeholder chose it without giving a reason: "We implement from scratch".
 
 ## Trade-offs
 

@@ -1,4 +1,5 @@
 ---
+certainty: verified
 negotiability: immovable
 source: design session
 evidence: design session 2026-10-31
