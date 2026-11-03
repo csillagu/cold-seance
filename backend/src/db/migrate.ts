@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
@@ -7,7 +5,8 @@ import { Client } from 'pg'
 
 /**
  * The migrations drizzle-kit generates from the schema (SC-073), `backend/drizzle/`. The path is
- * the same from `src/db/` and from the built `dist/db/`.
+ * the same from `src/db/` and from the built `dist/db/`. Its journal is committed even while it
+ * lists no migration, so that a folder without one is a fault and not an empty release.
  */
 export const defaultMigrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
 
@@ -22,23 +21,26 @@ export class MigrationError extends Error {
   }
 }
 
+/** The name the migration step's connection shows in `pg_stat_activity`. */
+export const migrationApplicationName = 'cold-seance-migrations'
+
 /**
  * The migration step of the backend's start (SC-074, DD-057): applies the migrations in
  * `migrationsFolder` that the database has not recorded yet, with Drizzle's migrator, over one
  * direct connection to `directUrl` that is closed again before the step returns. Drizzle runs the
- * pending migrations in one transaction, so a failure leaves the database as it was; the step then
- * throws a `MigrationError` and the backend must not start.
- *
- * A folder without a journal holds no migrations: the schema has no table yet (SC-073), so there
- * is nothing to apply and the database is not contacted.
+ * pending migrations in one transaction, so a failing one leaves the tool's tables as they were
+ * (only Drizzle's own record of applied migrations may have been created); the step then throws a
+ * `MigrationError` and the backend must not start. A folder without a journal, such as an image
+ * built without its migrations, is refused the same way.
  */
 export async function applyMigrations(
   directUrl: string,
   migrationsFolder: string = defaultMigrationsFolder,
 ): Promise<void> {
-  if (!existsSync(join(migrationsFolder, 'meta', '_journal.json'))) return
-
-  const client = new Client({ connectionString: directUrl })
+  const client = new Client({
+    connectionString: directUrl,
+    application_name: migrationApplicationName,
+  })
   try {
     await client.connect()
     await migrate(drizzle({ client }), { migrationsFolder })

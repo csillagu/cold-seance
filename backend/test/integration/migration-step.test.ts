@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { migrationApplicationName } from '../../src/db/migrate.ts'
 import { startBackend } from '../../src/start.ts'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
@@ -106,6 +107,20 @@ async function columns(table: string): Promise<string[]> {
   return result.rows.map((row) => row.name)
 }
 
+/** The migration step's connections still open on `x`; the step must close its own. */
+async function migrationConnections(): Promise<number> {
+  // A backend that has just closed its connection may take a moment to leave the view.
+  for (let attempt = 0; ; attempt++) {
+    const result = await x.db.execute<{ count: number }>(
+      sql`select count(*)::int as count from pg_stat_activity
+          where datname = current_database() and application_name = ${migrationApplicationName}`,
+    )
+    const count = result.rows[0]!.count
+    if (count === 0 || attempt === 20) return count
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 async function recorded(): Promise<number> {
   const result = await x.db.execute<{ count: number }>(
     sql`select count(*)::int as count from drizzle.__drizzle_migrations`,
@@ -121,6 +136,18 @@ describe('the migration step at the start of the backend (SC-074)', () => {
     expect(await tables()).toEqual(['people', 'projects'])
     expect(await columns('people')).toEqual(['email', 'id', 'name'])
     expect(await recorded()).toBe(2)
+    // The step's direct connection is closed again; the backend serves over its pool.
+    expect(await migrationConnections()).toBe(0)
+    await backend.app.close()
+  })
+
+  it("applies the backend's own migrations folder unless told otherwise", async () => {
+    const backend = await startBackend({
+      env: { COLD_SEANCE_DATABASE_URL: x.url, ...fx.githubEnv },
+      cwd: fx.dir,
+    })
+    // The backend's own journal lists no migration yet (SC-073), so the migrator records none.
+    expect(await recorded()).toBe(0)
     await backend.app.close()
   })
 
@@ -166,6 +193,15 @@ describe('the migration step at the start of the backend (SC-074)', () => {
     expect(await tables()).toEqual(['people'])
     expect(await columns('people')).toEqual(['id', 'name'])
     expect(await recorded()).toBe(1)
+    expect(await migrationConnections()).toBe(0)
+  })
+
+  it('refuses the start when the migrations folder has no journal, as in an image built without it', async () => {
+    const path = folder(release1)
+    removeMigrationsFolder(`${path}/meta`)
+    const error = await migrationError(start(path))
+    expect(error.message).toContain("Can't find meta/_journal.json file")
+    expect(await tables()).toEqual([])
   })
 
   it('refuses the start when a migration in the journal has no SQL file', async () => {
@@ -191,7 +227,8 @@ describe('the migration step at the start of the backend (SC-074)', () => {
 
   it('TC-259: applies the migrations to the database whose address is given in the configuration', async () => {
     // The part of TC-259 this SC supports: database X, given in the configuration file, is the one
-    // that gets the tool's schema; the address the tool would be installed with is stopped.
+    // that gets the tool's schema. The install's own database being stopped is covered in
+    // config-database.test.ts and, for the real install, pending on SC-028 and SC-029.
     const path = fx.write('x.yaml', `database:\n  url: ${x.url}\n`)
     const backend = await startBackend({
       env: { COLD_SEANCE_CONFIG_FILE: path, ...fx.githubEnv },

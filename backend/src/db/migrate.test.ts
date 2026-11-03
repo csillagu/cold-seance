@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -26,12 +27,8 @@ const createTable = { tag: '0000_create', when: 1, statements: ['CREATE TABLE "t
 describe('applyMigrations', () => {
   it("applies the backend's own migrations folder unless another is given", () => {
     expect(defaultMigrationsFolder).toBe(join(import.meta.dirname, '..', '..', 'drizzle'))
-  })
-
-  it('has nothing to apply, and does not contact the database, when the folder holds no journal', async () => {
-    const empty = folder([])
-    removeMigrationsFolder(join(empty, 'meta'))
-    await expect(applyMigrations(unreachable, empty)).resolves.toBeUndefined()
+    // Its journal is committed, so the folder is never mistaken for a missing one.
+    expect(existsSync(join(defaultMigrationsFolder, 'meta', '_journal.json'))).toBe(true)
   })
 
   it('refuses the start with a MigrationError when the database cannot be reached', async () => {
