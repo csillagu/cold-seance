@@ -28,8 +28,17 @@ export const accounts = pgTable(
     passwordHash: text('password_hash').notNull(),
     systemAdmin: boolean('system_admin').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The name of the person's GitHub account, which they or a system admin linked it to (FR-135,
+     * SC-054); none until linked. GitHub names ignore case, so one GitHub account is linked to at
+     * most one account here.
+     */
+    githubLogin: text('github_login'),
   },
-  (table) => [uniqueIndex('accounts_username_key').on(sql`lower(${table.username})`)],
+  (table) => [
+    uniqueIndex('accounts_username_key').on(sql`lower(${table.username})`),
+    uniqueIndex('accounts_github_login_key').on(sql`lower(${table.githubLogin})`),
+  ],
 )
 
 /**

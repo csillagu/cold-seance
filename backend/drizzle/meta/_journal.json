@@ -43,6 +43,13 @@
       "when": 1793749461549,
       "tag": "0005_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793750207650,
+      "tag": "0006_github_login",
+      "breakpoints": true
     }
   ]
 }

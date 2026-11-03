@@ -2,6 +2,7 @@ import type { Database } from '../db/client.ts'
 import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
+import { GitHubLinkService } from './github-links.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { SessionService } from './sessions.ts'
@@ -16,6 +17,7 @@ export interface Services {
   accounts: AccountService
   apiTokens: ApiTokenService
   audit: AuditLogService
+  githubLinks: GitHubLinkService
   projectRoles: ProjectRoleService
   projects: ProjectService
   sessions: SessionService
@@ -35,6 +37,7 @@ export function createServices(db: Database): Services {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
+    githubLinks: new GitHubLinkService(db, audit),
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles),
     sessions: new SessionService(db),

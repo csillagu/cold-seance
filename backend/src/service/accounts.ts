@@ -1,8 +1,9 @@
-import { and, asc, DrizzleQueryError, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { violates } from './db-errors.ts'
 import { ServiceError } from './errors.ts'
 import { hashPassword } from './passwords.ts'
 import { characters } from './text.ts'
@@ -139,19 +140,6 @@ export class AccountService {
       throw new ServiceError('forbidden', 'Only system admins can administer accounts')
     }
   }
-}
-
-/** Whether a database error is a violation of the given unique index (PostgreSQL's 23505). */
-function violates(error: unknown, index: string): boolean {
-  const cause = error instanceof DrizzleQueryError ? error.cause : error
-  return (
-    typeof cause === 'object' &&
-    cause !== null &&
-    'code' in cause &&
-    cause.code === '23505' &&
-    'constraint' in cause &&
-    cause.constraint === index
-  )
 }
 
 /**
