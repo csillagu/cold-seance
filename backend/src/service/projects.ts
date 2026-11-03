@@ -3,7 +3,7 @@ import type { Database } from '../db/client.ts'
 import { accounts, projectMembers, projects } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
-import { ServiceError } from './errors.ts'
+import { notVisible, ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { characters } from './text.ts'
 import { isUuid } from './system-admins.ts'
@@ -68,6 +68,19 @@ export class ProjectService {
       })
       return created
     })
+  }
+
+  /**
+   * The project, for someone who can see it: anyone who holds a role in it (FR-106). Anyone else
+   * is told that the project is not visible to them, whether or not it exists (FR-017).
+   */
+  async getProject(caller: Caller, projectId: string): Promise<Project> {
+    const [project] = isUuid(projectId)
+      ? await this.#db.select(columns).from(projects).where(eq(projects.id, projectId))
+      : []
+    if (!project) throw notVisible()
+    await this.#roles.permissions.require(caller, projectId, 'read')
+    return project
   }
 
   /**

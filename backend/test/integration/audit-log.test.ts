@@ -235,7 +235,8 @@ describe('the audit log service', () => {
         await audit.record(x.db, via(bob), renamed(q, 'B', 'a', 'b'))
         const entries = await audit.readLog(via(reader), { projectId: p })
         expect(entries.map((e) => e.subject.id)).toEqual(['A'])
-        await refused(audit.readLog(via(reader), { projectId: q }), 'forbidden')
+        // q, where the reader holds no role, is not visible to them (FR-017).
+        await refused(audit.readLog(via(reader), { projectId: q }), 'not-visible')
       },
     )
 
@@ -270,16 +271,16 @@ describe('the audit log service', () => {
         expect(whole.message).toBe('Only system admins can read the whole audit log')
         const part = await refused(
           audit.readLog({ accountId, channel: 'ui' }, { projectId: p }),
-          'forbidden',
+          'not-visible',
         )
-        expect(part.message).toMatch(/^Only system admins and the project's admins/)
+        expect(part.message).toBe('This project is not visible to you')
       }
     })
 
-    it('refuses someone with no role in the project, and asks for no role with an id that is no project id', async () => {
-      for (const projectId of [randomUUID(), 'Apollo']) {
-        const error = await refused(audit.readLog(via(alice), { projectId }), 'forbidden')
-        expect(error.message).toMatch(/^Only system admins and the project's admins/)
+    it('tells someone with no role in the project that it is not visible to them, whatever the id', async () => {
+      for (const projectId of [await newProject(), randomUUID(), 'Apollo']) {
+        const error = await refused(audit.readLog(via(alice), { projectId }), 'not-visible')
+        expect(error.message).toBe('This project is not visible to you')
       }
     })
 
@@ -288,7 +289,7 @@ describe('the audit log service', () => {
       expect(whole.message).not.toMatch(/limit/)
       const part = await refused(
         audit.readLog(via(alice), { projectId: 'x', before: -1 }),
-        'forbidden',
+        'not-visible',
       )
       expect(part.message).not.toMatch(/project id|before/)
     })
@@ -305,7 +306,7 @@ describe('the audit log service', () => {
     it('refuses everyone but system admins while there is no project role store', async () => {
       const p = await newProject()
       const withoutRoles = new AuditLogService(x.db)
-      await refused(withoutRoles.readLog(via(alice), { projectId: p }), 'forbidden')
+      await refused(withoutRoles.readLog(via(alice), { projectId: p }), 'not-visible')
       expect(await withoutRoles.readLog(via(root), { projectId: p })).toEqual([])
     })
   })

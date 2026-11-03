@@ -183,16 +183,17 @@ describe('the project role store', () => {
       },
     )
 
-    it('refuses a system admin who holds no role in the project, and anyone with none', async () => {
+    it('tells a system admin with no role in the project, and anyone with none, that it is not visible to them', async () => {
       const p = await seedProject(x.db, alice)
-      await refused(store.setRole(by(root), p, bob.id, 'admin'), 'forbidden')
-      await refused(store.setRole(by(carol), p, carol.id, 'admin'), 'forbidden')
+      await refused(store.setRole(by(root), p, bob.id, 'admin'), 'not-visible')
+      await refused(store.setRole(by(carol), p, carol.id, 'admin'), 'not-visible')
       expect(await store.roleOf(bob.id, p)).toBeUndefined()
       expect(await store.roleOf(carol.id, p)).toBeUndefined()
     })
 
     it('refuses a non-admin before it checks the role or the person', async () => {
       const p = await seedProject(x.db, alice)
+      await grantRole(x.db, bob, p, 'read-write')
       const error = await refused(store.setRole(by(bob), p, 'nobody', 'owner'), 'forbidden')
       expect(error.message).toBe(
         "Only the project's admins can manage its members, roles, repositories and settings",
@@ -215,14 +216,12 @@ describe('the project role store', () => {
       }
     })
 
-    it('refuses a project id that is not a UUID as not the caller’s to manage', async () => {
+    it('answers a project id that is not a UUID as a project not visible to the caller', async () => {
       const error = await refused(
         store.setRole(by(alice), 'apollo', bob.id, 'read-only'),
-        'forbidden',
+        'not-visible',
       )
-      expect(error.message).toBe(
-        "Only the project's admins can manage its members, roles, repositories and settings",
-      )
+      expect(error.message).toBe('This project is not visible to you')
     })
 
     it("refuses to take the admin role from the project's last admin, alice herself included", async () => {
@@ -292,7 +291,7 @@ describe('the project role store', () => {
       const p = await seedProject(x.db, alice)
       await grantRole(x.db, bob, p, 'read-write')
       await refused(store.removeMember(by(bob), p, alice.id), 'forbidden')
-      await refused(store.removeMember(by(root), p, bob.id), 'forbidden')
+      await refused(store.removeMember(by(root), p, bob.id), 'not-visible')
       expect(await store.roleOf(alice.id, p)).toBe('admin')
       expect(await store.roleOf(bob.id, p)).toBe('read-write')
     })
@@ -322,10 +321,10 @@ describe('the project role store', () => {
         store.removeMember(by(bob), p, alice.id),
       ])
       expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
-      // The one that waited is no longer an admin, so it may not remove anyone.
+      // The one that waited is no longer a member, so the project is no longer visible to them.
       const [lost] = results.filter((r) => r.status === 'rejected')
       expect(lost?.reason).toBeInstanceOf(ServiceError)
-      expect(lost?.reason).toMatchObject({ kind: 'forbidden' })
+      expect(lost?.reason).toMatchObject({ kind: 'not-visible' })
       const admins = await x.db
         .select()
         .from(projectMembers)
@@ -356,11 +355,11 @@ describe('the project role store', () => {
       expect((await store.listMembers(by(carol), p)).map((m) => m.username)).toEqual(['alice'])
     })
 
-    it('refuses someone with no role there, a system admin included', async () => {
+    it('tells someone with no role there, a system admin included, that it is not visible to them', async () => {
       const p = await seedProject(x.db, alice)
       for (const caller of [by(bob), by(root)]) {
-        const error = await refused(store.listMembers(caller, p), 'forbidden')
-        expect(error.message).toBe('Only people with a role in the project can read it')
+        const error = await refused(store.listMembers(caller, p), 'not-visible')
+        expect(error.message).toBe('This project is not visible to you')
       }
     })
   })
@@ -395,11 +394,12 @@ describe('the project role store', () => {
       // alice removes bob from Platform.
       groups.takeAway(bob, apollo)
       expect(await store.roleOf(bob.id, apollo)).toBeUndefined()
-      await refused(store.listMembers(by(bob), apollo), 'forbidden')
+      await refused(store.listMembers(by(bob), apollo), 'not-visible')
     })
 
-    // Pending: TC-163 in full: bob removed from Platform by alice (SC-057), bob's edit of T
-    // rejected with T still `Draft` (SC-001), and Apollo reported as not visible to him (SC-051).
+    // Pending: TC-163 in full: bob removed from Platform by alice (SC-057), and bob's edit of T
+    // rejected with T still `Draft` (SC-001). Apollo is already reported as not visible to him
+    // (SC-051), here when he reads its members.
   })
 
   describe('TC-164: of a direct read role and a group write role, write applies', () => {

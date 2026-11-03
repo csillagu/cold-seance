@@ -166,8 +166,17 @@ describe('ProjectPermissions', () => {
     await expect(permissions.require(ALICE, 'apollo', 'edit-plan')).resolves.toBe('read-write')
   })
 
+  it.each(['read', 'edit-plan', 'handle-proposals', 'manage-project'] as const)(
+    'tells someone with no role, asking to %s, that the project is not visible to them (FR-017)',
+    async (action) => {
+      const { permissions } = rolesOf({})
+      const error = await refusal(permissions.require(ALICE, 'apollo', action))
+      expect(error.kind).toBe('not-visible')
+      expect(error.message).toBe('This project is not visible to you')
+    },
+  )
+
   it.each([
-    ['read', 'Only people with a role in the project can read it'],
     ['edit-plan', "Only the project's read-write members and admins can edit its plan"],
     [
       'handle-proposals',
@@ -178,14 +187,19 @@ describe('ProjectPermissions', () => {
       "Only the project's admins can manage its members, roles, repositories and settings",
     ],
   ] as const)(
-    'refuses %s to someone with no role, as forbidden, saying who may',
+    'refuses %s to a read-only member, as forbidden, saying who may',
     async (action, message) => {
-      const { permissions } = rolesOf({})
+      const { permissions } = rolesOf({ apollo: 'read-only' })
       const error = await refusal(permissions.require(ALICE, 'apollo', action))
       expect(error.kind).toBe('forbidden')
       expect(error.message).toBe(message)
     },
   )
+
+  it('lets a read-only member read', async () => {
+    const { permissions } = rolesOf({ apollo: 'read-only' })
+    await expect(permissions.require(ALICE, 'apollo', 'read')).resolves.toBe('read-only')
+  })
 
   it('refuses a read-only member an edit of the plan', async () => {
     const { permissions } = rolesOf({ apollo: 'read-only' })
@@ -246,8 +260,20 @@ describe('ProjectPermissions', () => {
         }),
       )
       expect(error.message).toBe(
-        "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
+        "Only the project's read-write members and admins can set the status of its tasks",
       )
+    })
+
+    it('tells someone with no role that the project is not visible to them', async () => {
+      const { permissions } = rolesOf({})
+      const error = await refusal(
+        permissions.requireStatusChange(ALICE, 'apollo', {
+          assignees: ['alice'],
+          from: 'not-started',
+          to: 'in-progress',
+        }),
+      )
+      expect(error.kind).toBe('not-visible')
     })
   })
 })

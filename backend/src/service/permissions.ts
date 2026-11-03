@@ -1,6 +1,6 @@
 import type { Executor } from '../db/client.ts'
 import type { Caller } from './caller.ts'
-import { ServiceError } from './errors.ts'
+import { notVisible, ServiceError } from './errors.ts'
 import type { ProjectRole } from './project-roles.ts'
 
 /**
@@ -42,8 +42,8 @@ const ALLOWED: Record<ProjectAction, ReadonlySet<ProjectRole>> = {
   'manage-project': new Set(['admin']),
 }
 
-const REFUSAL: Record<ProjectAction, string> = {
-  read: 'Only people with a role in the project can read it',
+/** Why each action is refused to a role that does not allow it; every role may read. */
+const REFUSAL: Record<Exclude<ProjectAction, 'read'>, string> = {
   'edit-plan': "Only the project's read-write members and admins can edit its plan",
   'handle-proposals':
     "Only the project's read-write members and admins can handle its AI proposals",
@@ -103,8 +103,10 @@ export class ProjectPermissions {
   }
 
   /**
-   * Answers the caller's role in the project if it allows the action, and refuses with
-   * `forbidden` otherwise. With `executor`, the role is read in that transaction.
+   * Answers the caller's role in the project if it allows the action. Refuses with `not-visible`
+   * when the caller holds no role in the project, so cannot see it at all (FR-017), and with
+   * `forbidden` when their role does not allow the action. With `executor`, the role is read in
+   * that transaction.
    */
   async require(
     caller: Caller,
@@ -113,7 +115,9 @@ export class ProjectPermissions {
     executor?: Executor,
   ): Promise<ProjectRole> {
     const role = await this.#roles.roleOf(caller.accountId, projectId, executor)
-    if (role === undefined || !allows(role, action)) {
+    if (role === undefined) throw notVisible()
+    // Every role may read, so only another action can be refused to a role.
+    if (action !== 'read' && !allows(role, action)) {
       throw new ServiceError('forbidden', REFUSAL[action])
     }
     return role
@@ -132,12 +136,13 @@ export class ProjectPermissions {
     executor?: Executor,
   ): Promise<void> {
     const role = await this.#roles.roleOf(caller.accountId, projectId, executor)
+    if (role === undefined) throw notVisible()
     if (!allowsStatusChange(role, caller.accountId, change)) {
       throw new ServiceError(
         'forbidden',
         role === 'contributor'
           ? 'A contributor can only mark a task they are assigned to as in progress, on hold or finished'
-          : "Only the project's read-write members and admins can set the status of its tasks, and its contributors that of tasks they are assigned to",
+          : "Only the project's read-write members and admins can set the status of its tasks",
       )
     }
   }

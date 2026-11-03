@@ -6,6 +6,8 @@ import { ServiceError, type ServiceErrorKind } from '../service/errors.ts'
 const STATUS: Record<ServiceErrorKind, number> = {
   invalid: 400,
   forbidden: 403,
+  // Not 404: the answer must not suggest that the project might not exist (FR-017).
+  'not-visible': 403,
   'not-found': 404,
   conflict: 409,
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
-import { ServiceError } from '../service/errors.ts'
+import { notVisible, ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
 import type { Authenticator } from './caller.ts'
 
@@ -29,6 +29,7 @@ function stubbed() {
   const projects = {
     createProject: vi.spyOn(services.projects, 'createProject'),
     listProjects: vi.spyOn(services.projects, 'listProjects'),
+    getProject: vi.spyOn(services.projects, 'getProject'),
   }
   const app = buildApp({}, { authenticators: [asErin], services })
   closers.push(async () => {
@@ -103,6 +104,44 @@ describe('GET /api/projects', () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual([PROJECT])
     expect(projects.listProjects).toHaveBeenCalledWith(caller)
+  })
+})
+
+describe('GET /api/projects/:projectId', () => {
+  it('hands the service the caller and the project and sends the project', async () => {
+    const { app, projects } = stubbed()
+    projects.getProject.mockResolvedValue(PROJECT)
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${PROJECT.id}`,
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(PROJECT)
+    expect(projects.getProject).toHaveBeenCalledWith(caller, PROJECT.id)
+  })
+
+  it('answers a project the caller cannot see with 403 and the plain message', async () => {
+    const { app, projects } = stubbed()
+    projects.getProject.mockRejectedValue(notVisible())
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${PROJECT.id}`,
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'This project is not visible to you',
+    })
+  })
+
+  it('refuses a project id that is not a UUID before the service is asked', async () => {
+    const { app, projects } = stubbed()
+    const response = await app.inject({ method: 'GET', url: '/api/projects/apollo', headers: erin })
+    expect(response.statusCode).toBe(400)
+    expect(projects.getProject).not.toHaveBeenCalled()
   })
 })
 

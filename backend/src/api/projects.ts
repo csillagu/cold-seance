@@ -12,8 +12,8 @@ const project = {
 } as const
 
 /**
- * The routes of projects (SC-017, SC-026): create a project, and list the projects the caller
- * holds a role in. They only translate the request; the project service decides what is allowed
+ * The routes of projects (SC-017, SC-051, SC-026): create a project, list the projects the caller
+ * holds a role in, and read one, which someone who cannot see it is told is not visible to them. They only translate the request; the project service decides what is allowed
  * (DD-039).
  */
 export const projectRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
@@ -21,6 +21,21 @@ export const projectRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group
     '/',
     { schema: { response: { 200: { type: 'array', items: project } } } },
     async (request) => services.projects.listProjects(callerOf(request)),
+  )
+
+  group.get<{ Params: { projectId: string } }>(
+    '/:projectId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['projectId'],
+          properties: { projectId: { type: 'string', format: 'uuid' } },
+        },
+        response: { 200: project },
+      },
+    },
+    async (request) => services.projects.getProject(callerOf(request), request.params.projectId),
   )
 
   group.post<{ Body: { name: string } }>(
