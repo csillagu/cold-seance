@@ -55,6 +55,7 @@ The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part o
 - refuses with 401, before the route runs, a request that no configured authenticator recognises (there is none yet, so every request is refused until the sign-in and token SCs add theirs); an unknown route under `/api` answers 401 too, and 404 only to an authenticated caller;
 - refuses to start if a route lacks a success response schema that says what it sends (a `type`, and for an object its `properties` or a schema for its values), a body schema (POST, PUT, PATCH) or a params schema (a URL with parameters), so nothing goes out undescribed; a querystring schema is the route author's duty, as the guard cannot tell whether a route reads one;
 - answers every error as `{ statusCode, error, message }`: a `ServiceError` as 400, 403, 404 or 409 with its message, a request Fastify itself refuses (schema, JSON, content type) with Fastify's status and message, and any other error, even one carrying a status of its own, as 500 with no detail, logged on the server.
+- serves its OpenAPI description (SC-063) at `/api/openapi.json`, behind the same authentication. `@fastify/swagger` generates it from the routes' schemas as they are registered, so it always matches the running backend; a route leaves itself out only with `hide: true` in its schema, which only the description's own route uses.
 
 ### Database schema
 
