@@ -31,7 +31,7 @@ jobs:
       - run: npm run typecheck
 
   unit:
-    name: Unit tests
+    name: Unit tests and coverage
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -43,7 +43,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run test:unit
+      - run: npm run test:coverage
+      - name: Coverage summary
+        run: node scripts/coverage-summary.ts >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-report
+          path: |
+            backend/coverage/
+            frontend/coverage/
+          retention-days: 14
 
   integration:
     name: Integration tests

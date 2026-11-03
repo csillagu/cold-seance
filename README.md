@@ -21,15 +21,16 @@ npm run dev -w frontend     # frontend dev server
 
 ### Checks
 
-| Command                           | What it runs                                                          |
-| --------------------------------- | --------------------------------------------------------------------- |
-| `npm run check`                   | Everything below except the integration tests: run it before you push |
-| `npm run format` / `format:check` | Prettier                                                              |
-| `npm run lint`                    | oxlint, with type-aware rules                                         |
-| `npm run typecheck`               | `tsc` in both packages                                                |
-| `npm run test:unit`               | Vitest unit tests, both packages                                      |
-| `npm run test:integration`        | Backend integration tests against PostgreSQL                          |
-| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`              |
+| Command                           | What it runs                                                                                          |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `npm run check`                   | Everything below except the integration tests: run it before you push                                 |
+| `npm run format` / `format:check` | Prettier                                                                                              |
+| `npm run lint`                    | oxlint, with type-aware rules                                                                         |
+| `npm run typecheck`               | `tsc` in both packages                                                                                |
+| `npm run test:unit`               | Vitest unit tests, both packages                                                                      |
+| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/` |
+| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                          |
+| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                              |
 
 ### Tests
 
@@ -47,6 +48,6 @@ The schema is TypeScript in `backend/src/db/schema.ts`. After changing it, run `
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint and typecheck, the unit tests, the integration tests (with a PostgreSQL 18 service) and the build on every pull request and on `main`.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint and typecheck, the unit tests, the integration tests (with a PostgreSQL 18 service) and the build on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [Dependabot](.github/dependabot.yml) proposes npm and GitHub Actions updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.
