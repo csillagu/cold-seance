@@ -1,0 +1,462 @@
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createConfigFixture, type ConfigFixture } from '../../test/helpers/config.ts'
+import {
+  ConfigError,
+  configFileEnv,
+  envName,
+  githubFunctions,
+  loadConfig,
+  settings,
+  type Setting,
+} from './config.ts'
+
+let fx: ConfigFixture
+
+beforeEach(() => {
+  fx = createConfigFixture()
+})
+
+afterEach(() => {
+  fx.remove()
+})
+
+const dbUrl = 'postgres://tool:secret@db.example:5432/tool'
+
+/** A file that sets every setting DD-059 names. */
+function fullFile(): string {
+  return `
+database:
+  url: ${dbUrl}
+  directUrl: postgres://tool:secret@direct.example:5432/tool
+github:
+  recheckIntervalMinutes: 15
+  apps:
+    readIssues:
+      appId: 11
+      privateKeyFile: ${fx.keyFiles.readIssues}
+      webhookSecret: hook-read
+    writeIssues:
+      appId: 12
+      privateKeyFile: ${fx.keyFiles.writeIssues}
+      webhookSecret: hook-write
+    projectsStatus:
+      appId: 13
+      privateKeyFile: ${fx.keyFiles.projectsStatus}
+      webhookSecret: hook-status
+`
+}
+
+function withFile(contents: string, extraEnv: Record<string, string> = {}) {
+  const path = fx.write('config.yaml', contents)
+  return { [configFileEnv]: path, ...extraEnv }
+}
+
+/** Runs `loadConfig` expecting it to refuse, and returns the error it throws. */
+function refusal(env: Record<string, string | undefined>, cwd = fx.dir): ConfigError {
+  let error: unknown
+  try {
+    loadConfig({ env, cwd })
+  } catch (e) {
+    error = e
+  }
+  if (!(error instanceof ConfigError)) {
+    throw new Error(
+      `loadConfig did not refuse the configuration with a ConfigError: ${String(error)}`,
+    )
+  }
+  return error
+}
+
+const problemsOf = (env: Record<string, string | undefined>, cwd = fx.dir) =>
+  refusal(env, cwd).problems
+
+const name = (s: Setting) => s.path.join('.')
+
+describe('envName', () => {
+  it('derives the environment variable from the setting path', () => {
+    expect(envName(['database', 'url'])).toBe('COLD_SEANCE_DATABASE_URL')
+    expect(envName(['database', 'directUrl'])).toBe('COLD_SEANCE_DATABASE_DIRECT_URL')
+    expect(envName(['github', 'apps', 'readIssues', 'privateKeyFile'])).toBe(
+      'COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE',
+    )
+    expect(envName(['github', 'recheckIntervalMinutes'])).toBe(
+      'COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES',
+    )
+  })
+})
+
+describe('settings', () => {
+  it('names every setting of DD-059: the database, each function’s App, the re-check interval', () => {
+    expect(settings.map(name)).toEqual([
+      'database.url',
+      'database.directUrl',
+      ...githubFunctions.flatMap((fn) => [
+        `github.apps.${fn}.appId`,
+        `github.apps.${fn}.privateKeyFile`,
+        `github.apps.${fn}.webhookSecret`,
+      ]),
+      'github.recheckIntervalMinutes',
+    ])
+  })
+})
+
+describe('loadConfig', () => {
+  it('reads every setting from the YAML file and reads the key files', () => {
+    const config = loadConfig({ env: withFile(fullFile()) })
+    expect(config).toEqual({
+      database: { url: dbUrl, directUrl: 'postgres://tool:secret@direct.example:5432/tool' },
+      github: {
+        recheckIntervalMinutes: 15,
+        apps: {
+          readIssues: {
+            appId: 11,
+            privateKeyFile: fx.keyFiles.readIssues,
+            privateKey: 'key-readIssues',
+            webhookSecret: 'hook-read',
+          },
+          writeIssues: {
+            appId: 12,
+            privateKeyFile: fx.keyFiles.writeIssues,
+            privateKey: 'key-writeIssues',
+            webhookSecret: 'hook-write',
+          },
+          projectsStatus: {
+            appId: 13,
+            privateKeyFile: fx.keyFiles.projectsStatus,
+            privateKey: 'key-projectsStatus',
+            webhookSecret: 'hook-status',
+          },
+        },
+      },
+    })
+  })
+
+  it('reads every setting from environment variables alone, with no file', () => {
+    const env = {
+      COLD_SEANCE_DATABASE_URL: dbUrl,
+      COLD_SEANCE_DATABASE_DIRECT_URL: 'postgresql://direct.example/tool',
+      COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES: '30',
+      ...fx.githubEnv,
+      COLD_SEANCE_GITHUB_APPS_READ_ISSUES_WEBHOOK_SECRET: 'r',
+      COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_WEBHOOK_SECRET: 'w',
+      COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_WEBHOOK_SECRET: 'p',
+    }
+    // fx.dir has no config.yaml, so the default file is absent.
+    const config = loadConfig({ env, cwd: fx.dir })
+    expect(config.database).toEqual({ url: dbUrl, directUrl: 'postgresql://direct.example/tool' })
+    expect(config.github.recheckIntervalMinutes).toBe(30)
+    expect(config.github.apps.readIssues).toEqual({
+      appId: 1,
+      privateKeyFile: fx.keyFiles.readIssues,
+      privateKey: 'key-readIssues',
+      webhookSecret: 'r',
+    })
+    expect(config.github.apps.writeIssues.appId).toBe(2)
+    expect(config.github.apps.writeIssues.webhookSecret).toBe('w')
+    expect(config.github.apps.projectsStatus.appId).toBe(3)
+    expect(config.github.apps.projectsStatus.privateKey).toBe('key-projectsStatus')
+    expect(config.github.apps.projectsStatus.webhookSecret).toBe('p')
+  })
+
+  describe('the environment variable wins over the file', () => {
+    const otherKey = () => fx.write('other.pem', 'other-key')
+    const overrides: Record<
+      string,
+      () => { env: string; check: (c: ReturnType<typeof loadConfig>) => unknown }
+    > = {
+      'database.url': () => ({ env: 'postgres://env.example/db', check: (c) => c.database.url }),
+      'database.directUrl': () => ({
+        env: 'postgres://env-direct.example/db',
+        check: (c) => c.database.directUrl,
+      }),
+      'github.recheckIntervalMinutes': () => ({
+        env: '5',
+        check: (c) => c.github.recheckIntervalMinutes,
+      }),
+      ...Object.fromEntries(
+        githubFunctions.flatMap((fn) => [
+          [
+            `github.apps.${fn}.appId`,
+            () => ({
+              env: '99',
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].appId,
+            }),
+          ],
+          [
+            `github.apps.${fn}.privateKeyFile`,
+            () => ({
+              env: otherKey(),
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].privateKey,
+            }),
+          ],
+          [
+            `github.apps.${fn}.webhookSecret`,
+            () => ({
+              env: 'env-secret',
+              check: (c: ReturnType<typeof loadConfig>) => c.github.apps[fn].webhookSecret,
+            }),
+          ],
+        ]),
+      ),
+    }
+
+    it('covers every setting', () => {
+      expect(Object.keys(overrides).sort()).toEqual(settings.map(name).sort())
+    })
+
+    for (const setting of settings) {
+      it(`for ${name(setting)}`, () => {
+        const override = overrides[name(setting)]!()
+        const config = loadConfig({
+          env: withFile(fullFile(), { [envName(setting.path)]: override.env }),
+        })
+        const expected =
+          setting.kind === 'positiveInteger'
+            ? Number(override.env)
+            : setting.kind === 'keyFile'
+              ? 'other-key'
+              : override.env
+        expect(override.check(config)).toBe(expected)
+      })
+    }
+  })
+
+  it('takes the file value when the environment variable is set but empty', () => {
+    const config = loadConfig({ env: withFile(fullFile(), { COLD_SEANCE_DATABASE_URL: '' }) })
+    expect(config.database.url).toBe(dbUrl)
+  })
+
+  it('applies the defaults: direct URL is the URL, one-hour re-check, no webhook secret', () => {
+    const config = loadConfig({
+      env: { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv },
+      cwd: fx.dir,
+    })
+    expect(config.database.directUrl).toBe(dbUrl)
+    expect(config.github.recheckIntervalMinutes).toBe(60)
+    for (const fn of githubFunctions) expect(config.github.apps[fn].webhookSecret).toBeUndefined()
+  })
+
+  it('accepts one App for all functions, given with a YAML anchor', () => {
+    const file = `
+database: { url: ${dbUrl} }
+github:
+  apps:
+    readIssues: &app { appId: 7, privateKeyFile: ${fx.keyFiles.readIssues} }
+    writeIssues: *app
+    projectsStatus: *app
+`
+    const config = loadConfig({ env: withFile(file) })
+    for (const fn of githubFunctions) {
+      expect(config.github.apps[fn]).toMatchObject({ appId: 7, privateKey: 'key-readIssues' })
+    }
+  })
+
+  it('reads config.yaml from the working directory when no file is named', () => {
+    fx.write('config.yaml', fullFile())
+    expect(loadConfig({ env: {}, cwd: fx.dir }).github.recheckIntervalMinutes).toBe(15)
+  })
+
+  it('resolves a relative file name against the working directory', () => {
+    mkdirSync(join(fx.dir, 'etc'))
+    fx.write('etc/tool.yaml', fullFile())
+    expect(
+      loadConfig({ env: { [configFileEnv]: 'etc/tool.yaml' }, cwd: fx.dir }).database.url,
+    ).toBe(dbUrl)
+  })
+
+  it('treats an empty file as setting nothing', () => {
+    const config = loadConfig({
+      env: withFile('', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+    })
+    expect(config.database.url).toBe(dbUrl)
+  })
+
+  it('treats an empty or null value in the file as not set', () => {
+    const problems = problemsOf(withFile(`database:\n  url: ""\n  directUrl: ~\n`, fx.githubEnv))
+    expect(problems).toEqual(['database.url (COLD_SEANCE_DATABASE_URL) is required but not set'])
+  })
+
+  describe('refuses to start, naming the setting', () => {
+    for (const setting of settings.filter((s) => s.required)) {
+      it(`when ${name(setting)} is missing`, () => {
+        const env: Record<string, string> = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+        delete env[envName(setting.path)]
+        expect(problemsOf(env)).toEqual([
+          `${name(setting)} (${envName(setting.path)}) is required but not set`,
+        ])
+      })
+    }
+
+    it('with a message that lists every missing setting', () => {
+      const error = refusal({})
+      const { message } = error
+      for (const setting of settings.filter((s) => s.required)) {
+        expect(message).toContain(
+          `- ${name(setting)} (${envName(setting.path)}) is required but not set`,
+        )
+      }
+      expect(error.name).toBe('ConfigError')
+    })
+
+    it('when a key file does not exist', () => {
+      const env: Record<string, string> = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+      env.COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_PRIVATE_KEY_FILE = join(fx.dir, 'missing.pem')
+      expect(problemsOf(env)).toEqual([
+        `github.apps.writeIssues.privateKeyFile (COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_PRIVATE_KEY_FILE): the key file ${join(fx.dir, 'missing.pem')} cannot be read: ENOENT`,
+      ])
+    })
+
+    it('when a key file is a directory', () => {
+      const env: Record<string, string> = { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }
+      env.COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE = fx.dir
+      expect(problemsOf(env)).toEqual([
+        `github.apps.readIssues.privateKeyFile (COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE): the key file ${fx.dir} cannot be read: EISDIR`,
+      ])
+    })
+
+    it('when the key file path in the file is not a string', () => {
+      const problems = problemsOf(
+        withFile(`github: { apps: { readIssues: { privateKeyFile: [a] } } }`, {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...fx.githubEnv,
+          COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE: '',
+        }),
+      )
+      expect(problems).toEqual([
+        'github.apps.readIssues.privateKeyFile (COLD_SEANCE_GITHUB_APPS_READ_ISSUES_PRIVATE_KEY_FILE) must be the path of a key file',
+      ])
+    })
+
+    for (const bad of ['0', '-1', 'abc', '1.5', '99999999999999999999']) {
+      it(`when an App id is ${bad}`, () => {
+        const env = {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...fx.githubEnv,
+          COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: bad,
+        }
+        expect(problemsOf(env)).toEqual([
+          'github.apps.readIssues.appId (COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID) must be a whole number greater than 0',
+        ])
+      })
+    }
+
+    it('when the re-check interval in the file is not a whole number', () => {
+      const problems = problemsOf(
+        withFile(`github: { recheckIntervalMinutes: 0.5 }`, {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...fx.githubEnv,
+        }),
+      )
+      expect(problems).toEqual([
+        'github.recheckIntervalMinutes (COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES) must be a whole number greater than 0',
+      ])
+    })
+
+    it('accepts a quoted App id in the file', () => {
+      const config = loadConfig({
+        env: withFile(`github: { apps: { readIssues: { appId: "42" } } }`, {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...fx.githubEnv,
+          COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: '',
+        }),
+      })
+      expect(config.github.apps.readIssues.appId).toBe(42)
+    })
+
+    it('when the database address is not a PostgreSQL URL, without echoing it', () => {
+      for (const bad of ['mysql://u:hunter2@h/db', 'not a url hunter2']) {
+        const problems = problemsOf({ ...fx.githubEnv, COLD_SEANCE_DATABASE_URL: bad })
+        expect(problems).toEqual([
+          'database.url (COLD_SEANCE_DATABASE_URL) must be a PostgreSQL connection URL (postgres://…)',
+        ])
+        expect(problems.join()).not.toContain('hunter2')
+      }
+    })
+
+    it('when the database address in the file is not a string', () => {
+      const problems = problemsOf(withFile(`database: { url: 5432 }`, fx.githubEnv))
+      expect(problems).toEqual([
+        'database.url (COLD_SEANCE_DATABASE_URL) must be a PostgreSQL connection URL (postgres://…)',
+      ])
+    })
+
+    it('when a webhook secret in the file is not a string', () => {
+      const problems = problemsOf(
+        withFile(`github: { apps: { projectsStatus: { webhookSecret: 12345 } } }`, {
+          COLD_SEANCE_DATABASE_URL: dbUrl,
+          ...fx.githubEnv,
+        }),
+      )
+      expect(problems).toEqual([
+        'github.apps.projectsStatus.webhookSecret (COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_WEBHOOK_SECRET) must be a string; quote it in the configuration file',
+      ])
+    })
+
+    it('when the named configuration file does not exist', () => {
+      const path = join(fx.dir, 'nope.yaml')
+      expect(
+        problemsOf({ [configFileEnv]: path, COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      ).toEqual([`the configuration file ${path} (COLD_SEANCE_CONFIG_FILE) cannot be read: ENOENT`])
+    })
+
+    it('when the default configuration file exists but cannot be read', () => {
+      mkdirSync(join(fx.dir, 'config.yaml'))
+      expect(problemsOf({ COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })).toEqual([
+        `the configuration file ${join(fx.dir, 'config.yaml')} (COLD_SEANCE_CONFIG_FILE) cannot be read: EISDIR`,
+      ])
+    })
+
+    it('when the file is not valid YAML', () => {
+      const problems = problemsOf(
+        withFile('database: [unclosed', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      expect(problems).toHaveLength(1)
+      expect(problems[0]).toMatch(/^the configuration file .*config\.yaml is not valid YAML: /)
+    })
+
+    it('when the file does not hold a mapping', () => {
+      const problems = problemsOf(
+        withFile('- a\n- b\n', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      expect(problems).toEqual([
+        `the configuration file ${join(fx.dir, 'config.yaml')} must hold a mapping of settings`,
+      ])
+    })
+
+    it('when a section is not a mapping, once, even if the environment sets the settings under it', () => {
+      const problems = problemsOf(
+        withFile('github: yes\n', { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv }),
+      )
+      expect(problems).toEqual(['github in the configuration file must be a mapping'])
+    })
+
+    it('with every problem at once', () => {
+      const problems = problemsOf({
+        ...fx.githubEnv,
+        COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID: 'x',
+        COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_PRIVATE_KEY_FILE: join(fx.dir, 'gone.pem'),
+      })
+      expect(problems).toHaveLength(3)
+      expect(problems[0]).toContain('database.url')
+      expect(problems[1]).toContain('github.apps.readIssues.appId')
+      expect(problems[2]).toContain('github.apps.projectsStatus.privateKeyFile')
+    })
+  })
+
+  it('uses process.env and process.cwd() by default', () => {
+    const saved = { ...process.env }
+    const cwd = process.cwd()
+    try {
+      for (const key of Object.keys(process.env))
+        if (key.startsWith('COLD_SEANCE_')) delete process.env[key]
+      Object.assign(process.env, { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })
+      process.chdir(fx.dir)
+      expect(loadConfig().database.url).toBe(dbUrl)
+    } finally {
+      process.chdir(cwd)
+      process.env = saved
+    }
+  })
+})
