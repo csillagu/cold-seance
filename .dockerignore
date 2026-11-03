@@ -1,0 +1,20 @@
+# Only what the image is built from goes into the build context. Above all, no configuration
+# file or key file: they hold secrets (DD-059) and are mounted at run time, never built in.
+*
+!package.json
+!package-lock.json
+!.npmrc
+!tsconfig.base.json
+!backend/
+!frontend/
+# The build needs no YAML file; any there may be a configuration file holding secrets.
+**/*.yaml
+**/*.yml
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/*.pem
+**/*.key
+**/.env
+**/.env.*

@@ -1,6 +1,16 @@
 import { ConfigError } from './config/config.ts'
 import { MigrationError } from './db/migrate.ts'
-import { startBackend } from './start.ts'
+import { closeOnSignals, listen, startBackend } from './start.ts'
+
+// Until the backend is up, a stop (docker stop sends SIGTERM) ends the start at once: as the
+// container's first process, Node would otherwise ignore it. A migration cut short this way is
+// rolled back with its transaction.
+const stopStart = (signal: NodeJS.Signals) => {
+  console.error(`${signal} received while starting; the tool does not start`)
+  process.exit(1)
+}
+process.once('SIGTERM', stopStart)
+process.once('SIGINT', stopStart)
 
 let backend
 try {
@@ -11,6 +21,17 @@ try {
   process.exit(1)
 }
 
-// The listen address is not a setting named so far (DD-059), so the server keeps listening on
-// localhost:3000 until a solution component names one.
-await backend.app.listen({ host: '127.0.0.1', port: 3000 })
+process.off('SIGTERM', stopStart)
+process.off('SIGINT', stopStart)
+closeOnSignals(backend.app)
+try {
+  await listen(backend)
+} catch (error) {
+  const { host, port } = backend.config.server
+  const reason = error instanceof Error && 'code' in error ? String(error.code) : String(error)
+  console.error(
+    `The backend cannot listen on ${host}:${port}, so the tool does not start: ${reason}`,
+  )
+  await backend.app.close()
+  process.exit(1)
+}

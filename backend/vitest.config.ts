@@ -27,6 +27,16 @@ export default defineConfig({
           hookTimeout: 30_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'image',
+          include: ['test/image/**/*.test.ts'],
+          globalSetup: ['test/integration/global-setup.ts'],
+          testTimeout: 90_000,
+          hookTimeout: 30_000,
+        },
+      },
     ],
   },
 })

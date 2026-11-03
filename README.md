@@ -19,6 +19,8 @@ npm run dev -w backend      # backend on http://localhost:3000, restarts on chan
 npm run dev -w frontend     # frontend dev server
 ```
 
+The backend listens on `server.host` and `server.port` (127.0.0.1:3000 unless set). It also serves the built frontend, `frontend/dist/`, if there is one: its files as they are, and its `index.html` for any other GET outside `/api`, since the frontend is a single-page application. Without a build it serves only the API and says so in its log.
+
 ### Configuration
 
 The backend reads its settings at start from a YAML file (DD-059): `config.yaml` in the directory it starts in, or the file named by `COLD_SEANCE_CONFIG_FILE`. [`backend/config.example.yaml`](backend/config.example.yaml) lists every setting. Each one can also be given by an environment variable, named after its path (`database.url` is `COLD_SEANCE_DATABASE_URL`, `github.apps.readIssues.appId` is `COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID`), and **the environment variable wins over the file**; an empty variable counts as not set. A key in the file or a `COLD_SEANCE_` variable that is not a known setting stops the start, so a misspelt setting cannot go unnoticed. Without a file, the environment alone configures the tool.
@@ -37,6 +39,7 @@ The backend does not start if a required setting is missing, a value is not vali
 | `npm run test:unit`               | Vitest unit tests, both packages                                                                      |
 | `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/` |
 | `npm run test:integration`        | Backend integration tests against PostgreSQL                                                          |
+| `npm run test:image`              | Tests of the Docker image (SC-028), against PostgreSQL; needs Docker and a built image                |
 | `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                              |
 
 ### Tests
@@ -48,6 +51,26 @@ The backend does not start if a required setting is missing, a value is not vali
   docker compose -f compose.test.yaml up -d
   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:integration
   ```
+
+### Docker image
+
+The [`Dockerfile`](Dockerfile) builds the one application image (SC-028, DD-040): the built frontend and the backend, which serves it, in one process. It holds no configuration and no key file; give them at run time. The image listens on port 3000 on every interface of the container (it sets `COLD_SEANCE_SERVER_HOST=0.0.0.0`), runs as the unprivileged `node` user, applies the pending migrations to its database at start (SC-074), and closes cleanly when Docker stops it.
+
+```sh
+docker build -t cold-seance .
+docker run -p 3000:3000 \
+  -v ./config.yaml:/app/config.yaml:ro -v ./github-app.pem:/run/secrets/github-app.pem:ro \
+  cold-seance
+```
+
+The database is the one in the configuration (FR-177): any PostgreSQL the container can reach, a hosted one included. A configuration file is read from `/app/config.yaml`, or from the path in `COLD_SEANCE_CONFIG_FILE`; each setting can also be given with `-e`. The mounted files must be readable by the `node` user (uid 1000) and should be readable by no one else on the host.
+
+The image tests start containers of a built image against a PostgreSQL server, which the containers reach as `host.docker.internal`:
+
+```sh
+docker build -t cold-seance:test .
+TEST_IMAGE=cold-seance:test TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:image
+```
 
 ### REST API
 
@@ -71,6 +94,6 @@ At start, before it serves any request, the backend applies the migrations the d
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service) and the build on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
-- [Dependabot](.github/dependabot.yml) proposes npm and GitHub Actions updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.
