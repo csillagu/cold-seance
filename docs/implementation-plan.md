@@ -141,3 +141,4 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC | Status | Issue | PR |
 |---|---|---|---|
 | SC-109 | implemented | #21 | https://github.com/csillagu/cold-seance/pull/22 |
+| SC-026 | opened | #23 | https://github.com/csillagu/cold-seance/pull/24 |

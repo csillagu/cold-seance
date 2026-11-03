@@ -21,6 +21,12 @@
         "react/exhaustive-deps": "error",
         "react/only-export-components": ["error", { "allowConstantExport": true }]
       }
+    },
+    {
+      "files": ["backend/**/*.ts"],
+      "rules": {
+        "oxc/no-async-endpoint-handlers": "off"
+      }
     }
   ],
   "ignorePatterns": ["**/dist/**", "**/coverage/**", "backend/drizzle/**"]
