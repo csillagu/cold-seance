@@ -4,6 +4,7 @@ import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ViewReadFilter } from './view-filter.ts'
 
 /**
  * The one service layer (DD-039): every module of it, over one database. The REST API, and later
@@ -16,6 +17,8 @@ export interface Services {
   audit: AuditLogService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** The filter every view passes the tasks it would show through (SC-050). */
+  viewFilter: ViewReadFilter
 }
 
 export function createServices(db: Database): Services {
@@ -32,5 +35,6 @@ export function createServices(db: Database): Services {
     audit,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles),
+    viewFilter: new ViewReadFilter(projectRoles),
   }
 }

@@ -56,7 +56,7 @@ describe('the view read filter', () => {
     expect(await filter.readable(by(viewer), items)).toEqual(items)
   })
 
-  it('drops the items of a project the viewer holds no role in, whoever saved the view', async () => {
+  it('drops the items of a project the viewer holds no role in, so the same items show each viewer their own', async () => {
     const own = await seedProject(x.db, alice)
     const other = await seedProject(x.db, bob)
     const items = [
@@ -72,7 +72,9 @@ describe('the view read filter', () => {
   it('keeps the items of a project the viewer reads through a group only', async () => {
     const theirs = await seedProject(x.db, bob)
     groups.give(alice, theirs, 'read-only')
-    expect(await filter.readable(by(alice), [{ id: 'B', projectId: theirs }])).toHaveLength(1)
+    expect(await filter.readable(by(alice), [{ id: 'B', projectId: theirs }])).toEqual([
+      { id: 'B', projectId: theirs },
+    ])
     groups.takeAway(alice, theirs)
     expect(await filter.readable(by(alice), [{ id: 'B', projectId: theirs }])).toEqual([])
   })
@@ -153,7 +155,7 @@ describe('TC-083: a view shows no tasks of a project its viewer cannot read', ()
       { id: 'A-task', projectId: apollo },
       { id: 'B-task', projectId: borealis },
     ]
-    const filter = new ViewReadFilter(services.projectRoles)
+    const filter = services.viewFilter
     expect((await filter.readable(by(alice), view)).map((t) => t.id)).toEqual(['A-task', 'B-task'])
 
     const removed = await app.inject({
@@ -170,5 +172,6 @@ describe('TC-083: a view shows no tasks of a project its viewer cannot read', ()
   })
 
   // Pending: TC-083 in full: tasks A-task and B-task (SC-001) in alice's saved personal Kanban
-  // view (SC-020, SC-030), opened before and after the change.
+  // view (SC-020, SC-030), opened before and after the change, the view then showing no other
+  // data of Borealis either, such as its name.
 })

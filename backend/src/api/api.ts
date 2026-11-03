@@ -46,23 +46,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
  * Stands in for the service layer when none is given, so the routes can be registered and
  * described (SC-063) without a database; a route that reaches it fails as a fault of the backend.
  */
-const noServices: Services = {
-  get accounts(): never {
-    return unavailable()
-  },
-  get apiTokens(): never {
-    return unavailable()
-  },
-  get audit(): never {
-    return unavailable()
-  },
-  get projectRoles(): never {
-    return unavailable()
-  },
-  get projects(): never {
-    return unavailable()
-  },
-}
+const noServices = new Proxy<Services>(Object.create(null), { get: () => unavailable() })
 
 function unavailable(): never {
   throw new Error('The REST API was built without a service layer')

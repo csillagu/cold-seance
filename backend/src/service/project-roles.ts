@@ -4,7 +4,7 @@ import { accounts, PROJECT_ROLES, projectMembers } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
-import { ProjectPermissions } from './permissions.ts'
+import { allows, ProjectPermissions } from './permissions.ts'
 import { isUuid } from './system-admins.ts'
 
 /** The four roles a person can hold in a project (FR-105), lowest first. */
@@ -31,14 +31,20 @@ export interface GroupRoles {
     accountId: string,
     projectId: string,
   ): Promise<ProjectRole[]>
-  /** The projects the person holds a role in through groups. */
-  projectsThroughGroups(executor: Executor, accountId: string): Promise<string[]>
+  /**
+   * Every role the person holds through groups, with its project. It must agree with
+   * `rolesThroughGroups`, so that the role checks and the view filter decide alike.
+   */
+  allRolesThroughGroups(
+    executor: Executor,
+    accountId: string,
+  ): Promise<{ projectId: string; role: ProjectRole }[]>
 }
 
 /** The group roles until groups hold members and projects (SC-057, SC-058): none. */
 export const noGroupRoles: GroupRoles = {
   rolesThroughGroups: async () => [],
-  projectsThroughGroups: async () => [],
+  allRolesThroughGroups: async () => [],
 }
 
 /** Whether `value` is one of the four project roles. */
@@ -111,17 +117,23 @@ export class ProjectRoleService implements ProjectRoles {
   }
 
   /**
-   * The projects the person holds a role in, of whatever kind, directly or through groups: the
-   * projects they can read (FR-106).
+   * The projects the person may read, as the role permission checks decide (SC-049): those they
+   * hold a role in that allows reading, directly or through groups, the highest role of each
+   * applying (FR-112).
    */
   async readableProjects(accountId: string, executor: Executor = this.#db): Promise<Set<string>> {
     if (!isUuid(accountId)) return new Set()
     const direct = await executor
-      .select({ projectId: projectMembers.projectId })
+      .select({ projectId: projectMembers.projectId, role: projectMembers.role })
       .from(projectMembers)
       .where(eq(projectMembers.accountId, accountId))
-    const throughGroups = await this.#groups.projectsThroughGroups(executor, accountId)
-    return new Set([...direct.map((row) => row.projectId), ...throughGroups])
+    const throughGroups = await this.#groups.allRolesThroughGroups(executor, accountId)
+    const held = new Map<string, ProjectRole[]>()
+    for (const { projectId, role } of [...direct, ...throughGroups]) {
+      held.set(projectId, [...(held.get(projectId) ?? []), role])
+    }
+    const readable = [...held].filter(([, roles]) => allows(highestRole(roles), 'read'))
+    return new Set(readable.map(([projectId]) => projectId))
   }
 
   /**

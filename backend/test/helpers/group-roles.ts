@@ -18,7 +18,9 @@ export function groupTable(): GroupRoles & {
       roles
         .filter((r) => r.accountId === accountId && r.projectId === projectId)
         .map((r) => r.role),
-    projectsThroughGroups: async (_executor: Executor, accountId) =>
-      roles.filter((r) => r.accountId === accountId).map((r) => r.projectId),
+    allRolesThroughGroups: async (_executor: Executor, accountId) =>
+      roles
+        .filter((r) => r.accountId === accountId)
+        .map((r) => ({ projectId: r.projectId, role: r.role })),
   }
 }
