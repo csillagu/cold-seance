@@ -29,6 +29,13 @@
       "when": 1793747658321,
       "tag": "0003_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793747973840,
+      "tag": "0004_projects",
+      "breakpoints": true
     }
   ]
 }

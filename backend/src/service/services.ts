@@ -3,6 +3,7 @@ import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { ProjectRoleService } from './project-roles.ts'
+import { ProjectService } from './projects.ts'
 
 /**
  * The one service layer (DD-039): every module of it, over one database. The REST API, and later
@@ -14,6 +15,7 @@ export interface Services {
   apiTokens: ApiTokenService
   audit: AuditLogService
   projectRoles: ProjectRoleService
+  projects: ProjectService
 }
 
 export function createServices(db: Database): Services {
@@ -29,5 +31,6 @@ export function createServices(db: Database): Services {
     apiTokens: new ApiTokenService(db, audit),
     audit,
     projectRoles,
+    projects: new ProjectService(db, audit, projectRoles),
   }
 }

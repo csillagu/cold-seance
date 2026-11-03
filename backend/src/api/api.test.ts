@@ -338,6 +338,7 @@ describe('the service layer', () => {
       '/api/audit-log',
       '/api/projects/6f1c2a5e-0000-4000-8000-0000000000a1/members',
       '/api/tokens',
+      '/api/projects',
     ]) {
       const response = await app.inject({ method: 'GET', url, headers: { authorization: TOKEN } })
       expect(response.statusCode).toBe(500)

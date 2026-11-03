@@ -7,6 +7,7 @@ import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
+import { projectRoutes } from './projects.ts'
 import { missingSchemas } from './schema-guard.ts'
 
 /** Where the REST API is served. */
@@ -36,6 +37,7 @@ export interface RouteGroupOptions {
 export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: accountRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
+  { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
 ]
@@ -55,6 +57,9 @@ const noServices: Services = {
     return unavailable()
   },
   get projectRoles(): never {
+    return unavailable()
+  },
+  get projects(): never {
     return unavailable()
   },
 }

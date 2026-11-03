@@ -32,6 +32,19 @@ export const accounts = pgTable(
   (table) => [uniqueIndex('accounts_username_key').on(sql`lower(${table.username})`)],
 )
 
+/**
+ * The projects (SC-017). Anyone with an account can create one (FR-119) and becomes its admin
+ * (FR-158); `created_by` is who created it.
+ */
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 /** The channels a change can come through (FR-116): the UI, the REST API, the MCP server, GitHub. */
 export const CHANNELS = ['ui', 'rest-api', 'mcp', 'github'] as const
 
@@ -42,8 +55,7 @@ export const auditChannel = pgEnum('audit_channel', CHANNELS)
  * which channels. A change an approved AI proposal applies has two, the one the proposal was made
  * through and the one it was approved through (FR-164). Rows are only ever added. `project_id` is
  * the project a change belongs to, for the project's part of the log (FR-138), and empty for a
- * change outside any project, such as to an account; it gets its foreign key once the projects
- * table exists (SC-017).
+ * change outside any project, such as to an account.
  */
 export const auditLog = pgTable(
   'audit_log',
@@ -54,7 +66,7 @@ export const auditLog = pgTable(
       .notNull()
       .references(() => accounts.id),
     channels: auditChannel('channels').array().notNull(),
-    projectId: uuid('project_id'),
+    projectId: uuid('project_id').references(() => projects.id),
     action: text('action').notNull(),
     subjectType: text('subject_type').notNull(),
     subjectId: text('subject_id').notNull(),
@@ -74,19 +86,21 @@ export const projectRole = pgEnum('project_role', PROJECT_ROLES)
 /**
  * The roles people hold in projects directly (FR-105, SC-014): at most one role for each person in
  * each project. Roles that come through groups are held with the groups (SC-057, SC-058).
- * `project_id` gets its foreign key once the projects table exists (SC-017).
  */
 export const projectMembers = pgTable(
   'project_members',
   {
-    projectId: uuid('project_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
     accountId: uuid('account_id')
       .notNull()
       .references(() => accounts.id),
     role: projectRole('role').notNull(),
   },
   (table) => [
-    // A unique index, not a composite primary key: drizzle-kit cannot introspect the latter.
+    // A unique index, not a composite primary key: drizzle-kit's `pushSchema`, which the schema
+    // check uses, sends its query for a composite key's name without the query's parameters.
     uniqueIndex('project_members_key').on(table.projectId, table.accountId),
     index('project_members_account_id_idx').on(table.accountId),
   ],

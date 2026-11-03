@@ -5,6 +5,7 @@ import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import { hashPassword } from './passwords.ts'
+import { characters } from './text.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 
 /** An account as the service layer hands it out: never with its password hash. */
@@ -166,11 +167,4 @@ function violates(error: unknown, index: string): boolean {
     'constraint' in cause &&
     cause.constraint === index
   )
-}
-
-/** The length of a text as a person counts it: in characters, an emoji or accented letter as one. */
-function characters(text: string): number {
-  let count = 0
-  for (const _ of new Intl.Segmenter().segment(text)) count++
-  return count
 }

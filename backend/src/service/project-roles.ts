@@ -104,6 +104,15 @@ export class ProjectRoleService implements ProjectRoles {
   }
 
   /**
+   * Makes the account `accountId` the admin of the project it has just created (FR-158), in the
+   * transaction that creates the project. Project creation (SC-017) calls this; it checks nothing,
+   * since whoever creates a project becomes its admin.
+   */
+  async addCreator(tx: Executor, projectId: string, accountId: string): Promise<void> {
+    await tx.insert(projectMembers).values({ projectId, accountId, role: 'admin' })
+  }
+
+  /**
    * The people who hold a role in the project directly, by username, with their roles. Anyone who
    * holds a role in the project, of whatever kind, may read them (FR-106); everyone else is
    * refused.
@@ -219,7 +228,6 @@ export class ProjectRoleService implements ProjectRoles {
    * concurrent changes cannot each take away one of the last two admins.
    */
   async #lockAdmins(tx: Executor, projectId: string): Promise<string[]> {
-    if (!isUuid(projectId)) return []
     const rows = await tx
       .select({ accountId: projectMembers.accountId })
       .from(projectMembers)
