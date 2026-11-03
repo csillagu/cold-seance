@@ -8,7 +8,7 @@ Verify that the baseline variance view allows no edits.
 
 ## Inputs
 
-- A fresh test deployment, first system admin `root`; account `alice`; project `Apollo` created by `alice` (so she may edit its plan elsewhere).
+- A fresh test deployment, first system admin `root`; account `alice`; project `Apollo` created by `alice` (so `alice` may edit its plan elsewhere).
 - Task `T` in `Apollo`, planned start 2027-03-01, 3 working days; baseline `v1` saved after it.
 
 ## Procedure

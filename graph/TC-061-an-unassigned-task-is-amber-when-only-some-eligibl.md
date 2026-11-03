@@ -11,7 +11,7 @@ Verify that a task with an eligibility expression but no assigned people is show
 - A fresh test deployment, first system admin `root`, global calendar with Saturday and Sunday as the weekend and no company holidays.
 - Accounts `alice` and `bob`, capacity 100%; project `Apollo` created by `alice`, where `bob` has the read-only role.
 - Task `X` in `Apollo`, assigned to `alice`, AI share 0%, planned start 2027-03-01, duration 5 working days. `bob` has no tasks.
-- Task `U` in `Apollo`, eligibility `alice OR bob`, no assigned people, AI share 0%, planned start 2027-03-01, duration 5 working days. A combination with `alice` overloads her; `bob` alone fits.
+- Task `U` in `Apollo`, eligibility `alice OR bob`, no assigned people, AI share 0%, planned start 2027-03-01, duration 5 working days. A combination with `alice` overloads `alice`; `bob` alone fits.
 
 ## Procedure
 

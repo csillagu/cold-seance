@@ -20,7 +20,7 @@ Verify that the person load view shows each person's load per day across all pro
 ## Expected response
 
 - `carol`'s load is shown as 50% on 2027-03-01, 70% on 2027-03-02, 20% on 2027-03-03 and 0% on 2027-03-04.
-- Each day's load is shown against her capacity of 80%.
+- Each day's load is shown against `carol`'s capacity of 80%.
 
 ## Negative assertions
 

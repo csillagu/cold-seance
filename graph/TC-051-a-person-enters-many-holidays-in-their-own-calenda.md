@@ -13,7 +13,7 @@ Verify that each person has their own calendar in which they can enter as many h
 
 ## Procedure
 
-1. As `alice`, enter the 30 holidays in her own calendar through the REST API.
+1. As `alice`, enter the 30 holidays in their own calendar through the REST API.
 2. Read `alice`'s calendar and `bob`'s calendar.
 
 ## Expected response

@@ -15,7 +15,7 @@ Verify that users can create and keep named saved views of the Kanban and Gantt 
 ## Procedure
 
 1. As `alice`, create and save both views.
-2. Sign out, sign in again as `alice`, and list her saved views.
+2. Sign out, sign in again as `alice`, and list their saved views.
 3. Open each one.
 
 ## Expected response

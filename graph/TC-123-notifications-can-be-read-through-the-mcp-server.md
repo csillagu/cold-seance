@@ -14,8 +14,8 @@ Verify that a person's notifications can be read through the MCP server.
 
 ## Procedure
 
-1. As `bob`, read his notifications in the app.
-2. Read `bob`'s notifications through the MCP server with his token.
+1. As `bob`, read their notifications in the app.
+2. Read `bob`'s notifications through the MCP server with `bob`'s token.
 
 ## Expected response
 

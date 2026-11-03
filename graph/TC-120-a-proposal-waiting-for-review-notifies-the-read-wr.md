@@ -24,7 +24,7 @@ Verify that, when a proposal is waiting for review, the people with the read-wri
 
 ## Negative assertions
 
-- `carol` has no notification asking her to review it.
+- `carol` has no notification asking `carol` to review it.
 
 ## Cleanup
 

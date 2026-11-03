@@ -14,8 +14,8 @@ Verify that a saved view kept personally is seen only by its owner.
 
 ## Procedure
 
-1. As `alice`, list her saved views.
-2. As `bob`, list the saved views he can see, in `Apollo` and personally.
+1. As `alice`, list their saved views.
+2. As `bob`, list the saved views they can see, in `Apollo` and personally.
 
 ## Expected response
 

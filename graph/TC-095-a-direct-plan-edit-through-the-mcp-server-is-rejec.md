@@ -8,7 +8,7 @@ Verify that the MCP server rejects a direct change to the plan.
 
 ## Inputs
 
-- A fresh test deployment, first system admin `root`; account `alice`, with an access token; project `Apollo` created by `alice` (so she has every role's rights there).
+- A fresh test deployment, first system admin `root`; account `alice`, with an access token; project `Apollo` created by `alice` (so `alice` has every role's rights there).
 - Task `T` in `Apollo`, planned start 2027-03-01, 1 working day.
 - An MCP client connected with `alice`'s token.
 

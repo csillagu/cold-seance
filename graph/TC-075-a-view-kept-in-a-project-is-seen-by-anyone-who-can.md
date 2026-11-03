@@ -15,7 +15,7 @@ Verify that a saved view kept in a project is seen by everyone who can read the 
 ## Procedure
 
 1. As `bob`, list the saved views of `Apollo` and open `Apollo board`.
-2. As `dave`, list the saved views he can see.
+2. As `dave`, list the saved views they can see.
 
 ## Expected response
 

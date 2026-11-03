@@ -10,7 +10,7 @@ Verify that a view shows only the tasks its viewer can read, so that a view neve
 
 - A fresh test deployment, first system admin `root`; accounts `alice` and `bob`.
 - Project `Apollo` created by `alice`, with task `A-task`; project `Borealis` created by `bob`, with task `B-task`, where `alice` has the read-only role.
-- A personal Kanban view of `alice`'s covering `Apollo` and `Borealis`, saved while she could read both.
+- A personal Kanban view of `alice`'s covering `Apollo` and `Borealis`, saved while `alice` could read both.
 - The change: `bob` removes `alice` from `Borealis`.
 
 ## Procedure

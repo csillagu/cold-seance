@@ -11,7 +11,7 @@ Verify that a task is shown in red when one of its assigned people is on holiday
 - A fresh test deployment, first system admin `root`, global calendar with Saturday and Sunday as the weekend and no company holidays.
 - Account `alice`, whose own calendar has no days off; project `Apollo` created by `alice`.
 - Task `T` in `Apollo`, assigned to `alice`, planned start 2027-03-01, duration 3 working days.
-- The change: `alice` adds a day off on 2027-03-02 to her own calendar.
+- The change: `alice` adds a day off on 2027-03-02 to their own calendar.
 
 ## Procedure
 

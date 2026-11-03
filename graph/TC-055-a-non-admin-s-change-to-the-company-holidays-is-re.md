@@ -9,7 +9,7 @@ Verify that the system rejects a change to the company holidays from anyone who 
 ## Inputs
 
 - A fresh test deployment, first system admin `root`, global calendar with no company holidays.
-- Account `alice`, not a system admin; project `Apollo` created by `alice` (so she is a project admin).
+- Account `alice`, not a system admin; project `Apollo` created by `alice` (so `alice` is a project admin).
 - The change: add a company holiday on 2027-03-03.
 
 ## Procedure

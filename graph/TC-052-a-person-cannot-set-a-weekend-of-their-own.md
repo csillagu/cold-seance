@@ -9,11 +9,11 @@ Verify that a person's own calendar does not let them set a weekend of their own
 ## Inputs
 
 - A fresh test deployment, first system admin `root`, global calendar with Saturday and Sunday as the weekend; account `alice`.
-- The change: `alice` tries to make Friday a weekend day in her own calendar.
+- The change: `alice` tries to make Friday a weekend day in their own calendar.
 
 ## Procedure
 
-1. As `alice`, look for a weekend setting in her own calendar in the browser.
+1. As `alice`, look for a weekend setting in their own calendar in the browser.
 2. Try to send the change through the REST API.
 3. Read `alice`'s calendar.
 

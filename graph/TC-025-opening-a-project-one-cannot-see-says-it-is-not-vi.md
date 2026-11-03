@@ -17,7 +17,7 @@ Verify that the system tells a person explicitly that a project is not visible t
 
 ## Expected response
 
-- The page tells `alice` that the project is not visible to her.
+- The page tells `alice` that the project is not visible to `alice`.
 
 ## Negative assertions
 

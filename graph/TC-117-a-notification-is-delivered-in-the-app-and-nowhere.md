@@ -9,7 +9,7 @@ Verify that the system delivers its notifications in the app only, with no email
 ## Inputs
 
 - A test deployment whose outbound network traffic is recorded; first system admin `root`, global calendar with Saturday and Sunday as the weekend and no company holidays.
-- Account `alice`, capacity 100%, with an email address on her account if the tool stores one; project `Apollo` created by `alice` (so she is subscribed to it).
+- Account `alice`, capacity 100%, with an email address on the account if the tool stores one; project `Apollo` created by `alice` (so `alice` is subscribed to it).
 - Task `T1` in `Apollo`, assigned to `alice`, AI share 0%, 2027-03-01, 1 working day.
 - The trigger: a new red flag, by creating `T2` in `Apollo`, assigned to `alice`, AI share 0%, 2027-03-01, 1 working day.
 

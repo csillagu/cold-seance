@@ -26,7 +26,7 @@ Verify that a task with no assigned people takes its forbidden dates from the gl
 ## Negative assertions
 
 - `B` is not scheduled on 2027-03-03 (company holiday).
-- `alice`'s day off on 2027-03-04 does not push `B` later, because she is not assigned.
+- `alice`'s day off on 2027-03-04 does not push `B` later, because `alice` is not assigned.
 
 ## Cleanup
 

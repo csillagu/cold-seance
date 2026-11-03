@@ -15,8 +15,8 @@ Verify that a saved view kept in a group is seen by the group's members, and not
 
 ## Procedure
 
-1. As `bob`, list the saved views he can see.
-2. As `dave`, list the saved views he can see.
+1. As `bob`, list the saved views they can see.
+2. As `dave`, list the saved views they can see.
 
 ## Expected response
 
@@ -24,7 +24,7 @@ Verify that a saved view kept in a group is seen by the group's members, and not
 
 ## Negative assertions
 
-- `Platform board` is not in `dave`'s list, although he can read `Apollo`.
+- `Platform board` is not in `dave`'s list, although `dave` can read `Apollo`.
 
 ## Cleanup
 

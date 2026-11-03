@@ -9,7 +9,7 @@ Verify that the system stores a capacity for each person and lets a person recor
 ## Inputs
 
 - A fresh test deployment, first system admin `root`; account `alice`.
-- The change: `alice` sets her own capacity to 80%.
+- The change: `alice` sets their own capacity to 80%.
 
 ## Procedure
 

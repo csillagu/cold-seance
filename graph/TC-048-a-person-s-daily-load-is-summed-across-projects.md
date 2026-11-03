@@ -16,7 +16,7 @@ Verify that a person's load on a day is the sum of the load of all their assigne
 
 ## Procedure
 
-1. As `carol`, read her own load on 2027-03-01 and 2027-03-02.
+1. As `carol`, read their own load on 2027-03-01 and 2027-03-02.
 
 ## Expected response
 

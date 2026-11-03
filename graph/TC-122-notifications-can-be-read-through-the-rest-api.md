@@ -14,8 +14,8 @@ Verify that a person's notifications can be read through the REST API.
 
 ## Procedure
 
-1. As `bob`, read his notifications in the app.
-2. Read `bob`'s notifications through the REST API with his token.
+1. As `bob`, read their notifications in the app.
+2. Read `bob`'s notifications through the REST API with `bob`'s token.
 
 ## Expected response
 
