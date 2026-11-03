@@ -1,8 +1,12 @@
+---
+certainty: verified
+---
+
 # DD-057: The schema and its migrations are managed with Drizzle
 
 ## Decision
 
-The backend uses Drizzle ORM, an existing library ([SRC-204](SRC-204-the-database-library-is-an-existing-one-prisma-wa.md)), for its PostgreSQL schema, its migrations and its queries ([SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md)). The schema is written in TypeScript, in the backend's own code. Each change to it becomes a migration that Drizzle's kit generates as an SQL file, which is kept in the repository and shipped in the application image ([DD-040](DD-040-the-tool-ships-as-one-application-image-run-with-p.md)).
+The backend uses Drizzle ORM, an existing library ([SRC-204](SRC-204-the-schema-and-migrations-use-an-existing-library.md)), for its PostgreSQL schema, its migrations and its queries ([SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md)). The schema is written in TypeScript, in the backend's own code. Each change to it becomes a migration that Drizzle's kit generates as an SQL file, which is kept in the repository and shipped in the application image ([DD-040](DD-040-the-tool-ships-as-one-application-image-run-with-p.md)).
 
 When the application container starts, the backend applies the pending migrations with Drizzle's migrator before it serves any request. Drizzle records each applied migration in the database and runs each migration inside a transaction, so a migration that fails leaves the database as it was; the tool does not come up until the failure is fixed (one of DD-040's risks). Migrations are not reversed: going back means restoring the backup taken before the upgrade.
 
@@ -17,7 +21,7 @@ Drizzle is also the backend's way of querying the database, so the service layer
 
 ## Rationale
 
-The owner asked for the best existing library ("Propose one. Prisma is just an example, whats the best."). Drizzle is Claude's proposal over Prisma for this tool because:
+The owner asked for the best existing library ([SRC-211](SRC-211-prisma-was-only-an-example-the-library-is-claude-s.md)). Drizzle is Claude's proposal over Prisma for this tool because:
 
 - The schema is TypeScript, the language of the backend ([SRC-195](SRC-195-the-backend-is-written-in-typescript-on-node-js.md)), so there is no second schema language and no step that generates a client before the backend can be built or run.
 - Its queries map closely to SQL, so PostgreSQL features such as JSON columns, which hold the eligibility tree ([DD-038](DD-038-eligibility-is-stored-as-a-tree.md)), are queried in the same layer instead of in raw SQL beside it.
@@ -42,6 +46,6 @@ Kysely and node-pg-migrate do not generate migrations from a schema, so each one
 
 ## Serves
 
-This decision serves [SRC-204](SRC-204-the-database-library-is-an-existing-one-prisma-wa.md), [SRC-195](SRC-195-the-backend-is-written-in-typescript-on-node-js.md), [SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md), [SRC-199](SRC-199-people-can-install-the-tool-simply.md), [SRC-200](SRC-200-the-tool-can-use-an-external-hosted-postgresql-suc.md), [DD-040](DD-040-the-tool-ships-as-one-application-image-run-with-p.md), [DD-001](DD-001-the-plan-is-stored-in-the-tool-s-own-backend-not-i.md), [FR-177](FR-177-use-the-postgresql-database-given-in-the-configura.md).
+This decision serves [SRC-204](SRC-204-the-schema-and-migrations-use-an-existing-library.md), [SRC-211](SRC-211-prisma-was-only-an-example-the-library-is-claude-s.md), [SRC-195](SRC-195-the-backend-is-written-in-typescript-on-node-js.md), [SRC-196](SRC-196-the-tool-s-data-is-stored-in-postgresql.md), [SRC-199](SRC-199-people-can-install-the-tool-simply.md), [SRC-200](SRC-200-the-tool-can-use-an-external-hosted-postgresql-suc.md), [DD-040](DD-040-the-tool-ships-as-one-application-image-run-with-p.md), [DD-001](DD-001-the-plan-is-stored-in-the-tool-s-own-backend-not-i.md), [FR-177](FR-177-use-the-postgresql-database-given-in-the-configura.md).
 
-Origin: Claude first proposed a migration runner of its own (DD-052), which the owner rejected for an existing library, naming Prisma (DD-055). In the design session of 2026-11-03 the owner said Prisma was only an example and asked Claude to propose the best library (SRC-204). This DD is that proposal. The choice, wording, alternatives, rationale, trade-offs and risks are Claude's, and they await the owner's confirmation.
+Origin: Claude first proposed a migration runner of its own (DD-052), which the owner rejected for an existing library, naming Prisma (DD-055). In the design session of 2026-11-03 the owner said Prisma was only an example and asked Claude to propose the best library (SRC-211). This DD is that proposal. The owner chose it in the same session: "Drizzle it is". The wording, alternatives, rationale, trade-offs and risks are Claude's.
