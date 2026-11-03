@@ -5,9 +5,9 @@ effort: 2
 
 # SC-113: Frontend layout
 
-The layout of the React frontend ([DD-045](DD-045-the-frontend-uses-react-built-with-vite.md)): a header and navigation around the area in which the frontend's pages, screens and views are shown ([SRC-219](SRC-219-the-frontend-layout-has-a-header-and-navigation-an.md)). The sign-in page is shown outside it. The header holds the project search bar (SC-114) and the signed-in person menu (SC-115), which are components of their own, as are the pages, screens and views; this deliverable is the layout around them.
+The layout of the React frontend ([DD-045](DD-045-the-frontend-uses-react-built-with-vite.md)): a header and navigation around the area in which the frontend's pages, screens and views are shown ([SRC-219](SRC-219-the-frontend-layout-has-a-header-and-navigation.md)). The sign-in page is shown outside it ([SRC-223](SRC-223-the-sign-in-page-is-outside-the-layout.md)). The header holds the project search bar (SC-114) and the signed-in person menu (SC-115), which are components of their own, as are the pages, screens and views; this deliverable is the layout around them.
 
-It is done when every page, screen and view of the frontend, apart from the sign-in page, is shown inside the layout with its header and navigation and can be reached from the navigation, and the sign-in page is shown without them.
+It is done when every page, screen and view of the frontend, apart from the sign-in page, is shown inside the layout with its header and navigation and can be reached from the navigation ([SRC-222](SRC-222-every-page-can-be-reached-from-the-navigation.md)), and the sign-in page is shown without them.
 
 No FR states the layout, so this component delivers none.
 
