@@ -436,6 +436,20 @@ describe('GitHub App tokens (SC-108)', () => {
       expect(tokenIsValid(first, 12, 'octo/one')).toBe(true)
     })
 
+    it('obtains a new token once the kept one is forgotten, for that App and repository only', async () => {
+      const t = tokens(oneApp)
+      const first = await t.token('writeIssues', one)
+      const other = await t.token('writeIssues', two)
+      t.forget('readIssues', { owner: 'Octo', name: 'One' })
+      // Functions sharing the App share its tokens, so forgetting through one forgets for all.
+      const renewed = await t.token('writeIssues', one)
+      expect(renewed).not.toBe(first)
+      expect(tokenIsValid(renewed, 21, 'octo/one')).toBe(true)
+      expect(await t.token('writeIssues', two)).toBe(other)
+      // A function given no App has nothing to forget.
+      tokens({ readIssues: separateApps.readIssues }).forget('writeIssues', one)
+    })
+
     it(`obtains a new token ${tokenRenewalMargin / 60_000} minutes before the kept one expires`, async () => {
       const t = tokens()
       const first = await t.token('writeIssues', one)

@@ -133,6 +133,8 @@ const github = {
   /** The Projects status field of each project item, by item id. */
   status: new Map<string, string>(),
   installationTokens: new Map<string, { appId: number; repository: string }>(),
+  /** The Apps whose installations are suspended. */
+  suspended: new Set<number>(),
   override: undefined as ((method: string, path: string) => Override | undefined) | undefined,
   requests: [] as Recorded[],
   perPage: 2,
@@ -161,6 +163,7 @@ function resetGitHub(): void {
   ])
   github.status = new Map([['PVTI_1', 'Todo']])
   github.installationTokens = new Map()
+  github.suspended = new Set()
   github.override = undefined
   github.requests = []
   github.perPage = 2
@@ -251,6 +254,9 @@ beforeAll(async () => {
           r.endsWith(`/${name}`),
         )
         if (repository === undefined) return send(404, { message: 'Not Found' })
+        if (github.suspended.has(appId)) {
+          return send(403, { message: 'This installation has been suspended' })
+        }
         const value = `ghs_${appId}_${github.installationTokens.size + 1}`
         github.installationTokens.set(value, { appId, repository })
         return send(201, {
@@ -447,7 +453,9 @@ describe('test cases', () => {
   }
 
   it('TC-260: an issue is written with the token given for writing, beside an App given for reading', async () => {
-    // The tool does not refuse to start on its configuration: it loads, and the client is built.
+    // The configuration loads and the client is built from it. That the tool also starts on it is
+    // the integration test "starts the tool, with Apps and a token mixed across functions"
+    // (test/integration/github-access-config.test.ts), since the start builds no client yet.
     const config = tcConfig()
     const c = createGitHubClient(config.github, { apiUrl })
     expect(c.via('readIssues')).toBe('app')
@@ -466,6 +474,7 @@ describe('test cases', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0]?.title).toBe('T')
     expect(issues[0]?.user.login).toBe('tc-bot')
+    // The TC's negative assertion, kept as it is written there.
     expect(issues[0]?.user.login).not.toBe('tc-app[bot]')
 
     // Step 3: tc-writer closes T's issue as completed, on GitHub.
@@ -649,32 +658,20 @@ describe('GitHub client (SC-106)', () => {
       expect(await c.restPages('readIssues', one, { path: ['issues'] })).toEqual([])
     })
 
-    it('calls the GraphQL API of GitHub Enterprise Server beside its REST API', async () => {
+    it('calls the GraphQL API at /graphql beside the REST API', async () => {
       const urls: string[] = []
       const fetch: typeof globalThis.fetch = async (input) => {
         urls.push(input instanceof Request ? input.url : input.toString())
         return new Response(JSON.stringify({ data: {} }), { status: 200 })
       }
-      const ghe = createGitHubClient(
-        {
-          apps: {},
-          tokens: { readIssues: pat.bot, writeIssues: pat.bot, projectsStatus: pat.bot },
-        },
-        { apiUrl: 'https://ghe.example/api/v3/', fetch },
-      )
-      await ghe.graphql('projectsStatus', one, '{ viewer { login } }')
-      await ghe.rest('readIssues', one, { method: 'GET', path: [] })
-      const dotcom = createGitHubClient(
-        {
-          apps: {},
-          tokens: { readIssues: pat.bot, writeIssues: pat.bot, projectsStatus: pat.bot },
-        },
-        { fetch },
-      )
-      await dotcom.graphql('projectsStatus', one, '{ viewer { login } }')
+      const tokens = { readIssues: pat.bot, writeIssues: pat.bot, projectsStatus: pat.bot }
+      const given = createGitHubClient({ apps: {}, tokens }, { apiUrl: 'https://gh.test/', fetch })
+      await given.graphql('projectsStatus', one, '{ viewer { login } }')
+      await given.rest('readIssues', one, { method: 'GET', path: [] })
+      await createGitHubClient({ apps: {}, tokens }, { fetch }).graphql('projectsStatus', one, '{}')
       expect(urls).toEqual([
-        'https://ghe.example/api/graphql',
-        'https://ghe.example/api/v3/repos/octo/one',
+        'https://gh.test/graphql',
+        'https://gh.test/repos/octo/one',
         'https://api.github.com/graphql',
       ])
     })
@@ -687,14 +684,16 @@ describe('GitHub client (SC-106)', () => {
         writeIssues: pat.bot,
         projectsStatus: app.projects,
       })
-      for (const call of [
-        c.rest('readIssues', privateRepo, { method: 'GET', path: ['issues'] }),
-        c.graphql('projectsStatus', privateRepo, readStatus, { itemId: 'PVTI_1' }),
-      ]) {
+      const calls = [
+        ['readIssues', c.rest('readIssues', privateRepo, { method: 'GET', path: ['issues'] })],
+        [
+          'projectsStatus',
+          c.graphql('projectsStatus', privateRepo, readStatus, { itemId: 'PVTI_1' }),
+        ],
+      ] as const
+      for (const [fn, call] of calls) {
         const error = await rejection(call, GitHubUnreachableError)
-        expect(['readIssues', 'projectsStatus']).toContain(error.function)
-        expect(error.via).toBe('app')
-        expect(error.repository).toBe('octo/private')
+        expect(error).toMatchObject({ function: fn, via: 'app', repository: 'octo/private' })
       }
       const error = await rejection(
         c.rest('readIssues', privateRepo, { method: 'GET', path: ['issues'] }),
@@ -791,6 +790,36 @@ describe('GitHub client (SC-106)', () => {
       expect(unreachable.repository).toBe('octo/two')
     })
 
+    it('names the function whose App GitHub refuses the access its function needs', async () => {
+      const c = client({
+        readIssues: app.reader,
+        writeIssues: app.writer,
+        projectsStatus: app.reader,
+      })
+      github.override = (method) =>
+        method === 'POST'
+          ? { status: 403, body: { message: 'Resource not accessible by integration' } }
+          : undefined
+      const error = await rejection(
+        c.rest('writeIssues', one, { method: 'POST', path: ['issues'], body: { title: 'x' } }),
+        GitHubUnreachableError,
+      )
+      expect(error.message).toBe(
+        'The GitHub App for writing to issues cannot reach octo/one: GitHub answered 403 (Resource not accessible by integration)',
+      )
+    })
+
+    it('names the function whose App’s installation is suspended', async () => {
+      const c = client({ readIssues: app.reader, writeIssues: pat.bot, projectsStatus: app.reader })
+      github.suspended.add(11)
+      const error = await rejection(
+        c.rest('readIssues', one, { method: 'GET', path: [] }),
+        GitHubUnreachableError,
+      )
+      expect(error).toMatchObject({ function: 'readIssues', via: 'app', repository: 'octo/one' })
+      expect(error.message).toMatch(/GitHub answered 403 \(This installation has been suspended\)$/)
+    })
+
     it('does not count a rate limit as a refusal of access', async () => {
       const c = client({ readIssues: pat.bot, writeIssues: pat.bot, projectsStatus: pat.bot })
       const limits: Record<string, string>[] = [
@@ -810,6 +839,16 @@ describe('GitHub client (SC-106)', () => {
         expect(error.status).toBe(403)
         expect(error.message).toMatch(/GitHub answered 403 \(API rate limit exceeded\)$/)
       }
+      // A secondary rate limit may come with neither header.
+      github.override = () => ({
+        status: 403,
+        body: { message: 'You have exceeded a secondary rate limit. Please wait a few minutes.' },
+      })
+      const secondary = await rejection(
+        c.rest('readIssues', one, { method: 'GET', path: ['issues'] }),
+        GitHubRequestError,
+      )
+      expect(secondary.status).toBe(403)
       github.override = () => ({ status: 429, raw: 'slow down' })
       const error = await rejection(
         c.rest('readIssues', one, { method: 'GET', path: ['issues'] }),
@@ -867,11 +906,16 @@ describe('GitHub client (SC-106)', () => {
       expect(graphql.message).toBe(
         'GitHub refuses the personal access token for the Projects status field as expired or revoked',
       )
-      // Each refusal is told; the function given a working token goes on.
+      // The function stops working (DD-060): its next call is refused without asking GitHub, even
+      // once the token would be accepted again, and is told as well.
+      github.revoked.delete(pat.carol)
+      const asked = github.requests.length
       await rejection(
         c.rest('writeIssues', two, { method: 'GET', path: [] }),
         GitHubTokenRefusedError,
       )
+      expect(github.requests).toHaveLength(asked)
+      // The function given a working token goes on.
       expect(reported).toEqual([
         'writeIssues octo/one',
         'projectsStatus octo/one',
@@ -931,6 +975,29 @@ describe('GitHub client (SC-106)', () => {
       )
       expect(error).toMatchObject({ status: 401, via: 'app' })
       expect(reported).toEqual([])
+      // The refused installation token was dropped and the call sent once more with a new one.
+      expect(madeAs()).toEqual([
+        'GET /repos/octo/one as reader[bot]',
+        'GET /repos/octo/one as reader[bot]',
+      ])
+      expect(github.installationTokens.size).toBe(2)
+    })
+
+    it('reports an App uninstalled since its token was kept as not installed', async () => {
+      const c = client({ readIssues: app.reader, writeIssues: pat.bot, projectsStatus: app.reader })
+      await c.rest('readIssues', one, { method: 'GET', path: [] })
+      // The App is uninstalled from the repository: GitHub no longer accepts its tokens there.
+      github.installations.get(11)?.delete('octo/one')
+      github.installationTokens.clear()
+      for (const call of [
+        c.rest('readIssues', one, { method: 'GET', path: ['issues'] }),
+        c.graphql('projectsStatus', one, readStatus, { itemId: 'PVTI_1' }),
+      ]) {
+        const error = await rejection(call, GitHubUnreachableError)
+        expect(error.message).toMatch(
+          /: the App \(App 11\) is not installed on it, or it does not exist$/,
+        )
+      }
     })
   })
 

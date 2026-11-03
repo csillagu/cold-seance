@@ -107,6 +107,11 @@ export interface GitHubAppTokens {
    * the configured one, not this module's.
    */
   token(fn: GitHubFunction, repository: Repository): Promise<string>
+  /**
+   * Drops the token kept for `fn`'s App on `repository`, so that the next `token` asks GitHub
+   * again: for a token GitHub no longer accepts, such as one of an installation since deleted.
+   */
+  forget(fn: GitHubFunction, repository: Repository): void
 }
 
 interface CachedToken {
@@ -267,6 +272,10 @@ export function createGitHubAppTokens(
   }
 
   return {
+    forget(fn, repository) {
+      appOf.get(fn)?.tokens.delete(cacheKey(repository))
+    },
+
     async token(fn, repository) {
       // A key that could not be read stopped the construction, so a function given an App has it.
       const app = appOf.get(fn)

@@ -87,7 +87,10 @@ export class GitHubUnreachableError extends GitHubCallError {
 
 /** GitHub refuses the personal access token given for `function` as expired or revoked (FR-186). */
 export class GitHubTokenRefusedError extends GitHubCallError {
-  /** What `onTokenRefused` threw, if it did; the refusal is still what the call rejects with. */
+  /**
+   * What `onTokenRefused` threw, if it did; the refusal is still what the call rejects with. The
+   * client logs nothing, so whoever handles the refusal logs this.
+   */
   reportError: unknown
 
   constructor(fn: GitHubFunction, repository: Repository) {
@@ -184,7 +187,7 @@ export interface GitHubClient {
   /**
    * Calls GitHub's GraphQL API as `fn` is given on `repository` (the credential is the one for
    * that repository; the query names what it reads or changes), and resolves with the answer's
-   * `data`. An answer with errors rejects as `rest` does.
+   * `data`. An answer with errors rejects as `rest` does, as a whole, even if it holds some data.
    */
   graphql(
     fn: GitHubFunction,
@@ -197,8 +200,10 @@ export interface GitHubClient {
 export interface GitHubClientOptions extends GitHubAppTokensOptions {
   /**
    * Told of each refusal of a personal access token as expired or revoked, before the call
-   * rejects with it, so that the system admins can be notified (FR-186). It is awaited; what it
-   * throws is kept on the refusal as `reportError`.
+   * rejects with it, so that the system admins can be notified (FR-186). Once GitHub has refused a
+   * function's token, the function stops working until the tool is restarted with a new one
+   * (DD-060): its later calls are refused without asking GitHub, and each of them is told here
+   * too. It is awaited; what it throws is kept on the refusal as `reportError`.
    */
   onTokenRefused?: (refusal: GitHubTokenRefusedError) => void | Promise<void>
 }
@@ -243,10 +248,15 @@ export function createGitHubClient(
   })
 
   const via = (fn: GitHubFunction): GitHubVia => (github.tokens[fn] === undefined ? 'app' : 'token')
+  /** The functions whose token GitHub has refused as expired or revoked since the start. */
+  const refusedTokens = new Set<GitHubFunction>()
 
   async function credential(fn: GitHubFunction, repository: Repository): Promise<string> {
     const token = github.tokens[fn]
-    if (token !== undefined) return token
+    if (token !== undefined) {
+      if (refusedTokens.has(fn)) throw await tokenRefused(fn, repository)
+      return token
+    }
     try {
       return await appTokens.token(fn, repository)
     } catch (error) {
@@ -259,12 +269,17 @@ export function createGitHubClient(
           { cause: error },
         )
       }
+      // A suspended installation, or an App refused the repository: not a rate limit.
+      if (error instanceof GitHubAppTokenError && error.status === 403) {
+        throw new GitHubUnreachableError(fn, 'app', repository, error.message, { cause: error })
+      }
       if (error instanceof GitHubAppTokenError) {
         throw new GitHubRequestError(fn, 'app', repository, error.message, {
           ...(error.status === undefined ? {} : { status: error.status }),
           cause: error,
         })
       }
+      // Not reached: the repository name was checked before, which is all else the App tokens refuse.
       throw error
     }
   }
@@ -350,7 +365,10 @@ export function createGitHubClient(
     isRepository: boolean,
   ): Promise<GitHubCallError | undefined> {
     const { status } = answer
-    if (status === 401 && via(fn) === 'token') return tokenRefused(fn, repository)
+    if (status === 401 && via(fn) === 'token') {
+      refusedTokens.add(fn)
+      return tokenRefused(fn, repository)
+    }
     if (status === 403 && !rateLimited(answer)) {
       return new GitHubUnreachableError(
         fn,
@@ -398,6 +416,28 @@ export function createGitHubClient(
     return error
   }
 
+  /**
+   * Sends the call with the function's credential. An installation token GitHub no longer accepts
+   * (its installation deleted since the token was kept) is dropped, and the call sent once more
+   * with a new one, so that an App no longer installed is reported as such.
+   */
+  async function exchange(
+    fn: GitHubFunction,
+    repository: Repository,
+    method: GitHubMethod,
+    url: string,
+    body: unknown,
+  ): Promise<{ token: string; answer: Answer }> {
+    let token = await credential(fn, repository)
+    let answer = await send(fn, repository, token, method, url, body)
+    if (answer.status === 401 && via(fn) === 'app') {
+      appTokens.forget(fn, repository)
+      token = await credential(fn, repository)
+      answer = await send(fn, repository, token, method, url, body)
+    }
+    return { token, answer }
+  }
+
   async function call(
     fn: GitHubFunction,
     repository: Repository,
@@ -409,8 +449,7 @@ export function createGitHubClient(
     const search = query.size === 0 ? '' : `?${query.toString()}`
     const url = `${repositoryUrl(repository)}${path.map((s) => `/${s}`).join('')}${search}`
 
-    const token = await credential(fn, repository)
-    const answer = await send(fn, repository, token, request.method, url, request.body)
+    const { token, answer } = await exchange(fn, repository, request.method, url, request.body)
     const refused = await refusal(fn, repository, token, answer, path.length === 0)
     if (refused !== undefined) throw refused
     if (answer.invalid) {
@@ -469,8 +508,7 @@ export function createGitHubClient(
 
     async graphql(fn, repository, query, variables = {}) {
       checkRepository(repository)
-      const token = await credential(fn, repository)
-      const answer = await send(fn, repository, token, 'POST', graphqlUrl(apiUrl), {
+      const { token, answer } = await exchange(fn, repository, 'POST', `${apiUrl}/graphql`, {
         query,
         variables,
       })
@@ -513,16 +551,17 @@ function segment(value: string | number): string {
   return encodeURIComponent(text)
 }
 
-/** GitHub's GraphQL API beside its REST API: `/graphql` on github.com, `/api/graphql` on Enterprise Server. */
-function graphqlUrl(apiUrl: string): string {
-  return apiUrl.endsWith('/api/v3')
-    ? `${apiUrl.slice(0, -'/v3'.length)}/graphql`
-    : `${apiUrl}/graphql`
-}
-
-/** A primary or secondary rate limit, which is not a refusal of access. */
+/**
+ * A primary or secondary rate limit, which is not a refusal of access. GitHub may answer a
+ * secondary one with neither header, so its message is read too.
+ */
 function rateLimited(answer: Answer): boolean {
-  return answer.headers.get('x-ratelimit-remaining') === '0' || answer.headers.has('retry-after')
+  const message = field(answer.json, 'message')
+  return (
+    answer.headers.get('x-ratelimit-remaining') === '0' ||
+    answer.headers.has('retry-after') ||
+    (typeof message === 'string' && /rate limit/i.test(message))
+  )
 }
 
 /** GitHub's message, which says why and holds no secret, as ` (message)`. */
