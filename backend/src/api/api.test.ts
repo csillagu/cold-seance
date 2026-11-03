@@ -2,7 +2,9 @@ import type { FastifyPluginAsync } from 'fastify'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.ts'
 import { ServiceError } from '../service/errors.ts'
-import { API_PREFIX, type ApiOptions, type ApiRouteGroup } from './api.ts'
+import { createDatabase } from '../db/client.ts'
+import { createServices } from '../service/services.ts'
+import { API_PREFIX, routeGroups, type ApiOptions, type ApiRouteGroup } from './api.ts'
 import { callerOf, type Authenticator } from './caller.ts'
 
 const TOKEN = 'Bearer alice-token'
@@ -302,6 +304,43 @@ describe('errors', () => {
       message: 'Internal Server Error',
     })
     expect(logged.join('')).toContain('db-internal:5432')
+  })
+})
+
+describe('the service layer', () => {
+  it('is handed to every route group', async () => {
+    const { db, close } = createDatabase('postgres://nobody@unused.invalid/none')
+    closers.push(close)
+    const services = createServices(db)
+    const group: ApiRouteGroup = {
+      prefix: '/svc',
+      routes: async (g, options) => {
+        g.get(
+          '/',
+          { schema: { response: { 200: { type: 'object', properties: { same: {} } } } } },
+          async () => ({ same: options.services === services }),
+        )
+      },
+    }
+    const app = appWith({ authenticators: [aliceByHeader], groups: [group], services })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/svc',
+      headers: { authorization: TOKEN },
+    })
+    expect(response.json()).toEqual({ same: true })
+  })
+
+  it("serves the backend's own route groups by default, failing a route that needs the missing service layer as a fault", async () => {
+    const app = appWith({ authenticators: [aliceByHeader] })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/accounts',
+      headers: { authorization: TOKEN },
+    })
+    expect(response.statusCode).toBe(500)
+    expect(response.json()).toMatchObject({ message: 'Internal Server Error' })
+    expect(routeGroups.map((g) => g.prefix)).toContain('/accounts')
   })
 })
 
