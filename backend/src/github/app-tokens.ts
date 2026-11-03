@@ -48,7 +48,7 @@ export interface GitHubAppTokensOptions {
   requestTimeout?: number
 }
 
-function repositoryName(repository: Repository): string {
+export function repositoryName(repository: Repository): string {
   return `${repository.owner}/${repository.name}`
 }
 
@@ -107,6 +107,11 @@ export interface GitHubAppTokens {
    * the configured one, not this module's.
    */
   token(fn: GitHubFunction, repository: Repository): Promise<string>
+  /**
+   * Drops the token kept for `fn`'s App on `repository`, so that the next `token` asks GitHub
+   * again: for a token GitHub no longer accepts, such as one of an installation since deleted.
+   */
+  forget(fn: GitHubFunction, repository: Repository): void
 }
 
 interface CachedToken {
@@ -133,7 +138,8 @@ interface App {
 const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/
 const namePattern = /^[A-Za-z0-9._-]{1,100}$/
 
-function checkRepository(repository: Repository): void {
+/** Refuses, with a `TypeError`, a name GitHub does not allow, so it cannot reach outside its path. */
+export function checkRepository(repository: Repository): void {
   const { owner, name } = repository
   if (!ownerPattern.test(owner) || !namePattern.test(name) || name === '.' || name === '..') {
     throw new TypeError(`${owner}/${name} is not a GitHub repository name`)
@@ -266,6 +272,10 @@ export function createGitHubAppTokens(
   }
 
   return {
+    forget(fn, repository) {
+      appOf.get(fn)?.tokens.delete(cacheKey(repository))
+    },
+
     async token(fn, repository) {
       // A key that could not be read stopped the construction, so a function given an App has it.
       const app = appOf.get(fn)
@@ -308,7 +318,7 @@ function readPrivateKey(pem: string): KeyObject | undefined {
 }
 
 /** The error's message, with its cause's (`fetch failed` alone does not say why). */
-function failureReason(error: unknown): string {
+export function failureReason(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
   const { cause } = error
   return cause instanceof Error ? `${error.message}: ${cause.message}` : error.message
