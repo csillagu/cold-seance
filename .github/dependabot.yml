@@ -33,3 +33,16 @@ updates:
     groups:
       actions:
         patterns: ['*']
+
+  # The Dockerfile's base image (SC-028), pinned by version and digest. Its major version follows
+  # .nvmrc, so a new Node.js major is not proposed here.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
