@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:check": "node scripts/db-check.ts"
   },
   "dependencies": {
     "@fastify/swagger": "^9.9.3",

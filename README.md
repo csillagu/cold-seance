@@ -33,6 +33,7 @@ The backend does not start if a required setting is missing, a value is not vali
 | `npm run format` / `format:check` | Prettier                                                                                              |
 | `npm run lint`                    | oxlint, with type-aware rules                                                                         |
 | `npm run typecheck`               | `tsc` in both packages                                                                                |
+| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                            |
 | `npm run test:unit`               | Vitest unit tests, both packages                                                                      |
 | `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/` |
 | `npm run test:integration`        | Backend integration tests against PostgreSQL                                                          |
@@ -59,7 +60,12 @@ The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part o
 
 ### Database schema
 
-The schema is TypeScript in `backend/src/db/schema.ts`. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`.
+The schema is TypeScript in `backend/src/db/schema.ts` (DD-057). Each backend block adds its tables there. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`, together with the change: a migration exists only as the change of the schema it is generated from, so write none by hand and edit none that is committed. If drizzle-kit asks whether a column or table was renamed, it needs a terminal to answer in.
+
+Two checks keep the schema and the migrations in agreement (SC-073):
+
+- `npm run db:check` generates a migration from the schema into a scratch copy of `backend/drizzle/` and fails, naming what it would add, if that is anything. It is part of `npm run check` and CI.
+- The integration test `backend/test/integration/schema-migrations.test.ts` applies every migration in order to an empty database and checks that the result has exactly the schema's tables and columns, with each migration recorded as applied.
 
 ### CI and dependencies
 
