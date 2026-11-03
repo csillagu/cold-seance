@@ -1,0 +1,63 @@
+import type { FastifyPluginAsync } from 'fastify'
+import { MAX_PAGE_SIZE } from '../service/audit.ts'
+import { CHANNELS } from '../service/caller.ts'
+import type { RouteGroupOptions } from './api.ts'
+import { callerOf } from './caller.ts'
+
+const entry = {
+  type: 'object',
+  required: ['id', 'at', 'by', 'channels', 'projectId', 'action', 'subject', 'details'],
+  properties: {
+    id: { type: 'integer' },
+    at: { type: 'string', format: 'date-time' },
+    by: {
+      type: 'object',
+      required: ['accountId', 'username'],
+      properties: { accountId: { type: 'string', format: 'uuid' }, username: { type: 'string' } },
+    },
+    channels: { type: 'array', items: { type: 'string', enum: [...CHANNELS] } },
+    projectId: { type: ['string', 'null'], format: 'uuid' },
+    action: { type: 'string' },
+    subject: {
+      type: 'object',
+      required: ['type', 'id'],
+      properties: { type: { type: 'string' }, id: { type: 'string' } },
+    },
+    details: { type: 'object', additionalProperties: true },
+  },
+} as const
+
+interface AuditLogQuery {
+  projectId?: string
+  limit?: number
+  before?: number
+}
+
+/**
+ * The route of the audit log (SC-013, SC-026): read the whole log, or one project's part of it,
+ * newest entry first, a page at a time. It only translates the request; the audit log service
+ * decides who may read what (DD-039).
+ */
+export const auditLogRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
+  group,
+  { services },
+) => {
+  group.get<{ Querystring: AuditLogQuery }>(
+    '/',
+    {
+      schema: {
+        querystring: {
+          type: 'object',
+          properties: {
+            projectId: { type: 'string', format: 'uuid' },
+            limit: { type: 'integer', minimum: 1, maximum: MAX_PAGE_SIZE },
+            before: { type: 'integer', minimum: 1 },
+          },
+          additionalProperties: false,
+        },
+        response: { 200: { type: 'array', items: entry } },
+      },
+    },
+    async (request) => services.audit.readLog(callerOf(request), request.query),
+  )
+}

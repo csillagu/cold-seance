@@ -2,24 +2,32 @@ import { eq, sql } from 'drizzle-orm'
 import type { Authenticator } from '../../src/api/caller.ts'
 import type { Database } from '../../src/db/client.ts'
 import { accounts } from '../../src/db/schema.ts'
+import { CHANNELS, type Channel } from '../../src/service/caller.ts'
 import { hashPassword } from '../../src/service/passwords.ts'
 
 /** The header the test authenticator reads the caller's account id from. */
 export const TEST_ACCOUNT_HEADER = 'x-test-account'
 
+/** The header the test authenticator reads the caller's channel from; the UI when not given. */
+export const TEST_CHANNEL_HEADER = 'x-test-channel'
+
 /**
- * Recognises the caller from `TEST_ACCOUNT_HEADER`. It stands in for sign-in (SC-052, SC-107) and
- * the API tokens (SC-055), which do not exist yet: it says who the caller is and nothing more, so
- * every permission check is still the service layer's.
+ * Recognises the caller from `TEST_ACCOUNT_HEADER`, and its channel from `TEST_CHANNEL_HEADER`.
+ * It stands in for sign-in (SC-052, SC-107), whose callers come through the UI, and the API tokens
+ * (SC-055), whose callers come through the REST API, which do not exist yet: it says who the
+ * caller is and nothing more, so every permission check is still the service layer's.
  */
 export const testAuthenticator: Authenticator = async (request) => {
   const accountId = request.headers[TEST_ACCOUNT_HEADER]
-  return typeof accountId === 'string' ? { accountId } : undefined
+  const given = request.headers[TEST_CHANNEL_HEADER] ?? 'ui'
+  const channel = CHANNELS.find((known) => known === given)
+  if (typeof accountId !== 'string' || channel === undefined) return undefined
+  return { accountId, channel }
 }
 
-/** Headers that make a request as the given account. */
-export function as(account: { id: string }): Record<string, string> {
-  return { [TEST_ACCOUNT_HEADER]: account.id }
+/** Headers that make a request as the given account, through the given channel. */
+export function as(account: { id: string }, channel: Channel = 'ui'): Record<string, string> {
+  return { [TEST_ACCOUNT_HEADER]: account.id, [TEST_CHANNEL_HEADER]: channel }
 }
 
 /**

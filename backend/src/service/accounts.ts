@@ -1,9 +1,11 @@
-import { asc, DrizzleQueryError, eq } from 'drizzle-orm'
+import { and, asc, DrizzleQueryError, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts } from '../db/schema.ts'
+import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import { hashPassword } from './passwords.ts'
+import { isSystemAdmin, isUuid } from './system-admins.ts'
 
 /** An account as the service layer hands it out: never with its password hash. */
 export interface Account {
@@ -29,8 +31,6 @@ export const PASSWORD_MAX_LENGTH = 1024
 /** The unique index that keeps usernames apart regardless of case (see the schema). */
 const USERNAME_INDEX = 'accounts_username_key'
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 const columns = {
   id: accounts.id,
   username: accounts.username,
@@ -42,13 +42,16 @@ const columns = {
  * accounts held in the tool (DD-027, FR-117) and make other people system admins (FR-140) (SC-015).
  * There is no way to create an account without being a system admin, so nobody can register
  * themselves. Every call is refused to a caller who is not a system admin before anything else is
- * checked, so a refusal tells such a caller nothing about the accounts that exist.
+ * checked, so a refusal tells such a caller nothing about the accounts that exist. Each change is
+ * recorded in the audit log (FR-116, SC-013).
  */
 export class AccountService {
   readonly #db: Database
+  readonly #audit: AuditLogService
 
-  constructor(db: Database) {
+  constructor(db: Database, audit: AuditLogService) {
     this.#db = db
+    this.#audit = audit
   }
 
   /**
@@ -81,17 +84,25 @@ export class AccountService {
     // same username cannot both succeed.
     let created: Account | undefined
     try {
-      ;[created] = await this.#db
-        .insert(accounts)
-        .values({ username, passwordHash })
-        .returning(columns)
+      created = await this.#db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(accounts)
+          .values({ username, passwordHash })
+          .returning(columns)
+        if (!row) throw new Error('The new account was not returned')
+        await this.#audit.record(tx, caller, {
+          action: 'account.created',
+          subject: { type: 'account', id: row.id },
+          details: { username: row.username },
+        })
+        return row
+      })
     } catch (error) {
       if (violates(error, USERNAME_INDEX)) {
         throw new ServiceError('conflict', `The username ${username} is already taken`)
       }
       throw error
     }
-    if (!created) throw new Error('The new account was not returned')
     return created
   }
 
@@ -102,13 +113,28 @@ export class AccountService {
    */
   async makeSystemAdmin(caller: Caller, accountId: string): Promise<Account> {
     await this.#requireSystemAdmin(caller)
-    const [account] = UUID.test(accountId)
-      ? await this.#db
-          .update(accounts)
-          .set({ systemAdmin: true })
+    if (!isUuid(accountId)) throw new ServiceError('not-found', 'There is no such account')
+    const account = await this.#db.transaction(async (tx) => {
+      // Only an account that is not yet a system admin is changed, and only a change is logged.
+      const [promoted] = await tx
+        .update(accounts)
+        .set({ systemAdmin: true })
+        .where(and(eq(accounts.id, accountId), eq(accounts.systemAdmin, false)))
+        .returning(columns)
+      if (!promoted) {
+        const [unchanged] = await tx
+          .select(columns)
+          .from(accounts)
           .where(eq(accounts.id, accountId))
-          .returning(columns)
-      : []
+        return unchanged
+      }
+      await this.#audit.record(tx, caller, {
+        action: 'account.made-system-admin',
+        subject: { type: 'account', id: promoted.id },
+        details: { username: promoted.username },
+      })
+      return promoted
+    })
     if (!account) throw new ServiceError('not-found', 'There is no such account')
     return account
   }
@@ -123,13 +149,7 @@ export class AccountService {
   }
 
   async #requireSystemAdmin(caller: Caller): Promise<void> {
-    const [account] = UUID.test(caller.accountId)
-      ? await this.#db
-          .select({ systemAdmin: accounts.systemAdmin })
-          .from(accounts)
-          .where(eq(accounts.id, caller.accountId))
-      : []
-    if (!account?.systemAdmin) {
+    if (!(await isSystemAdmin(this.#db, caller.accountId))) {
       throw new ServiceError('forbidden', 'Only system admins can administer accounts')
     }
   }

@@ -45,7 +45,7 @@ describe('withoutQueryParams', () => {
     const app = buildApp(
       { logger: { level: 'error', stream: { write: (line: string) => logged.push(line) } } },
       {
-        authenticators: [async () => ({ accountId: 'root' })],
+        authenticators: [async () => ({ accountId: 'root', channel: 'rest-api' })],
         groups: [
           {
             prefix: '/q',
