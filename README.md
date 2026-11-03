@@ -77,17 +77,18 @@ TEST_IMAGE=cold-seance:test TEST_DATABASE_URL=postgres://postgres:postgres@local
 [`compose.yaml`](compose.yaml) is the tool's installation (SC-029, DD-040): the application image next to the official PostgreSQL 18 image, which keeps its data in the Compose volume `database`. In a directory holding `compose.yaml` (and, until the image is published, the repository to build it from):
 
 ```sh
-cp .env.example .env                          # set POSTGRES_PASSWORD in it
+cp .env.example .env                          # set POSTGRES_PASSWORD in it, letters and digits only
 cp backend/config.example.yaml config.yaml    # fill in the GitHub Apps; leave database.url out
 mkdir secrets && cp <key files> secrets/      # mounted at /run/secrets
 docker compose up -d
 ```
 
-- `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They and `.env` hold secrets: make them readable by the `node` user (uid 1000) and no one else.
+- After updating the repository, `docker compose up -d --build` rebuilds the image and restarts the tool.
+- `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They hold secrets: make them readable by the `node` user (uid 1000) and no one else. `.env` holds the database password and is read by Compose on the host: keep it readable by you only.
 - The tool is published on `127.0.0.1:3000`, this machine only. `COLD_SEANCE_PUBLISH` in `.env` changes that, for example to `0.0.0.0:3000`. The database is not published at all.
 - Under Compose the database address comes from `COLD_SEANCE_DATABASE_URL` in `.env`, the bundled database's if it is not set. As the environment wins over the file (DD-059), `database.url` in `config.yaml` has no effect here.
 - To use an existing or hosted PostgreSQL instead (FR-177), set `COLD_SEANCE_DATABASE_URL` (and `COLD_SEANCE_DATABASE_DIRECT_URL` behind a pooler) in `.env` and start the application alone: `docker compose up -d --no-deps app`. `POSTGRES_PASSWORD` is then not needed.
-- **The volume is the data.** `docker compose down --volumes`, or removing the volume, deletes everything. Back it up with `docker compose exec database pg_dump -U cold_seance cold_seance > backup.sql`. The PostgreSQL major version is fixed in `compose.yaml`; moving to a new one needs a dump and a restore, which Compose does not do.
+- **The volume is the data.** `docker compose down --volumes`, or removing the volume, deletes everything. Back it up with `docker compose exec -T database pg_dump -U cold_seance cold_seance > backup.sql`, and restore it into an empty volume with `docker compose exec -T database psql -U cold_seance -d cold_seance < backup.sql`. The PostgreSQL major version is fixed in `compose.yaml`; moving to a new one needs a dump and a restore, which Compose does not do.
 
 The image tests (`npm run test:image`, above) also run the Compose file from a scratch install directory: with its bundled database, and with an external one while the bundled one is stopped.
 

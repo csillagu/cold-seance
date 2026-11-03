@@ -61,6 +61,15 @@ interface Install {
  */
 function install(env: Record<string, string>, override?: string): Install {
   const dir = mkdtempSync(join(tmpdir(), 'cold-seance-install-'))
+  try {
+    return installIn(dir, env, override)
+  } catch (error) {
+    rmSync(dir, { recursive: true, force: true })
+    throw error
+  }
+}
+
+function installIn(dir: string, env: Record<string, string>, override?: string): Install {
   copyFileSync(composeFile, join(dir, 'compose.yaml'))
   // A free port of this host for each install, so installs run side by side.
   const dotenv = { COLD_SEANCE_IMAGE: image, COLD_SEANCE_PUBLISH: '127.0.0.1:', ...env }
@@ -209,6 +218,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     i1.compose('stop', 'database')
     expect(i1.running('database')).toBe(false)
     i1.compose('restart', 'app')
+    expect(i1.running('database')).toBe(false)
     const base1 = await serving(i1)
     const page = await fetch(`${base1}/`)
     expect(page.status).toBe(200)
