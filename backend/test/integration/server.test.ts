@@ -89,7 +89,66 @@ describe('listen', () => {
   })
 })
 
+/** Starts the server process with the test settings and `settings`, collecting its output. */
+function startServer(settings: Record<string, string>) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('COLD_SEANCE_')),
+  )
+  const started = spawn(process.execPath, [serverEntry], {
+    cwd: fx.dir,
+    env: { ...env, ...fx.githubEnv, COLD_SEANCE_DATABASE_URL: x.url, ...settings },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  child = started
+  const out = { text: '' }
+  started.stdout.on('data', (chunk: Buffer) => (out.text += chunk.toString()))
+  started.stderr.on('data', (chunk: Buffer) => (out.text += chunk.toString()))
+  const exited = new Promise<number | null>((resolve) => started.on('exit', resolve))
+  return { process: started, out, exited }
+}
+
 describe('the server process', () => {
+  it('refuses to start, saying why in one line, when it cannot listen on the configured port', async () => {
+    const taken = createServer()
+    await new Promise<void>((resolve) => taken.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = taken.address()
+      if (address === null || typeof address === 'string') throw new Error('no port')
+      const server = startServer({ COLD_SEANCE_SERVER_PORT: String(address.port) })
+      expect(await server.exited).toBe(1)
+      expect(server.out.text).toContain(
+        `The backend cannot listen on 127.0.0.1:${address.port}, so the tool does not start: EADDRINUSE`,
+      )
+      expect(server.out.text).not.toContain('    at ')
+    } finally {
+      await new Promise((resolve) => taken.close(resolve))
+    }
+  })
+
+  it('stops at once on SIGTERM while it is still starting', async () => {
+    // A database address that never answers keeps the migration step waiting.
+    const silent = createServer()
+    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = silent.address()
+      if (address === null || typeof address === 'string') throw new Error('no port')
+      const server = startServer({
+        COLD_SEANCE_DATABASE_URL: `postgres://u:p@127.0.0.1:${address.port}/db`,
+      })
+      // Wait until the process is up, holding a connection to the silent "database".
+      await expect
+        .poll(() => new Promise((resolve) => silent.getConnections((_, n) => resolve(n))), {
+          timeout: 20_000,
+        })
+        .toBe(1)
+      server.process.kill('SIGTERM')
+      expect(await server.exited).toBe(1)
+      expect(server.out.text).toContain('SIGTERM received while starting; the tool does not start')
+    } finally {
+      silent.close()
+    }
+  })
+
   it('listens on the configured port and exits cleanly, with code 0, on SIGTERM', async () => {
     const port = await freePort()
     const env = Object.fromEntries(

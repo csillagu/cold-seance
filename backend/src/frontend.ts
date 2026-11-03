@@ -25,7 +25,7 @@ export function hasFrontend(dir: string): boolean {
  * Serves the built frontend from `dir` (SC-028, owner's decision of 2026-11-03: the backend, the
  * one process in the image, serves it). Its files are served as they are; any other GET or HEAD
  * outside the REST API is answered with its `index.html`, since the frontend is a single-page
- * application whose own routes are not files. The REST API keeps its own answers: nothing under
+ * application whose own routes are not files; a missing file is not found. The REST API keeps its own answers: nothing under
  * `API_PREFIX` reaches the frontend. Anything else not found is a 404 in the API's error shape.
  */
 export function serveFrontend(app: FastifyInstance, dir: string): void {
@@ -36,7 +36,10 @@ export function serveFrontend(app: FastifyInstance, dir: string): void {
   app.setNotFoundHandler(async (request, reply) => {
     const path = request.url.split('?', 1)[0]!
     const underApi = path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)
-    if ((request.method === 'GET' || request.method === 'HEAD') && !underApi) {
+    // A missing file, such as a script of an older build that a browser still asks for, is a 404:
+    // index.html in its place would fail in the browser as a script of the wrong type.
+    const isFile = /\.[^/]*$/.test(path)
+    if ((request.method === 'GET' || request.method === 'HEAD') && !underApi && !isFile) {
       return reply.sendFile(indexFile)
     }
     return reply.code(404).send(errorBody(404, 'Not Found'))

@@ -83,10 +83,20 @@ describe('serving the built frontend', () => {
   )
 
   it.each(['/../secret.txt', '/%2e%2e/secret.txt', '/assets/..%2f..%2fsecret.txt'])(
-    'never serves a file from outside the frontend: %s',
+    'never serves a file from outside the frontend: %s is not found',
     async (url) => {
       const response = await withFrontend().inject({ method: 'GET', url })
-      expect(response.body).not.toContain('not for the browser')
+      expect(response.statusCode).toBe(404)
+      expect(response.json()).toEqual({ statusCode: 404, error: 'Not Found', message: 'Not Found' })
+    },
+  )
+
+  it.each(['/assets/index-old999.js', '/favicon.ico', '/.env'])(
+    'answers a missing file, %s, with 404 rather than index.html',
+    async (url) => {
+      const response = await withFrontend().inject({ method: 'GET', url })
+      expect(response.statusCode).toBe(404)
+      expect(response.body).not.toContain('<!doctype html>')
     },
   )
 

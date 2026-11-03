@@ -7,7 +7,9 @@
 !tsconfig.base.json
 !backend/
 !frontend/
-backend/config.yaml
+# The build needs no YAML file; any there may be a configuration file holding secrets.
+**/*.yaml
+**/*.yml
 **/node_modules
 **/dist
 **/coverage

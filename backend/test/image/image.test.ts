@@ -10,7 +10,8 @@ import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 // with no database of its own, starts, migrates `X` and serves the frontend and the API; stopped
 // and replaced by a second install on the same address, the second uses the same `X`.
 // The test server's database stands in for the hosted one, reached from the containers as another
-// host. Still pending: creating project `Persisted` as the first system admin (SC-053, SC-017) and
+// host, and a second container on the same Docker host stands in for the install on another
+// machine. Still pending: creating project `Persisted` as the first system admin (SC-053, SC-017) and
 // listing it from the second install, and the Compose file's own database, stopped (SC-029).
 
 /** The image under test, built beforehand: `docker build -t cold-seance:test .` */
@@ -125,14 +126,29 @@ async function onX<T>(query: (client: Client) => Promise<T>): Promise<T> {
   }
 }
 
-/** Whether `X` holds Drizzle's record of applied migrations, which the migration step creates. */
-async function migratedX(): Promise<boolean> {
+/** X's record of applied migrations, which the migration step creates; undefined if it has none. */
+async function migrationRecordOfX(): Promise<string[] | undefined> {
   return onX(async (client) => {
-    const result = await client.query<{ table: string | null }>(
+    const table = await client.query<{ table: string | null }>(
       `select to_regclass('drizzle.__drizzle_migrations')::text as table`,
     )
-    return result.rows[0]!.table === 'drizzle.__drizzle_migrations'
+    if (table.rows[0]!.table === null) return undefined
+    const rows = await client.query<{ hash: string }>(
+      'select hash from drizzle.__drizzle_migrations order by id',
+    )
+    return rows.rows.map((row) => row.hash)
   })
+}
+
+/** Lets X take connections, or refuses every new one, as a hosted database that is down would. */
+async function xAcceptsConnections(allow: boolean): Promise<void> {
+  const client = new Client({ connectionString: process.env['TEST_DATABASE_URL'] })
+  await client.connect()
+  try {
+    await client.query(`alter database "${x.name}" with allow_connections ${String(allow)}`)
+  } finally {
+    await client.end()
+  }
 }
 
 describe('TC-259: the tool stores its data in the PostgreSQL database given in its configuration', () => {
@@ -144,7 +160,8 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
 
     // I1 starts and works with no database of its own: it migrated X and serves the frontend and
     // the API.
-    expect(await migratedX()).toBe(true)
+    const record = await migrationRecordOfX()
+    expect(record).toBeDefined()
     const page = await fetch(`${i1.base}/`)
     expect(page.status).toBe(200)
     expect(await page.text()).toContain('<div id="root"></div>')
@@ -154,16 +171,41 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     docker('stop', i1.id)
     expect(docker('inspect', '--format', '{{.State.ExitCode}}', i1.id)).toBe('0')
 
-    // So that I2's own use of X shows, X's record of applied migrations is removed: I2 must
-    // create it again in X, not in a database of its own.
-    await onX((client) => client.query('drop schema drizzle cascade'))
-    expect(await migratedX()).toBe(false)
+    // I2: the same address, given by the environment this time. That it uses X, and nothing
+    // else, shows first by its refusing to come up while X takes no connections, naming X...
+    const i2Env = ['-e', `COLD_SEANCE_DATABASE_URL=${fromContainer(x.url)}`]
+    await xAcceptsConnections(false)
+    try {
+      const refused = spawnSync(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '--add-host=host.docker.internal:host-gateway',
+          '--volume',
+          `${fx.dir}:${configMount}:ro`,
+          ...githubEnv(),
+          ...i2Env,
+          image,
+        ],
+        {
+          encoding: 'utf8',
+          timeout: 30_000,
+        },
+      )
+      expect(refused.status).toBe(1)
+      expect(refused.stderr).toContain(
+        `database "${x.name}" is not currently accepting connections`,
+      )
+    } finally {
+      await xAcceptsConnections(true)
+    }
 
-    // I2: the same address, given by the environment this time.
-    const i2 = run('-e', `COLD_SEANCE_DATABASE_URL=${fromContainer(x.url)}`)
+    // ...then by its coming up on X as I1 left it: X's record of applied migrations unchanged.
+    const i2 = run(...i2Env)
     await serving(i2)
-    expect(await migratedX()).toBe(true)
     expect((await fetch(`${i2.base}/projects`)).status).toBe(200)
+    expect(await migrationRecordOfX()).toEqual(record)
     expect(logs(i2.id)).not.toContain('could not be applied')
   })
 })
@@ -212,7 +254,7 @@ describe('the application image', () => {
     expect(ports).toBe('3000/tcp')
   })
 
-  it('holds no configuration file and no key file', () => {
+  it('holds no configuration file, key file or env file', () => {
     const found = docker(
       'run',
       '--rm',
@@ -230,6 +272,15 @@ describe('the application image', () => {
       '-o',
       '-name',
       '*.pem',
+      '-o',
+      '-name',
+      '*.key',
+      '-o',
+      '-name',
+      '*.yaml',
+      '-o',
+      '-name',
+      '.env*',
       ')',
       '-print',
     )
