@@ -45,7 +45,7 @@ export class GitHubLinkService {
    * account already.
    */
   async link(caller: Caller, accountId: string, login: string): Promise<GitHubLink> {
-    await this.#requireSelfOrSystemAdmin(caller, accountId)
+    await this.#requireSelfOrSystemAdmin(caller, accountId, 'link')
     const githubLogin = login.trim()
     if (!GITHUB_LOGIN.test(githubLogin)) {
       throw new ServiceError(
@@ -83,7 +83,7 @@ export class GitHubLinkService {
 
   /** The GitHub account the account `accountId` is linked to. Only the person and system admins may read it. */
   async linkOf(caller: Caller, accountId: string): Promise<GitHubLink> {
-    await this.#requireSelfOrSystemAdmin(caller, accountId)
+    await this.#requireSelfOrSystemAdmin(caller, accountId, 'read')
     const [account] = await this.#db
       .select({ githubLogin: accounts.githubLogin })
       .from(accounts)
@@ -93,12 +93,18 @@ export class GitHubLinkService {
   }
 
   /** Refused before anything else is checked, so a refusal tells nothing about other accounts. */
-  async #requireSelfOrSystemAdmin(caller: Caller, accountId: string): Promise<void> {
+  async #requireSelfOrSystemAdmin(
+    caller: Caller,
+    accountId: string,
+    doing: 'link' | 'read',
+  ): Promise<void> {
     if (caller.accountId === accountId && isUuid(accountId)) return
     if (!(await isSystemAdmin(this.#db, caller.accountId))) {
       throw new ServiceError(
         'forbidden',
-        "Only the person themselves and system admins can link a person's GitHub account",
+        doing === 'link'
+          ? "Only the person themselves and system admins can link a person's GitHub account"
+          : "Only the person themselves and system admins can read a person's GitHub account link",
       )
     }
     if (!isUuid(accountId)) throw new ServiceError('not-found', 'There is no such account')

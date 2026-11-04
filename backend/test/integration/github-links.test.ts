@@ -76,7 +76,6 @@ describe('the GitHub account link', () => {
     const [alice, bob] = [await person(), await person()]
     for (const attempt of [
       () => service.link(by(bob), alice.id, fresh('tc-bob')),
-      () => service.linkOf(by(bob), alice.id),
       () => service.link(by(bob), randomUUID(), 'not a name'),
     ]) {
       const error = await refused(attempt(), 'forbidden')
@@ -84,6 +83,10 @@ describe('the GitHub account link', () => {
         "Only the person themselves and system admins can link a person's GitHub account",
       )
     }
+    const read = await refused(service.linkOf(by(bob), alice.id), 'forbidden')
+    expect(read.message).toBe(
+      "Only the person themselves and system admins can read a person's GitHub account link",
+    )
     expect((await service.linkOf(by(alice), alice.id)).githubLogin).toBeNull()
   })
 
@@ -110,6 +113,18 @@ describe('the GitHub account link', () => {
     await service.link(by(alice), alice.id, `  ${login}  `)
     const entries = await x.db.select().from(auditLog).where(eq(auditLog.subjectId, alice.id))
     expect(entries).toHaveLength(1)
+  })
+
+  it('settles two accounts claiming one GitHub account at once: one is linked, one refused', async () => {
+    const [alice, bob] = [await person(), await person()]
+    const login = fresh('raced')
+    const results = await Promise.allSettled([
+      service.link(by(alice), alice.id, login),
+      service.link(by(bob), bob.id, login),
+    ])
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    const [lost] = results.filter((r) => r.status === 'rejected')
+    expect(lost?.reason).toMatchObject({ kind: 'conflict' })
   })
 
   it('refuses a GitHub account another account is linked to, whatever its case', async () => {
@@ -194,7 +209,7 @@ describe('test cases through the REST API', () => {
 
   const linkedTo = async (login: string) =>
     (await x.db.select().from(accounts))
-      .filter((a) => a.githubLogin === login)
+      .filter((a) => a.githubLogin?.toLowerCase() === login.toLowerCase())
       .map((a) => a.username)
 
   describe('TC-199: a person links their own GitHub account', () => {
