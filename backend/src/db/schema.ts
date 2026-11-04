@@ -128,18 +128,22 @@ export const projectMembers = pgTable(
 /**
  * The groups (SC-018): sets of people, each holding a role in the group (SRC-139). Anyone with an
  * account can create one (FR-121) and becomes its admin (FR-159); `created_by` is who created it.
- * Every group is shown to everyone (FR-122). Two groups may have the same name: nothing asks for
- * group names to differ.
+ * Every group is shown to everyone (FR-122). Each has a name no other group has, as the owner
+ * decided in the review of SC-018 (2026-11-04).
  */
-export const groups = pgTable('groups', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  // Not indexed: a name of 200 characters can take more bytes than a btree entry can hold.
-  name: text('name').notNull(),
-  createdBy: uuid('created_by')
-    .notNull()
-    .references(() => accounts.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const groups = pgTable(
+  'groups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // On the name's MD5 rather than the name, for the reason given at projects_name_key.
+  (table) => [uniqueIndex('groups_name_key').on(sql`md5(${table.name})`)],
+)
 
 /**
  * The members of each group, with the role each holds in it (SRC-139): read, contributor, write

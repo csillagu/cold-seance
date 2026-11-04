@@ -3,6 +3,7 @@ import type { Database } from '../db/client.ts'
 import { accounts, groupMembers, groups } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { violates } from './db-errors.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRole } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
@@ -25,6 +26,9 @@ export interface GroupMember {
 export const GROUP_NAME_MAX_LENGTH = 200
 
 const columns = { id: groups.id, name: groups.name } as const
+
+/** The unique index that keeps group names apart (see the schema). */
+const GROUP_NAME_INDEX = 'groups_name_key'
 
 const memberColumns = {
   accountId: groupMembers.accountId,
@@ -52,7 +56,8 @@ export class GroupService {
 
   /**
    * Creates a group with the given name and makes the caller its admin, its only member. Refused
-   * unless the caller has an account; refused if the name is empty or too long.
+   * unless the caller has an account; refused if the name is empty or too long, or if another
+   * group already has it.
    */
   async createGroup(caller: Caller, group: { name: string }): Promise<Group> {
     await this.#requireAccount(caller, 'Only people with an account can create a group')
@@ -65,6 +70,19 @@ export class GroupService {
         `A group name can have at most ${GROUP_NAME_MAX_LENGTH} characters`,
       )
     }
+    // The unique index on names decides, so two concurrent creations of one name cannot both
+    // succeed.
+    try {
+      return await this.#createInTransaction(caller, name)
+    } catch (error) {
+      if (violates(error, GROUP_NAME_INDEX)) {
+        throw new ServiceError('conflict', `A group named ${name} already exists`)
+      }
+      throw error
+    }
+  }
+
+  async #createInTransaction(caller: Caller, name: string): Promise<Group> {
     return this.#db.transaction(async (tx) => {
       const [created] = await tx
         .insert(groups)

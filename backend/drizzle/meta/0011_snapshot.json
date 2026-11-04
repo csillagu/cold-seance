@@ -1,5 +1,5 @@
 {
-  "id": "f8173ba1-5d55-4d08-937a-cbeb414791a7",
+  "id": "354c0964-06cd-43ed-8b25-93bbba0a26fd",
   "prevId": "40444715-8779-4daa-9a9e-a0498e315bc4",
   "version": "7",
   "dialect": "postgresql",
@@ -439,7 +439,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "groups_name_key": {
+          "name": "groups_name_key",
+          "columns": [
+            {
+              "expression": "md5(\"name\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "groups_created_by_accounts_id_fk": {
           "name": "groups_created_by_accounts_id_fk",

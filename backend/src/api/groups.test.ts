@@ -96,6 +96,21 @@ describe('POST /api/groups', () => {
     expect(response.json().message).toBe('A group name is required')
   })
 
+  it("answers 409 with the service's message when another group has the name", async () => {
+    const { app, groups } = stubbed()
+    groups.createGroup.mockRejectedValue(
+      new ServiceError('conflict', 'A group named Platform already exists'),
+    )
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/groups',
+      headers: erin,
+      payload: { name: 'Platform' },
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().message).toBe('A group named Platform already exists')
+  })
+
   it('refuses a caller no authenticator recognises with 401', async () => {
     const { app, groups } = stubbed()
     const response = await app.inject({

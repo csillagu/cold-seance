@@ -85,12 +85,51 @@ describe('the group service', () => {
       expect((await service.createGroup(by(alice), { name })).name).toBe(name)
     })
 
-    it('lets two groups have the same name, since nothing asks names to differ', async () => {
+    it('refuses a name another group has, and creates nothing', async () => {
       const name = fresh('Twin')
       const first = await service.createGroup(by(alice), { name })
-      const second = await service.createGroup(by(bob), { name })
-      expect(second.id).not.toBe(first.id)
-      expect((await service.listGroups(by(alice))).filter((g) => g.name === name)).toHaveLength(2)
+      const error = await refused(service.createGroup(by(bob), { name: ` ${name} ` }), 'conflict')
+      expect(error.message).toBe(`A group named ${name} already exists`)
+      const named = await x.db.select().from(groups).where(eq(groups.name, name))
+      expect(named.map((g) => [g.id, g.createdBy])).toEqual([[first.id, alice.id]])
+      expect(await x.db.select().from(auditLog).where(eq(auditLog.actorAccountId, bob.id))).toEqual(
+        [],
+      )
+    })
+
+    it('treats the same name typed in two Unicode forms as one name', async () => {
+      const base = fresh('Cafe')
+      await service.createGroup(by(alice), { name: `${base}\u00e9` })
+      const error = await refused(
+        service.createGroup(by(bob), { name: `${base}e\u0301` }),
+        'conflict',
+      )
+      expect(error.message).toBe(`A group named ${base}\u00e9 already exists`)
+    })
+
+    it('lets only one of two concurrent creations of one name succeed', async () => {
+      const name = fresh('Race')
+      const results = await Promise.allSettled([
+        service.createGroup(by(alice), { name }),
+        service.createGroup(by(bob), { name }),
+      ])
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      const reasons = results.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
+      expect(reasons).toEqual([expect.objectContaining({ name: 'ServiceError', kind: 'conflict' })])
+      expect(await x.db.select().from(groups).where(eq(groups.name, name))).toHaveLength(1)
+    })
+
+    it('passes on a database failure that is not a name conflict', async () => {
+      class BrokenAuditLog extends AuditLogService {
+        override async record(): Promise<void> {
+          throw new Error('audit log unavailable')
+        }
+      }
+      const broken = new GroupService(x.db, new BrokenAuditLog(x.db))
+      const name = fresh('Broken')
+      await expect(broken.createGroup(by(alice), { name })).rejects.toThrow('audit log unavailable')
+      // The transaction is rolled back: no group without its entry in the audit log.
+      expect(await x.db.select().from(groups).where(eq(groups.name, name))).toEqual([])
     })
 
     it.each([
