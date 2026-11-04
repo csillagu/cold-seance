@@ -6,6 +6,7 @@ import {
   type AssignmentInput,
   assigneesColumn,
   type Eligibility,
+  loadOverridesColumn,
   peopleOf,
   TaskAssignments,
 } from './assignment.ts'
@@ -13,6 +14,12 @@ import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import type { TaskStatus } from './permissions.ts'
+import {
+  AI_ONLY_SHARE,
+  type LoadOverrides,
+  taskPersonLoad,
+  validAiOnlyLoad,
+} from './person-load.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
 
@@ -44,6 +51,13 @@ export interface Task {
   effort: number | null
   /** The share of the task done by AI, a percentage from 0 to 100, or `null` when not given. */
   aiShare: number | null
+  /**
+   * The person-load percentage the task puts on each person assigned to it, over its whole
+   * duration (DD-009): 100% minus its AI share (FR-032), or for an AI-only task the percentage it
+   * was given, if any (FR-149); `null` for a milestone. An assignment may override it for its
+   * person (`loadOverrides`).
+   */
+  personLoad: number | null
   milestone: Milestone | null
   /**
    * Who can do the task (FR-028): an AND (`all`) or OR (`any`) over people, by account id, at most
@@ -55,6 +69,11 @@ export interface Task {
    * assigned. Always empty for a milestone (FR-192).
    */
   assignees: string[]
+  /**
+   * The person-load percentages that replace `personLoad` for single assignees (FR-033), by
+   * account id, in the order of their ids; empty while none does.
+   */
+  loadOverrides: LoadOverrides
   /**
    * The people in its eligibility or its assignment who cannot read its project, each once,
    * eligibility first, so that the UI can mark them (FR-199). Such a person was written in when
@@ -96,6 +115,11 @@ export interface TaskFields {
   durationWorkingDays: number | null
   effort: number | null
   aiShare: number | null
+  /**
+   * The person-load percentage given to an AI-only task (FR-149); `null` for any other task, and
+   * for an AI-only task given none. It is cleared when the task stops being AI-only.
+   */
+  aiOnlyLoad: number | null
   /** Whether the task is a milestone, and of which variant; `null` for a task that is not one. */
   milestoneVariant: MilestoneVariant | null
   /** The date a fixed-date milestone is pinned to; `null` for any other task. */
@@ -108,8 +132,15 @@ export interface TaskFields {
  * channel is held to the same rules (DD-039). `null` leaves a field unset, or clears it.
  */
 export type TaskInput = {
-  readonly [Field in Exclude<keyof TaskFields, 'milestoneVariant' | 'milestoneDate'>]?: unknown
+  readonly [
+    Field in Exclude<keyof TaskFields, 'milestoneVariant' | 'milestoneDate' | 'aiOnlyLoad'>
+  ]?: unknown
 } & {
+  /**
+   * The task's person-load percentage, which only an AI-only task can be given (FR-149); `null`
+   * puts it back to the default, 100% minus the AI share (FR-032).
+   */
+  readonly personLoad?: unknown
   /**
    * Whether the task is a milestone, as `{ variant: 'fixed-date', date }` or `{ variant:
    * 'floating' }`, or `null` for a task that is not one (FR-190). It is chosen when the task is
@@ -129,6 +160,7 @@ const FIELDS = [
   'durationWorkingDays',
   'effort',
   'aiShare',
+  'aiOnlyLoad',
   'milestoneVariant',
   'milestoneDate',
 ] as const satisfies readonly (keyof TaskFields)[]
@@ -145,19 +177,21 @@ export const taskColumns = {
   durationWorkingDays: tasks.durationWorkingDays,
   effort: tasks.effort,
   aiShare: tasks.aiShare,
+  aiOnlyLoad: tasks.aiOnlyLoad,
   milestoneVariant: tasks.milestoneVariant,
   milestoneDate: tasks.milestoneDate,
   actualStart: tasks.actualStart,
   actualFinish: tasks.actualFinish,
   eligibility: tasks.eligibility,
   assignees: assigneesColumn,
+  loadOverrides: loadOverridesColumn,
 } as const
 
 const columns = taskColumns
 
 /** A task as it is read with `taskColumns`. */
-export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAccess'> &
-  Pick<TaskFields, 'milestoneVariant' | 'milestoneDate'>
+export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAccess' | 'personLoad'> &
+  Pick<TaskFields, 'milestoneVariant' | 'milestoneDate' | 'aiOnlyLoad'>
 
 /**
  * The task record module of the service layer (DD-039, SC-001): it creates, edits, lists and reads
@@ -178,6 +212,9 @@ export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAcces
  *
  * Who can do a task and who will are given with its other fields, and checked and stored by the
  * eligibility and assignment module (SC-005, `TaskAssignments`) in the same transaction.
+ *
+ * A task's person-load percentage, and the overrides of single assignments, follow the person-load
+ * percentage rules (SC-039, `person-load.ts`).
  */
 export class TaskService {
   readonly #db: Database
@@ -219,14 +256,14 @@ export class TaskService {
         .values({ projectId, ...fields, eligibility: assignment.eligibility })
         .returning(columns)
       if (!created) throw new Error('The new task was not returned')
-      await this.#assignments.store(tx, created.id, assignment.assignees)
+      await this.#assignments.store(tx, created.id, assignment)
       await this.#audit.record(tx, caller, {
         action: 'task.created',
         subject: { type: 'task', id: created.id },
         projectId,
         details: { ...fields, ...assignment },
       })
-      return this.#out(tx, { ...created, assignees: assignment.assignees })
+      return this.#out(tx, { ...created, ...assignment })
     })
   }
 
@@ -267,8 +304,8 @@ export class TaskService {
         .where(eq(tasks.id, taskId))
         .returning(columns)
       if (!updated) throw new Error('The edited task was not returned')
-      if (changed.includes('assignees')) {
-        await this.#assignments.store(tx, taskId, assignment.assignees)
+      if (changed.includes('assignees') || changed.includes('loadOverrides')) {
+        await this.#assignments.store(tx, taskId, assignment)
       }
       await this.#audit.record(tx, caller, {
         action: 'task.updated',
@@ -276,7 +313,7 @@ export class TaskService {
         projectId: current.projectId,
         details: { changes: only(next, changed), previous: only(current, changed) },
       })
-      return this.#out(tx, { ...updated, assignees: assignment.assignees })
+      return this.#out(tx, { ...updated, ...assignment })
     })
   }
 
@@ -352,11 +389,16 @@ function namedIn(row: Pick<TaskRow, 'eligibility' | 'assignees'>): string[] {
 }
 
 function toTask(
-  { milestoneVariant, milestoneDate, ...row }: TaskRow,
+  { milestoneVariant, milestoneDate, aiOnlyLoad, ...row }: TaskRow,
   without: ReadonlySet<string>,
 ): Task {
   return {
     ...row,
+    personLoad: taskPersonLoad({
+      aiShare: row.aiShare,
+      aiOnlyLoad,
+      milestone: milestoneVariant !== null,
+    }),
     milestone: milestoneOf(milestoneVariant, milestoneDate),
     withoutReadAccess: namedIn(row).filter((person) => without.has(person)),
     githubIssue: null,
@@ -383,10 +425,11 @@ function only<F extends TaskFields & Assignment>(
 const ASSIGNMENT_FIELDS = [
   'eligibility',
   'assignees',
+  'loadOverrides',
 ] as const satisfies readonly (keyof Assignment)[]
 
 /** No eligibility and nobody assigned: the assignment a new task's is checked against. */
-const NO_ASSIGNMENT: Assignment = { eligibility: null, assignees: [] }
+const NO_ASSIGNMENT: Assignment = { eligibility: null, assignees: [], loadOverrides: {} }
 
 /** Whether two values of a task's field are the same: equal, or equal as JSON for a tree or list. */
 function same(a: unknown, b: unknown): boolean {
@@ -404,6 +447,9 @@ function same(a: unknown, b: unknown): boolean {
  * - A duration is a whole number of working days, at least one (DD-006, FR-002): no fraction of a
  *   day and no other unit is taken.
  * - Effort is a number of zero or more; the AI share a percentage from 0 to 100.
+ * - Only an AI-only task can be given a person-load percentage, any number of zero or more
+ *   (FR-149); any other task's is 100% minus its AI share (FR-032). A task that stops being
+ *   AI-only loses the one it was given.
  * - A milestone is fixed-date, with a date, or floating, with none (FR-190). It is chosen when the
  *   task is created and cannot change after, nor its variant; a fixed-date milestone's date can
  *   (FR-194). Whichever fields were given, a milestone has no planned dates, duration, effort or
@@ -420,11 +466,17 @@ function validFields(input: TaskInput, base: TaskFields, action: 'create' | 'upd
     durationWorkingDays: given(input.durationWorkingDays, validDuration, base.durationWorkingDays),
     effort: given(input.effort, validEffort, base.effort),
     aiShare: given(input.aiShare, validAiShare, base.aiShare),
+    aiOnlyLoad: null,
     ...given(input.milestone, (v) => validMilestone(v, base, action), {
       milestoneVariant: base.milestoneVariant,
       milestoneDate: base.milestoneDate,
     }),
   }
+  valid.aiOnlyLoad = given(
+    input.personLoad,
+    (v) => validAiOnlyLoad(v, valid.aiShare),
+    valid.aiShare === AI_ONLY_SHARE ? base.aiOnlyLoad : null,
+  )
   if (
     valid.milestoneVariant !== null &&
     (valid.plannedStart !== null ||
@@ -456,6 +508,7 @@ const UNSET: TaskFields = {
   durationWorkingDays: null,
   effort: null,
   aiShare: null,
+  aiOnlyLoad: null,
   milestoneVariant: null,
   milestoneDate: null,
 }

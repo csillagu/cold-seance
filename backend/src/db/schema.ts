@@ -267,6 +267,12 @@ export const tasks = pgTable(
     durationWorkingDays: integer('duration_working_days'),
     effort: doublePrecision('effort'),
     aiShare: doublePrecision('ai_share'),
+    /**
+     * The person-load percentage given to an AI-only task (FR-149, SC-039): any number of zero or
+     * more, unrounded. Null for any other task, whose percentage is 100% minus its AI share
+     * (FR-032), and for an AI-only task given none, which then has that default.
+     */
+    aiOnlyLoad: doublePrecision('ai_only_load'),
     milestoneVariant: milestoneVariant('milestone_variant'),
     milestoneDate: date('milestone_date', { mode: 'string' }),
     /** The date the task was started, recorded by the status transitions (SC-003, FR-022). */
@@ -290,6 +296,10 @@ export const tasks = pgTable(
     check('tasks_finish_not_before_start', sql`${table.plannedFinish} >= ${table.plannedStart}`),
     check('tasks_effort_not_negative', sql`${table.effort} >= 0`),
     check('tasks_ai_share_percentage', sql`${table.aiShare} between 0 and 100`),
+    check(
+      'tasks_ai_only_load',
+      sql`${table.aiOnlyLoad} is null or (${table.aiShare} is not distinct from 100 and ${table.aiOnlyLoad} >= 0)`,
+    ),
     check(
       'tasks_milestone_date_iff_fixed',
       sql`(${table.milestoneVariant} is not distinct from 'fixed-date') = (${table.milestoneDate} is not null)`,
@@ -331,12 +341,18 @@ export const taskAssignees = pgTable(
       .notNull()
       .references(() => accounts.id),
     position: integer('position').notNull(),
+    /**
+     * The person-load percentage that replaces the task's for this person alone (FR-033, DD-010,
+     * SC-039), a number of zero or more; null when the task's own applies.
+     */
+    loadOverride: doublePrecision('load_override'),
   },
   (table) => [
     // A unique index rather than a composite primary key, for the reason given at project_members.
     uniqueIndex('task_assignees_key').on(table.taskId, table.accountId),
     uniqueIndex('task_assignees_position_key').on(table.taskId, table.position),
     index('task_assignees_account_id_idx').on(table.accountId),
+    check('task_assignees_load_override_not_negative', sql`${table.loadOverride} >= 0`),
   ],
 )
 
