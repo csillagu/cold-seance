@@ -38,10 +38,16 @@ export const accounts = pgTable(
      * most one account here.
      */
     githubLogin: text('github_login'),
+    /**
+     * The person's capacity, as a whole percentage of full time, such as 100 for full-time or 80
+     * for part-time (FR-037, SC-008). The person or a system admin sets it (FR-150).
+     */
+    capacity: integer('capacity').notNull().default(100),
   },
   (table) => [
     uniqueIndex('accounts_username_key').on(sql`lower(${table.username})`),
     uniqueIndex('accounts_github_login_key').on(sql`lower(${table.githubLogin})`),
+    check('accounts_capacity_percentage', sql`${table.capacity} between 0 and 100`),
   ],
 )
 
@@ -357,5 +363,82 @@ export const taskBlockedBy = pgTable(
     uniqueIndex('task_blocked_by_key').on(table.taskId, table.blockerId),
     index('task_blocked_by_blocker_id_idx').on(table.blockerId),
     check('task_blocked_by_not_self', sql`${table.taskId} <> ${table.blockerId}`),
+  ],
+)
+
+/** The days of the week, Monday first, as the global calendar names its weekend days (FR-131). */
+export const WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const
+
+export const weekday = pgEnum('weekday', WEEKDAYS)
+
+/**
+ * The one global calendar's weekend (FR-040, FR-131, SC-008): which days of the week are the
+ * weekend, as system admins set them. The table holds at most one row, keyed by `id`, which can
+ * only be true; until a system admin first sets the weekend there is no row, and the calendar
+ * module answers its default. The global calendar's company holidays are in `company_holidays`.
+ */
+export const globalCalendar = pgTable(
+  'global_calendar',
+  {
+    id: boolean('id').primaryKey().default(true),
+    weekendDays: weekday('weekend_days').array().notNull(),
+  },
+  (table) => [check('global_calendar_one_row', sql`${table.id}`)],
+)
+
+/**
+ * The company holidays of the global calendar (FR-040, SC-008), one row a day, which only system
+ * admins add and remove (FR-041).
+ */
+export const companyHolidays = pgTable('company_holidays', {
+  date: date('date', { mode: 'string' }).primaryKey(),
+})
+
+/**
+ * Each person's own calendar (FR-039, SC-008): the holidays they, or a system admin for them
+ * (FR-150), entered, one row a day, as many as they want. A person's own calendar has no weekend
+ * of its own; the weekend is the global calendar's (SRC-162).
+ */
+export const personalHolidays = pgTable(
+  'personal_holidays',
+  {
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    date: date('date', { mode: 'string' }).notNull(),
+  },
+  (table) => [
+    // A unique index rather than a composite primary key, for the reason given at project_members.
+    uniqueIndex('personal_holidays_key').on(table.accountId, table.date),
+  ],
+)
+
+/**
+ * Each person's absences, such as vacation or sick leave (FR-038, SC-008), each a run of whole
+ * days (DD-011) from `starts_on` to `ends_on`, both included, which the person or a system admin
+ * for them (FR-150) records. On those days the person's capacity is 0 (SRC-042).
+ */
+export const absences = pgTable(
+  'absences',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    endsOn: date('ends_on', { mode: 'string' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('absences_account_id_idx').on(table.accountId),
+    check('absences_end_not_before_start', sql`${table.endsOn} >= ${table.startsOn}`),
   ],
 )

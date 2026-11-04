@@ -3,6 +3,7 @@ import type { Services } from '../service/services.ts'
 import { accountRoutes } from './accounts.ts'
 import { apiTokenRoutes } from './api-tokens.ts'
 import { auditLogRoutes } from './audit.ts'
+import { availabilityRoutes, globalCalendarRoutes } from './calendars.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { groupRoutes } from './groups.ts'
@@ -40,7 +41,9 @@ export interface RouteGroupOptions {
  */
 export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: accountRoutes },
+  { prefix: '/accounts', routes: availabilityRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
+  { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },

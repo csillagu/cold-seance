@@ -2,6 +2,7 @@ import type { Database } from '../db/client.ts'
 import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
+import { CalendarService } from './calendars.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService } from './groups.ts'
 import { ProjectRoleService } from './project-roles.ts'
@@ -21,6 +22,8 @@ export interface Services {
   accounts: AccountService
   apiTokens: ApiTokenService
   audit: AuditLogService
+  /** The calendars, capacities and absences (SC-008). */
+  calendars: CalendarService
   githubLinks: GitHubLinkService
   groups: GroupService
   projectRoles: ProjectRoleService
@@ -52,6 +55,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
+    calendars: new CalendarService(db, audit),
     githubLinks: new GitHubLinkService(db, audit),
     groups: new GroupService(db, audit),
     projectRoles,
