@@ -73,6 +73,19 @@ describe('the project search', () => {
       expect(await service.searchProjects(by(alice), 'straße')).toEqual([street])
     })
 
+    it.each([
+      ['the Turkish dotted capital İ', 'İstanbul', 'ist'],
+      ['the dotless ı', 'Istanbul', 'ıstanbul'],
+      ['the capital sharp ẞ', 'Hauptstraße', 'STRAẞE'],
+      ['the sharp ß against a capital ẞ in the name', 'HAUPTSTRAẞE', 'straße'],
+      ['the Greek final ς', 'Οδος', 'ΟΔΟΣ'],
+      ['the Greek σ against a final ς', 'Οδος', 'οσ'],
+    ])('ignores the case of %s', async (_, base, text) => {
+      const alice = await person()
+      const named = await project(alice, `${base} ${randomUUID()}`)
+      expect(await service.searchProjects(by(alice), text)).toEqual([named])
+    })
+
     it('matches an accented letter typed in either Unicode form', async () => {
       const alice = await person()
       const cafe = await project(alice, `Café ${randomUUID()}`)

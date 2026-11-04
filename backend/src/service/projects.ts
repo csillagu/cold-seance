@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts, projectMembers, projects } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
@@ -127,7 +127,9 @@ export class ProjectService {
     const candidates = await this.#db
       .select(columns)
       .from(projects)
-      .where(inArray(projects.id, [...readable]))
+      // One array parameter rather than one parameter per project, so that someone who can read
+      // very many projects stays within what PostgreSQL takes. The ids come from the role store.
+      .where(sql`${projects.id} = any(${`{${[...readable].join(',')}}`}::uuid[])`)
       .orderBy(asc(projects.name), asc(projects.id))
     return candidates.filter((project) => folded(project.name).includes(wanted))
   }
@@ -143,11 +145,19 @@ export class ProjectService {
 }
 
 /**
- * A text with case taken out, for matching regardless of case: in the Unicode form names are kept
- * in, upper-cased and then lower-cased, so that letters whose cases differ in length, such as ß and
- * SS, also match. It is done here rather than in the database, so the match does not depend on the
- * database's locale.
+ * A text with case taken out, for matching regardless of case. Upper-casing then lower-casing
+ * covers letters whose cases differ in length, such as ß and SS. The letters lower-casing leaves
+ * apart are then made one: ß and ẞ become ss, the final ς becomes σ, and the dot that the Turkish
+ * İ leaves on its i is dropped. It is done here rather than in the database, so the match does not
+ * depend on the database's locale.
  */
 function folded(text: string): string {
-  return text.normalize('NFC').toUpperCase().toLowerCase().normalize('NFC')
+  return text
+    .normalize('NFD')
+    .toUpperCase()
+    .toLowerCase()
+    .replaceAll('ß', 'ss')
+    .replaceAll('ς', 'σ')
+    .replaceAll('i\u0307', 'i')
+    .normalize('NFC')
 }
