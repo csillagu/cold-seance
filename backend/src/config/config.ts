@@ -62,8 +62,8 @@ export interface Config {
     recheckIntervalMinutes: number
   }
   /**
-   * The first system admin, created at start while there is no system admin yet (FR-165, SC-053);
-   * not set once one exists. Given by environment variables, or in the file.
+   * The first system admin, created at start while there is no system admin yet (FR-165, SC-053),
+   * and ignored once one exists. Given by environment variables, or in the file.
    */
   firstAdmin: { username: string; password: string } | undefined
 }

@@ -143,25 +143,33 @@ export class AccountService {
 }
 
 /**
+ * What is wrong with the username and password a new account is to have, if anything: an empty or
+ * too long username, or an empty or too long password.
+ */
+export function newAccountProblem(account: NewAccount): string | undefined {
+  const username = keptUsername(account.username)
+  if (username === '') return 'A username is required'
+  if (characters(username) > USERNAME_MAX_LENGTH) {
+    return `A username can have at most ${USERNAME_MAX_LENGTH} characters`
+  }
+  if (account.password === '') return 'A password is required'
+  if (characters(account.password) > PASSWORD_MAX_LENGTH) {
+    return `A password can have at most ${PASSWORD_MAX_LENGTH} characters`
+  }
+  return undefined
+}
+
+/** A username as it is kept: trimmed, in one Unicode form, so the same name typed two ways is one. */
+export function keptUsername(username: string): string {
+  return username.normalize('NFC').trim()
+}
+
+/**
  * Checks the username and password a new account is to have, and answers the username as it is
- * kept: trimmed, and in one Unicode form, so that the same name typed two ways is one username.
- * Refused if the username is empty or too long, or the password is empty or too long.
+ * kept. Refused, as `invalid`, with what `newAccountProblem` finds.
  */
 export function checkNewAccount(account: NewAccount): string {
-  const username = account.username.normalize('NFC').trim()
-  if (username === '') throw new ServiceError('invalid', 'A username is required')
-  if (characters(username) > USERNAME_MAX_LENGTH) {
-    throw new ServiceError(
-      'invalid',
-      `A username can have at most ${USERNAME_MAX_LENGTH} characters`,
-    )
-  }
-  if (account.password === '') throw new ServiceError('invalid', 'A password is required')
-  if (characters(account.password) > PASSWORD_MAX_LENGTH) {
-    throw new ServiceError(
-      'invalid',
-      `A password can have at most ${PASSWORD_MAX_LENGTH} characters`,
-    )
-  }
-  return username
+  const problem = newAccountProblem(account)
+  if (problem !== undefined) throw new ServiceError('invalid', problem)
+  return keptUsername(account.username)
 }

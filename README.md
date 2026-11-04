@@ -27,6 +27,8 @@ The backend reads its settings at start from a YAML file (DD-059): `config.yaml`
 
 Each GitHub function (reading issues, writing to issues, the Projects status field) is given either a GitHub App, under `github.apps.<function>`, or a personal access token, under `github.tokens.<function>` (DD-060); Apps and tokens can be mixed across functions, and one can serve several. A token is given as its value, so an environment variable such as `COLD_SEANCE_GITHUB_TOKENS_WRITE_ISSUES` can keep it out of the file; the function must then not also be given an App under `github.apps`, in the file or the environment, or the two count as both. `github.webhookSecret` is the one secret of the webhooks set up on repositories and organizations, if any are used.
 
+The first system admin is given by `COLD_SEANCE_FIRST_ADMIN_USERNAME` and `COLD_SEANCE_FIRST_ADMIN_PASSWORD` (FR-165), together or not at all. At start, while no system admin exists, the backend creates that account as a system admin; sign in with it and create everyone else's account. Once a system admin exists, the two change nothing. The backend does not start if they name a username or password no account could have, or a username an account that is not a system admin already has.
+
 The backend does not start if a required setting is missing, a value is not valid, a GitHub App's key file cannot be read, or a GitHub function is given both an App and a token, or neither; it prints each such setting or function and exits. To run `npm run dev -w backend`, copy the example to `backend/config.yaml` and fill it in. `config.yaml` is ignored by git, because it holds secrets.
 
 ### Checks

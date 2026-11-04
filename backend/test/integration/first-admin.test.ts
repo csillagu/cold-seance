@@ -1,4 +1,6 @@
-import { eq } from 'drizzle-orm'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { accounts } from '../../src/db/schema.ts'
 import { FirstAdminError, setUpFirstAdmin } from '../../src/service/first-admin.ts'
@@ -144,8 +146,15 @@ describe('the start', () => {
     expect(await x.db.select().from(accounts)).toEqual([])
   })
 
-  it('does not start when the first system admin cannot be created', async () => {
+  it('does not start when the first system admin cannot be created, creates nothing and lets go of the database', async () => {
     await seedAccount(x.db, { username: 'root' })
+    const connections = async () =>
+      (
+        await x.db.execute<{ n: number }>(
+          sql`select count(*)::int as n from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()`,
+        )
+      ).rows[0]!.n
+    const before = await connections()
     await expect(
       startBackend({
         env: env({
@@ -155,5 +164,37 @@ describe('the start', () => {
         cwd: fx.dir,
       }),
     ).rejects.toThrow(FirstAdminError)
+    const rows = await x.db.select().from(accounts)
+    expect(rows.map((a) => [a.username, a.systemAdmin])).toEqual([['root', false]])
+    // The backend's own pool is closed: no connection of it is left open.
+    expect(await connections()).toBeLessThanOrEqual(before)
+  })
+
+  it('stops the server with one clear line, not an error and its stack', () => {
+    const settings = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith('COLD_SEANCE_')),
+    )
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../src/server.ts', import.meta.url))],
+      {
+        cwd: fx.dir,
+        env: {
+          ...settings,
+          ...env({
+            COLD_SEANCE_FIRST_ADMIN_USERNAME: '   ',
+            COLD_SEANCE_FIRST_ADMIN_PASSWORD: 'secret-first-password',
+          }),
+        },
+        encoding: 'utf8',
+        timeout: 20_000,
+      },
+    )
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain(
+      'The first system admin cannot be set up, so the tool does not start: A username is required',
+    )
+    expect(result.stderr).not.toContain('    at ')
+    expect(result.stderr).not.toContain('secret-first-password')
   })
 })

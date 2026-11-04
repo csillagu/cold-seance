@@ -1,8 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts } from '../db/schema.ts'
-import { checkNewAccount, type NewAccount } from './accounts.ts'
-import { ServiceError } from './errors.ts'
+import { keptUsername, newAccountProblem, type NewAccount } from './accounts.ts'
 import { hashPassword } from './passwords.ts'
 
 /** The start was refused: the first system admin's settings cannot make an account. */
@@ -44,13 +43,9 @@ export async function setUpFirstAdmin(
       .limit(1)
     if (admin) return 'exists'
 
-    let username: string
-    try {
-      username = checkNewAccount(firstAdmin)
-    } catch (error) {
-      if (!(error instanceof ServiceError)) throw error
-      throw new FirstAdminError(error.message)
-    }
+    const problem = newAccountProblem(firstAdmin)
+    if (problem !== undefined) throw new FirstAdminError(problem)
+    const username = keptUsername(firstAdmin.username)
     const [taken] = await tx
       .select({ id: accounts.id })
       .from(accounts)
