@@ -13,9 +13,10 @@ export const TEST_CHANNEL_HEADER = 'x-test-channel'
 
 /**
  * Recognises the caller from `TEST_ACCOUNT_HEADER`, and its channel from `TEST_CHANNEL_HEADER`.
- * It stands in for sign-in (SC-052, SC-107), whose callers come through the UI, and the API tokens
- * (SC-055), whose callers come through the REST API, which do not exist yet: it says who the
- * caller is and nothing more, so every permission check is still the service layer's.
+ * It stands in for the session check (SC-107), whose callers come through the UI, and the API tokens
+ * (SC-055), whose callers come through the REST API, so a test can name its caller and channel in
+ * a header: it says who the caller is and nothing more, so every permission check is still the
+ * service layer's.
  */
 export const testAuthenticator: Authenticator = async (request) => {
   const accountId = request.headers[TEST_ACCOUNT_HEADER]

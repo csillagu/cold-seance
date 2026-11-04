@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { UnauthenticatedError } from './errors.ts'
 import { tokenAuthenticator } from './token-auth.ts'
 
 // The token authenticator reads the token off the request and asks the token service whose it is;
@@ -24,10 +25,12 @@ describe('tokenAuthenticator', () => {
     expect(resolve).toHaveBeenCalledWith('cst_good')
   })
 
-  it('answers nothing for a token the service does not recognise', async () => {
+  it('refuses outright a request whose token the service does not recognise', async () => {
     const resolve = vi.fn<(secret: string) => Promise<string | undefined>>(async () => undefined)
     const authenticate = tokenAuthenticator({ resolve })
-    expect(await authenticate(withHeader('Bearer cst_revoked'))).toBeUndefined()
+    await expect(authenticate(withHeader('Bearer cst_revoked'))).rejects.toThrow(
+      UnauthenticatedError,
+    )
   })
 
   it.each([undefined, 'Basic abc', 'Bearer', 'Bearer two words', 'cst_good'])(

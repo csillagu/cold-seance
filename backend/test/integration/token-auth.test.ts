@@ -46,11 +46,14 @@ describe('token authentication', () => {
     app.inject({ method: 'GET', url, headers: { authorization: `Bearer ${secret}` } })
 
   it("acts as the token's owner: the request reads the owner's own tokens", async () => {
-    const secret = await tokenOf(bob)
+    const owner = await seedAccount(x.db, { username: 'owner' })
+    const secret = await tokenOf(owner)
     const response = await withToken(secret)
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toHaveLength(
-      (await services.apiTokens.listTokens({ accountId: bob.id, channel: 'ui' })).length,
+    expect(response.json().map((t: { id: string }) => t.id)).toEqual(
+      (await services.apiTokens.listTokens({ accountId: owner.id, channel: 'ui' })).map(
+        (t) => t.id,
+      ),
     )
   })
 
@@ -70,6 +73,24 @@ describe('token authentication', () => {
     expect(entry).toMatchObject({ actorAccountId: alice.id, channels: ['rest-api'] })
   })
 
+  it('takes a token only from the Authorization header: not from the query string or another header', async () => {
+    const secret = await tokenOf(bob)
+    for (const request of [
+      { url: `/api/tokens?access_token=${secret}`, headers: {} },
+      { url: '/api/tokens', headers: { 'x-api-token': secret } },
+      { url: '/api/tokens', headers: { cookie: `token=${secret}` } },
+    ]) {
+      const response = await app.inject({ method: 'GET', ...request })
+      expect(response.statusCode).toBe(401)
+    }
+  })
+
+  it('tells a refused caller to authenticate with a Bearer token', async () => {
+    const response = await withToken('cst_never-created')
+    expect(response.statusCode).toBe(401)
+    expect(response.headers['www-authenticate']).toBe('Bearer')
+  })
+
   it('takes the scheme in any case and spaces around the token', async () => {
     const secret = await tokenOf(bob)
     const response = await app.inject({
@@ -83,12 +104,10 @@ describe('token authentication', () => {
   it('refuses a revoked token at once', async () => {
     const secret = await tokenOf(bob)
     expect((await withToken(secret)).statusCode).toBe(200)
-    const [row] = await x.db.select().from(apiTokens).where(eq(apiTokens.accountId, bob.id))
     const tokens = await services.apiTokens.listTokens({ accountId: bob.id, channel: 'ui' })
     for (const token of tokens) {
       await services.apiTokens.revokeToken({ accountId: bob.id, channel: 'ui' }, token.id)
     }
-    expect(row).toBeDefined()
     expect((await withToken(secret)).statusCode).toBe(401)
   })
 
@@ -118,7 +137,7 @@ describe('token authentication', () => {
     expect(response.json().message).toBe('Authentication required')
   })
 
-  it('answers nothing for a secret without the token prefix, without asking the database', async () => {
+  it('answers nothing for a secret without the token prefix', async () => {
     expect(await services.apiTokens.resolve('ghp_not_ours')).toBeUndefined()
   })
 })
@@ -186,7 +205,10 @@ describe('TC-165: an API token gets its owner’s read-only role', () => {
   })
 
   // Pending: TC-165 in full: bob's token reads task T and is refused changing its title to Mine,
-  // T's title staying Draft (tasks, SC-001).
+  // T's title staying Draft (tasks, SC-001). The edit tried here, a change of Apollo's members,
+  // needs the admin role, so it does not single out the read-only role as the task edit will.
+  // Pending too: SC-055 refuses a token whose owner's account is no longer active. The tool has no
+  // way yet to end an account, so the token's owner need only exist.
   // TC-166 (MCP server access gets its owner's lack of a role) is pending the MCP server (SC-027),
   // which recognises the same tokens through `ApiTokenService.resolve`.
 })

@@ -55,7 +55,8 @@ export function handleApiError(
     return reply.code(statusCode).send(errorBody(statusCode, error.message, name))
   }
   if (error instanceof UnauthenticatedError) {
-    return reply.code(401).send(errorBody(401, error.message))
+    // How to authenticate: with an API token (RFC 6750), or the browser's session cookie.
+    return reply.code(401).header('www-authenticate', 'Bearer').send(errorBody(401, error.message))
   }
   const statusCode = isFastifyClientError(error) ? error.statusCode : undefined
   if (statusCode !== undefined) {
