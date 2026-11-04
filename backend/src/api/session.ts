@@ -44,8 +44,9 @@ export function setSessionCookie(reply: FastifyReply, sessionId: string): void {
 /**
  * The routes of the browser's session (SC-026): sign in (SC-052) and sign out (SC-107). Signing in
  * is the one route a caller reaches without being signed in already, so it is public; signing out
- * is reached only by a caller the session check recognises. Both only translate the request, and
- * the session service decides (DD-039).
+ * is reached by an authenticated caller, and ends the session whose cookie the request carries if
+ * it is the caller's own. Both only translate the request, and the session service decides
+ * (DD-039).
  */
 export const sessionRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
   group.post<{ Body: { username: string; password: string } }>(

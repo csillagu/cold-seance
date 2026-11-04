@@ -1,12 +1,12 @@
 import type { FastifyInstance, FastifyServerOptions } from 'fastify'
+import { sessionAuthenticator } from './api/session-auth.ts'
+import { tokenAuthenticator } from './api/token-auth.ts'
 import { buildApp } from './app.ts'
 import { loadConfig, type Config, type LoadConfigOptions } from './config/config.ts'
 import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
-import { sessionAuthenticator } from './api/session-auth.ts'
-import { tokenAuthenticator } from './api/token-auth.ts'
 import { createServices } from './service/services.ts'
 
 export interface Backend {

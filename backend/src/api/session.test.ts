@@ -4,7 +4,7 @@ import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
 import { ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
-import { SIGN_IN_REFUSED } from '../service/sessions.ts'
+import { SIGN_IN_REFUSED, SIGN_OUT_NOT_YOURS } from '../service/sessions.ts'
 import type { Authenticator } from './caller.ts'
 import { CLEARED_SESSION_COOKIE, SESSION_COOKIE, sessionCookie } from './session.ts'
 
@@ -148,6 +148,19 @@ describe('DELETE /api/session', () => {
     expect(response.statusCode).toBe(401)
     expect(response.headers['set-cookie']).toBeUndefined()
     expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it("answers the service's refusal of someone else's session with 403, leaving the cookie", async () => {
+    const { app, signOut } = stubbed()
+    signOut.mockRejectedValue(new ServiceError('forbidden', SIGN_OUT_NOT_YOURS))
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE, cookie: 'session=bobs-session' },
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.json().message).toBe(SIGN_OUT_NOT_YOURS)
+    expect(response.headers['set-cookie']).toBeUndefined()
   })
 
   it('answers a failure of the service as a fault of the backend', async () => {

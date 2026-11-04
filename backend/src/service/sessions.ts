@@ -13,6 +13,9 @@ const SESSION_ID_BYTES = 32
 /** What someone whose username or password is not right is told: not which of the two it was. */
 export const SIGN_IN_REFUSED = 'The username or password is not right'
 
+/** What someone asking to end a session that is not theirs is told. */
+export const SIGN_OUT_NOT_YOURS = 'That session is not yours to end'
+
 /** A session just created by signing in, with the id the browser is given in its cookie. */
 export interface SignedIn {
   accountId: string
@@ -75,17 +78,19 @@ export class SessionService {
 
   /**
    * Signs the caller out of the session with this id, deleting it at once, so the cookie that held
-   * its id no longer acts as anyone (SC-107, DD-054). Only the caller's own session is deleted: an
-   * id of someone else's session, or of none, deletes nothing.
+   * its id no longer acts as anyone (SC-107, DD-054). Only the caller's own session can be ended:
+   * the id of someone else's session is refused and deletes nothing, so a caller is never told a
+   * session ended that is still live. An id of no session deletes nothing and is not refused.
    */
   async signOut(caller: Caller, sessionId: string): Promise<void> {
-    await this.#db
+    const secretHash = hashSecret(sessionId)
+    const deleted = await this.#db
       .delete(sessions)
-      .where(
-        and(
-          eq(sessions.secretHash, hashSecret(sessionId)),
-          eq(sessions.accountId, caller.accountId),
-        ),
-      )
+      .where(and(eq(sessions.secretHash, secretHash), eq(sessions.accountId, caller.accountId)))
+      .returning({ id: sessions.id })
+    if (deleted.length > 0) return
+    if ((await this.resolve(sessionId)) !== undefined) {
+      throw new ServiceError('forbidden', SIGN_OUT_NOT_YOURS)
+    }
   }
 }

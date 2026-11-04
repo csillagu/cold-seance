@@ -6,7 +6,7 @@ import { buildApp } from '../../src/app.ts'
 import { apiTokens, auditLog, sessions } from '../../src/db/schema.ts'
 import { hashSecret } from '../../src/service/api-tokens.ts'
 import { ServiceError } from '../../src/service/errors.ts'
-import { SessionService, SIGN_IN_REFUSED } from '../../src/service/sessions.ts'
+import { SessionService, SIGN_IN_REFUSED, SIGN_OUT_NOT_YOURS } from '../../src/service/sessions.ts'
 import { createServices, type Services } from '../../src/service/services.ts'
 import { startBackend } from '../../src/start.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
@@ -146,9 +146,11 @@ describe('the session service: looking up and ending sessions (SC-107)', () => {
     expect(await service.resolve(other)).toBe(alice.id)
   })
 
-  it("does not end someone else's session", async () => {
+  it("refuses to end someone else's session, which stays live", async () => {
     const bobs = await signIn('bob')
-    await service.signOut(asCaller(alice), bobs)
+    const error = await service.signOut(asCaller(alice), bobs).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ServiceError)
+    expect(error).toMatchObject({ kind: 'forbidden', message: SIGN_OUT_NOT_YOURS })
     expect(await service.resolve(bobs)).toBe(bob.id)
   })
 
@@ -270,6 +272,33 @@ describe('the session check on requests from the browser (SC-107)', () => {
       authorization: 'Bearer cst_revoked',
     })
     expect(response.statusCode).toBe(401)
+  })
+
+  it("refuses to sign out of a session that is not the caller's, leaving it live and its cookie set", async () => {
+    const alicesCookie = await signedInCookie()
+    const bob = await seedAccount(x.db, { username: 'bob' })
+    const { secret } = await services.apiTokens.createToken({ accountId: bob.id, channel: 'ui' })
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { cookie: alicesCookie, authorization: `Bearer ${secret}` },
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.json().message).toBe(SIGN_OUT_NOT_YOURS)
+    expect(response.headers['set-cookie']).toBeUndefined()
+    expect((await listTokens({ cookie: alicesCookie })).statusCode).toBe(200)
+  })
+
+  it('signs out of her own session with her own token beside the cookie', async () => {
+    const cookie = await signedInCookie()
+    const { secret } = await services.apiTokens.createToken({ accountId: alice.id, channel: 'ui' })
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { cookie, authorization: `Bearer ${secret}` },
+    })
+    expect(response.statusCode).toBe(204)
+    expect((await listTokens({ cookie })).statusCode).toBe(401)
   })
 
   it('signs in again with a cookie of a signed-out session in the request', async () => {
