@@ -276,10 +276,9 @@ export const taskCancellationRoutes: FastifyPluginAsync<RouteGroupOptions> = asy
         description:
           'Cancels the task. It stays in its project, cancelled. Each task it blocked is then ' +
           'blocked by whatever it was blocked by instead. Cancelling a cancelled task changes ' +
-          'nothing. Refused with 409 when the task is a milestone that blocks a task of another ' +
-          'project and is itself blocked by a task that is not a milestone, since only a ' +
-          "milestone of another project may block a task. Only the project's read-write members " +
-          'and admins can cancel a task.',
+          'nothing. Refused with 400 for a finished task, and with 409 for a milestone that ' +
+          "blocks a task of another project. Only the project's read-write members and admins " +
+          'can cancel a task.',
         params: taskParams,
         // Nothing to send: the body may be left out, or be an empty object.
         body: { type: ['object', 'null'], properties: {}, additionalProperties: false },

@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Database, Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import { TaskAssignments } from './assignment.ts'
@@ -11,28 +11,23 @@ import { lockRelations } from './task-relations.ts'
 import { type Task, taskColumns, type TaskRow, toCompleteTask } from './tasks.ts'
 
 /**
- * Why a cancellation is refused when passing the task's blockers on would make a task of another
- * project blocked by something that may not block it there (FR-015): only a milestone of another
- * project may block a task. It names no task, since the blocked task's project may be one the
- * caller cannot read (FR-017).
+ * Why a milestone that blocks a task of another project cannot be cancelled (owner's decision of
+ * 2026-11-04 for issue #85: no milestone another project depends on can be removed). It names no
+ * task, since the blocked task's project may be one the caller cannot read (FR-017).
  */
-export const CROSS_PROJECT_PASS_ON_MESSAGE =
-  'This task cannot be cancelled: a task of another project that it blocks would become blocked ' +
-  'by a task of this project that is not a milestone, which only a milestone of another project ' +
-  'may be. Remove that blocked-by relation first'
+export const REFERENCED_MILESTONE_MESSAGE =
+  'This milestone cannot be cancelled while a task of another project is blocked by it'
 
-/** A task as the pass-on needs it: which task, its project, and whether it is a milestone. */
+/** Why a finished task cannot be cancelled (owner's decision of 2026-11-04 for issue #85). */
+export const FINISHED_TASK_MESSAGE = 'A finished task cannot be cancelled'
+
+/** A task as the pass-on needs it: which task, and its project. */
 interface Linked {
   id: string
   projectId: string
-  milestone: boolean
 }
 
-const linked = {
-  id: tasks.id,
-  projectId: tasks.projectId,
-  milestone: sql<boolean>`${tasks.milestoneVariant} is not null`,
-} as const
+const linked = { id: tasks.id, projectId: tasks.projectId } as const
 
 /**
  * The task cancellation of the service layer (DD-039, SC-038): it cancels a task in the tool
@@ -45,11 +40,12 @@ const linked = {
  *   cancelled task's own blockers it is not blocked by already. No other task gains or loses a
  *   relation; the cancelled task keeps its own blockers. No cycle can arise, since each new
  *   relation follows a path of blocking relations that was already there.
- * - A milestone can block a task of another project (FR-015); if it is cancelled, the tasks it
- *   blocked there would be blocked by its own blockers. Only a milestone of another project may
- *   block a task, so the cancellation is refused as a conflict, changing nothing, if one of those
- *   blockers is not a milestone of a project other than the blocked task's own (owner's decision
- *   of 2026-11-04 for issue #85).
+ * - A milestone that blocks a task of another project (FR-015) cannot be cancelled: the
+ *   cancellation is refused as a conflict, changing nothing. So the tasks a cancellation passes
+ *   blockers on to are always of the cancelled task's own project, and each blocker passed on is
+ *   one FR-015 allows there: a task of that project, or a milestone of another.
+ * - A finished task cannot be cancelled; it is refused as invalid. Both rules are the owner's
+ *   decisions of 2026-11-04 for issue #85.
  *
  * Only the project's read-write members and admins may cancel its tasks; a contributor may not
  * (FR-107, `ProjectPermissions.requireStatusChange`), and someone with no role in the project is
@@ -75,8 +71,9 @@ export class TaskCancellationService {
   /**
    * Cancels the task, passes its blockers on to the tasks it blocked, and answers the task as it
    * now is. Refused as not found if there is no such task, as not visible to someone with no role
-   * in its project, as forbidden to someone whose role there does not allow cancelling it, and as
-   * a conflict if passing its blockers on would break FR-015.
+   * in its project, as forbidden to someone whose role there does not allow cancelling it, as
+   * invalid if it is finished, and as a conflict if it is a milestone that blocks a task of
+   * another project.
    */
   async cancel(caller: Caller, taskId: string): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -91,14 +88,13 @@ export class TaskCancellationService {
       const current = await find(tx, taskId, true)
       await this.#requireCancel(caller, tx, current)
       if (current.status === 'cancelled') return this.#out(tx, current)
+      if (current.status === 'done') throw new ServiceError('invalid', FINISHED_TASK_MESSAGE)
 
-      const blockers = await blockersOf(tx, current.id)
       const blocked = await blockedBy(tx, current.id)
-      for (const task of blocked) {
-        if (blockers.some((blocker) => !mayBlock(blocker, task))) {
-          throw new ServiceError('conflict', CROSS_PROJECT_PASS_ON_MESSAGE)
-        }
+      if (blocked.some((task) => task.projectId !== current.projectId)) {
+        throw new ServiceError('conflict', REFERENCED_MILESTONE_MESSAGE)
       }
+      const blockers = await blockersOf(tx, current.id)
 
       const [updated] = await tx
         .update(tasks)
@@ -147,7 +143,6 @@ export class TaskCancellationService {
       projectId: task.projectId,
       details: {
         cancelledTaskId: cancelledId,
-        removedBlockerId: cancelledId,
         // In the cancelled task's order of its blockers, not in the order the database returns.
         addedBlockerIds: blockers
           .map((blocker) => blocker.id)
@@ -168,11 +163,6 @@ export class TaskCancellationService {
   #out(executor: Executor, row: TaskRow): Promise<Task> {
     return toCompleteTask(new TaskAssignments(this.#roles), executor, row)
   }
-}
-
-/** Whether `blocker` may block `task` (FR-015): a task of its own project, or a milestone. */
-function mayBlock(blocker: Linked, task: Linked): boolean {
-  return blocker.projectId === task.projectId || blocker.milestone
 }
 
 async function find(executor: Executor, taskId: string, lock: boolean): Promise<TaskRow> {

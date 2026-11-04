@@ -5,7 +5,10 @@ import { auditLog, taskAssignees, taskBlockedBy, tasks } from '../../src/db/sche
 import type { Caller, Channel } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
 import { createServices, type Services } from '../../src/service/services.ts'
-import { CROSS_PROJECT_PASS_ON_MESSAGE } from '../../src/service/task-cancellation.ts'
+import {
+  FINISHED_TASK_MESSAGE,
+  REFERENCED_MILESTONE_MESSAGE,
+} from '../../src/service/task-cancellation.ts'
 import { lockRelations } from '../../src/service/task-relations.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
@@ -124,11 +127,34 @@ describe('the task cancellation service', () => {
     it.each([
       ['in-progress', { actualStart: '2027-02-01' }],
       ['on-hold', { actualStart: '2027-02-01' }],
-      ['done', { actualStart: '2027-02-01', actualFinish: '2027-02-10' }],
-    ] as const)('cancels a task that is %s, keeping its actual dates', async (status, dates) => {
+    ] as const)('cancels a task that is %s, keeping its actual start', async (status, dates) => {
       const id = await seed({ status, ...dates })
       const task = await cancel(id)
       expect(task).toMatchObject({ status: 'cancelled', actualFinish: null, ...dates })
+    })
+
+    it('refuses to cancel a finished task as invalid, changing nothing', async () => {
+      const a = await seed()
+      const id = await seed({
+        status: 'done',
+        actualStart: '2027-02-01',
+        actualFinish: '2027-02-10',
+      })
+      const c = await seed()
+      await block(id, a)
+      await block(c, id)
+      const before = await stored(id)
+      const error = await refused(cancel(id), 'invalid')
+      expect(error.message).toBe(FINISHED_TASK_MESSAGE)
+      expect(await stored(id)).toEqual(before)
+      expect(await blockersOf(c)).toEqual([id])
+      expect(await entries(id)).toEqual([])
+      expect(await entries(c)).toEqual([])
+    })
+
+    it('refuses a contributor a finished task as forbidden, before saying it is finished', async () => {
+      const id = await seed({ status: 'done', actualFinish: '2027-02-10' })
+      await expect(cancel(id, by(contributor))).rejects.toMatchObject({ kind: 'forbidden' })
     })
 
     it('records the cancellation in the audit log, in the task’s project, with its previous status', async () => {
@@ -257,7 +283,6 @@ describe('the task cancellation service', () => {
       const [entry] = await entries(c)
       expect(entry?.details).toEqual({
         cancelledTaskId: b,
-        removedBlockerId: b,
         addedBlockerIds: [a2],
       })
     })
@@ -287,7 +312,7 @@ describe('the task cancellation service', () => {
         action: 'task.blockers-passed-on',
         subjectType: 'task',
         subjectId: c,
-        details: { cancelledTaskId: b, removedBlockerId: b, addedBlockerIds: [a] },
+        details: { cancelledTaskId: b, addedBlockerIds: [a] },
       })
     })
 
@@ -317,53 +342,49 @@ describe('the task cancellation service', () => {
       )
     })
 
-    describe('a cancelled milestone that blocked a task of another project', () => {
-      it('passes on blockers that are milestones, or tasks of the blocked task’s own project', async () => {
-        const m = await milestone(apollo)
-        const n = await milestone(apollo)
-        const h = await seed({ projectId: hermes })
-        const c = await seed({ projectId: hermes })
-        await block(m, n, h)
-        await block(c, m)
-        await cancel(m)
-        expect(await blockersOf(c)).toEqual([n, h])
-        const [entry] = await entries(c)
-        expect(entry).toMatchObject({
-          projectId: hermes,
-          action: 'task.blockers-passed-on',
-          details: { addedBlockerIds: [n, h] },
-        })
-      })
-
-      it('removes the relation when the milestone had no blockers', async () => {
-        const m = await milestone(apollo)
-        const c = await seed({ projectId: hermes })
-        await block(c, m)
-        await cancel(m)
-        expect(await blockersOf(c)).toEqual([])
-      })
-
-      it('refuses the cancellation as a conflict, changing nothing, if a blocker is a task of the milestone’s project (FR-015)', async () => {
+    describe('a milestone (FR-015)', () => {
+      it('passes on the blockers of a milestone that blocks only tasks of its own project', async () => {
         const m = await milestone(apollo)
         const a = await seed()
-        const sameProject = await seed()
-        const c = await seed({ projectId: hermes })
-        await block(m, a)
-        await block(sameProject, m)
+        const n = await milestone(hermes)
+        const c = await seed()
+        await block(m, a, n)
         await block(c, m)
-        const before = await stored(m)
-        const count = await relationCount()
-
-        const error = await refused(cancel(m), 'conflict')
-
-        expect(error.message).toBe(CROSS_PROJECT_PASS_ON_MESSAGE)
-        expect(await stored(m)).toEqual(before)
-        expect(await blockersOf(c)).toEqual([m])
-        expect(await blockersOf(sameProject)).toEqual([m])
-        expect(await relationCount()).toBe(count)
-        expect(await entries(m)).toEqual([])
-        expect(await entries(c)).toEqual([])
+        await cancel(m)
+        expect(await blockersOf(c)).toEqual([a, n])
+        expect((await stored(m))?.status).toBe('cancelled')
       })
+
+      it.each([
+        ['no blockers', async () => []],
+        ['a blocker of its own project', async () => [await seed()]],
+        ['a milestone of another project as a blocker', async () => [await milestone(hermes)]],
+      ])(
+        'refuses to cancel one that blocks a task of another project, with %s, as a conflict changing nothing',
+        async (_, blockers) => {
+          const m = await milestone(apollo)
+          const own = await blockers()
+          const sameProject = await seed()
+          const c = await seed({ projectId: hermes })
+          await block(m, ...own)
+          await block(sameProject, m)
+          await block(c, m)
+          const before = await stored(m)
+          const count = await relationCount()
+
+          const error = await refused(cancel(m), 'conflict')
+
+          expect(error.message).toBe(REFERENCED_MILESTONE_MESSAGE)
+          expect(await stored(m)).toEqual(before)
+          expect(await blockersOf(m)).toEqual(own)
+          expect(await blockersOf(c)).toEqual([m])
+          expect(await blockersOf(sameProject)).toEqual([m])
+          expect(await relationCount()).toBe(count)
+          expect(await entries(m)).toEqual([])
+          expect(await entries(c)).toEqual([])
+          expect(await entries(sameProject)).toEqual([])
+        },
+      )
     })
 
     it('waits for a change of relations in progress, and passes on the relations as they then are', async () => {

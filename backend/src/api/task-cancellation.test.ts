@@ -3,7 +3,10 @@ import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
 import { notVisible, ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
-import { CROSS_PROJECT_PASS_ON_MESSAGE } from '../service/task-cancellation.ts'
+import {
+  FINISHED_TASK_MESSAGE,
+  REFERENCED_MILESTONE_MESSAGE,
+} from '../service/task-cancellation.ts'
 import type { Task } from '../service/tasks.ts'
 import type { Authenticator } from './caller.ts'
 
@@ -78,14 +81,22 @@ describe('POST /api/tasks/:taskId/cancel', () => {
 
   it("sends the service's conflict as 409, with its message", async () => {
     const { app, cancel } = stubbed()
-    cancel.mockRejectedValue(new ServiceError('conflict', CROSS_PROJECT_PASS_ON_MESSAGE))
+    cancel.mockRejectedValue(new ServiceError('conflict', REFERENCED_MILESTONE_MESSAGE))
     const response = await app.inject({ method: 'POST', url, headers: erin })
     expect(response.statusCode).toBe(409)
     expect(response.json()).toEqual({
       statusCode: 409,
       error: 'Conflict',
-      message: CROSS_PROJECT_PASS_ON_MESSAGE,
+      message: REFERENCED_MILESTONE_MESSAGE,
     })
+  })
+
+  it("sends the service's refusal of a finished task as 400, with its message", async () => {
+    const { app, cancel } = stubbed()
+    cancel.mockRejectedValue(new ServiceError('invalid', FINISHED_TASK_MESSAGE))
+    const response = await app.inject({ method: 'POST', url, headers: erin })
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe(FINISHED_TASK_MESSAGE)
   })
 
   it.each([
