@@ -177,11 +177,19 @@ describe('the group service', () => {
         const error = await refused(service.listMembers(by(viewer), group.id), 'forbidden')
         expect(error.message).toBe("Only the group's members can see its members")
       }
-      const error = await refused(
-        service.listMembers({ accountId: 'nobody', channel: 'ui' }, group.id),
-        'forbidden',
-      )
-      expect(error.message).toBe("Only the group's members can see its members")
+    })
+
+    it('refuses a caller who has no account before telling whether the group exists', async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('Ghostly') })
+      for (const accountId of [randomUUID(), 'nobody']) {
+        for (const groupId of [group.id, randomUUID()]) {
+          const error = await refused(
+            service.listMembers({ accountId, channel: 'ui' }, groupId),
+            'forbidden',
+          )
+          expect(error.message).toBe('Only people with an account can see the groups')
+        }
+      }
     })
 
     it('answers a group that does not exist as not found', async () => {

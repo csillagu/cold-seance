@@ -99,18 +99,15 @@ export class GroupService {
    * shown to everyone anyway (FR-122).
    */
   async listMembers(caller: Caller, groupId: string): Promise<GroupMember[]> {
+    await this.#requireAccount(caller, 'Only people with an account can see the groups')
     const [group] = isUuid(groupId)
       ? await this.#db.select(columns).from(groups).where(eq(groups.id, groupId))
       : []
     if (!group) throw new ServiceError('not-found', 'There is no such group')
-    const [own] = isUuid(caller.accountId)
-      ? await this.#db
-          .select({ role: groupMembers.role })
-          .from(groupMembers)
-          .where(
-            and(eq(groupMembers.groupId, groupId), eq(groupMembers.accountId, caller.accountId)),
-          )
-      : []
+    const [own] = await this.#db
+      .select({ role: groupMembers.role })
+      .from(groupMembers)
+      .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.accountId, caller.accountId)))
     if (!own) {
       throw new ServiceError('forbidden', "Only the group's members can see its members")
     }

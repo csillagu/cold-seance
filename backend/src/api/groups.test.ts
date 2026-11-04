@@ -165,4 +165,11 @@ describe('GET /api/groups/:groupId/members', () => {
     expect(response.statusCode).toBe(statusCode)
     expect(response.json().message).toBe(message)
   })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'GET', url: `/api/groups/${GROUP.id}/members` })
+    expect(response.statusCode).toBe(401)
+    expect(groups.listMembers).not.toHaveBeenCalled()
+  })
 })
