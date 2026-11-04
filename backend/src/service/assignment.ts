@@ -8,6 +8,7 @@ import {
   tasks,
 } from '../db/schema.ts'
 import { ServiceError } from './errors.ts'
+import { keptLoadOverrides, type LoadOverrides, validLoadOverrides } from './person-load.ts'
 import { allows, type RoleSource } from './permissions.ts'
 import { isUuid } from './system-admins.ts'
 
@@ -19,12 +20,18 @@ export interface Assignment {
   eligibility: Eligibility | null
   /** Who will do it: their account ids, in the order given; empty while nobody is assigned. */
   assignees: string[]
+  /**
+   * The person-load percentages that replace the task's for single assignees (FR-033, SC-039),
+   * by account id, in the order of their ids; empty while none does.
+   */
+  loadOverrides: LoadOverrides
 }
 
-/** The two parts of an assignment as a channel hands them over: either may be left out. */
+/** The parts of an assignment as a channel hands them over: any may be left out. */
 export interface AssignmentInput {
   readonly eligibility?: unknown
   readonly assignees?: unknown
+  readonly loadOverrides?: unknown
 }
 
 /**
@@ -35,6 +42,17 @@ export const assigneesColumn = sql<string[]>`coalesce((
   select array_agg(${taskAssignees.accountId}::text order by ${taskAssignees.position})
   from ${taskAssignees} where ${taskAssignees.taskId} = ${tasks.id}
 ), '{}')`
+
+/**
+ * The column a task's person-load overrides are read with (FR-033): an object from assignee's
+ * account id to their percentage, for those assignees who have one. Its keys come in the order of
+ * their ids, as `jsonb` orders keys of one length.
+ */
+export const loadOverridesColumn = sql<LoadOverrides>`coalesce((
+  select jsonb_object_agg(${taskAssignees.accountId}::text, ${taskAssignees.loadOverride})
+  from ${taskAssignees}
+  where ${taskAssignees.taskId} = ${tasks.id} and ${taskAssignees.loadOverride} is not null
+), '{}'::jsonb)`
 
 /**
  * The eligibility and assignment module of the service layer (DD-039, SC-005). It stores who can
@@ -51,6 +69,8 @@ export const assigneesColumn = sql<string[]>`coalesce((
  * - An expression deeper than two levels (FR-197), and a person assigned twice (FR-200), are
  *   refused.
  * - A milestone has neither an expression nor assignees (FR-192).
+ * - Each assignment can override the task's person-load percentage for that person alone (FR-033,
+ *   SC-039); the rules of the percentages are in `person-load.ts`.
  *
  * The task record module (SC-001) calls it inside the transaction that creates or edits a task,
  * after it has checked that the caller may edit the project's plan, so every channel is held to
@@ -65,9 +85,11 @@ export class TaskAssignments {
 
   /**
    * The task's assignment once `input` is applied to `current`: each part given in `input` checked,
-   * each part left out kept. Refused as invalid if a part is not valid (see `validEligibility` and
-   * `validAssignees`), if the task is a milestone and would have either part (FR-192), or if a
-   * person it adds has no account or cannot read the project (FR-031).
+   * each part left out kept. Refused as invalid if a part is not valid (see `validEligibility`,
+   * `validAssignees` and `validLoadOverrides`), if the task is a milestone and would have either
+   * of the first two (FR-192), or if a person it adds has no account or cannot read the project
+   * (FR-031). Overrides left out are kept for the people who stay assigned, and dropped for those
+   * who do not.
    */
   async check(
     executor: Executor,
@@ -76,11 +98,16 @@ export class TaskAssignments {
     input: AssignmentInput,
     current: Assignment,
   ): Promise<Assignment> {
+    const assignees =
+      input.assignees === undefined ? current.assignees : validAssignees(input.assignees)
     const next: Assignment = {
       eligibility:
         input.eligibility === undefined ? current.eligibility : validEligibility(input.eligibility),
-      assignees:
-        input.assignees === undefined ? current.assignees : validAssignees(input.assignees),
+      assignees,
+      loadOverrides:
+        input.loadOverrides === undefined
+          ? keptLoadOverrides(current.loadOverrides, assignees)
+          : validLoadOverrides(input.loadOverrides, assignees),
     }
     if (milestone && next.assignees.length > 0) {
       throw invalid('A milestone takes no time: nobody can be assigned to it')
@@ -96,13 +123,22 @@ export class TaskAssignments {
     return next
   }
 
-  /** Replaces the task's assignees with `assignees`, in their order. */
-  async store(executor: Executor, taskId: string, assignees: readonly string[]): Promise<void> {
+  /** Replaces the task's assignees with those of `assignment`, in their order, with their overrides. */
+  async store(
+    executor: Executor,
+    taskId: string,
+    { assignees, loadOverrides }: Pick<Assignment, 'assignees' | 'loadOverrides'>,
+  ): Promise<void> {
     await executor.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId))
     if (assignees.length === 0) return
-    await executor
-      .insert(taskAssignees)
-      .values(assignees.map((accountId, position) => ({ taskId, accountId, position })))
+    await executor.insert(taskAssignees).values(
+      assignees.map((accountId, position) => ({
+        taskId,
+        accountId,
+        position,
+        loadOverride: loadOverrides[accountId] ?? null,
+      })),
+    )
   }
 
   /**

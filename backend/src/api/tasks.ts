@@ -44,9 +44,11 @@ const task = {
     'durationWorkingDays',
     'effort',
     'aiShare',
+    'personLoad',
     'milestone',
     'eligibility',
     'assignees',
+    'loadOverrides',
     'withoutReadAccess',
     'actualStart',
     'actualFinish',
@@ -65,6 +67,12 @@ const task = {
     }),
     effort: nullable('number'),
     aiShare: nullable('number', { description: 'The share done by AI, in percent' }),
+    personLoad: nullable('number', {
+      description:
+        'The load the task puts on each person assigned to it over its whole duration, in ' +
+        'percent: 100 minus its AI share, or for an AI-only task the percentage it was given. ' +
+        'An assignment may override it for its person. Null for a milestone.',
+    }),
     milestone: {
       type: ['object', 'null'],
       description:
@@ -81,6 +89,13 @@ const task = {
       type: 'array',
       items: person,
       description: 'Who will do the task, in order; empty while nobody is assigned',
+    },
+    loadOverrides: {
+      type: 'object',
+      additionalProperties: { type: 'number' },
+      description:
+        "The load, in percent, that replaces the task's person load for single assignees, by " +
+        'account id; empty while none does',
     },
     withoutReadAccess: {
       type: 'array',
@@ -118,6 +133,12 @@ const fieldProperties = {
   }),
   effort: nullable('number'),
   aiShare: nullable('number', { description: 'The share done by AI, in percent' }),
+  personLoad: nullable('number', {
+    description:
+      "The task's person load, in percent, which can be set only for an AI-only task (AI share " +
+      '100): any number of zero or more, such as 0, 0.5 or 150. Null puts it back to the ' +
+      "default. Any other task's person load is 100 minus its AI share.",
+  }),
   milestone: {
     type: ['object', 'null'],
     description:
@@ -141,6 +162,16 @@ const fieldProperties = {
       'Who will do the task: a list of account ids, each once, in order; empty for nobody. They need not ' +
       'be in the eligibility expression, but everyone added must be able to read the project. ' +
       'Nobody can be assigned to a milestone.',
+  },
+  // No property types, so that Fastify does not coerce a value: the service alone decides what a
+  // valid override is, the same for every channel (DD-039).
+  loadOverrides: {
+    type: 'object',
+    description:
+      "Overrides the task's person load for single assignees: an object from assignee's account " +
+      'id to the load, in percent, a number of zero or more, such as `{ "<id>": 30 }`. It ' +
+      'replaces all the overrides; `{}` removes them. Each key must be one of the assignees. Left ' +
+      'out, the overrides of people who stay assigned are kept.',
   },
 } as const
 
