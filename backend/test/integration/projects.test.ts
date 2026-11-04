@@ -12,8 +12,8 @@ import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 
-// Project creation (SC-017) against a real PostgreSQL: its rules, then the test cases of FR-119
-// and FR-158 through the REST API.
+// Project creation (SC-017) and its name uniqueness check (SC-056) against a real PostgreSQL: their
+// rules, then the test cases of FR-119, FR-120 and FR-158 through the REST API.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -165,6 +165,17 @@ describe('the project service', () => {
         const error = await refused(service.createProject(by(bob), { name: typed }), 'conflict')
         expect(error.message).toBe(`A project named ${name} already exists`)
       }
+    })
+
+    it('keeps apart names longer in bytes than a database index entry can hold', async () => {
+      // 160 family emoji of 25 bytes each: within the length limit, but over 4,000 bytes.
+      const name = `${'\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}'.repeat(160)}-${randomUUID()}`
+      expect(Buffer.byteLength(name)).toBeGreaterThan(4000)
+      const created = await service.createProject(by(alice), { name })
+      expect(created.name).toBe(name)
+      await refused(service.createProject(by(bob), { name }), 'conflict')
+      const near = `${name.slice(0, -1)}${name.endsWith('0') ? '1' : '0'}`
+      expect((await service.createProject(by(bob), { name: near })).name).toBe(near)
     })
 
     it('takes a name differing only in case, which the requirements leave open', async () => {

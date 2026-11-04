@@ -1,5 +1,5 @@
 {
-  "id": "eefd602f-4a28-4f1c-95b3-0c53dcb3e5d2",
+  "id": "cc0a06ec-4a0a-49e5-8eec-2210711c4126",
   "prevId": "b91d290c-8e3f-46c1-8f95-ded0853d9fe7",
   "version": "7",
   "dialect": "postgresql",
@@ -444,9 +444,9 @@
           "name": "projects_name_key",
           "columns": [
             {
-              "expression": "name",
-              "isExpression": false,
+              "expression": "md5(\"name\")",
               "asc": true,
+              "isExpression": true,
               "nulls": "last"
             }
           ],

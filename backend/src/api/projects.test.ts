@@ -84,6 +84,21 @@ describe('POST /api/projects', () => {
     expect(response.json().message).toBe('A project name is required')
   })
 
+  it("answers 409 with the service's message when another project has the name", async () => {
+    const { app, projects } = stubbed()
+    projects.createProject.mockRejectedValue(
+      new ServiceError('conflict', 'A project named Apollo already exists'),
+    )
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: erin,
+      payload: { name: 'Apollo' },
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().message).toBe('A project named Apollo already exists')
+  })
+
   it('refuses a caller no authenticator recognises with 401', async () => {
     const { app, projects } = stubbed()
     const response = await app.inject({

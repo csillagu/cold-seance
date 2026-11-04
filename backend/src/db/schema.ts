@@ -55,8 +55,9 @@ export const projects = pgTable(
       .references(() => accounts.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  // No two projects have the same name (FR-120, SC-056).
-  (table) => [uniqueIndex('projects_name_key').on(table.name)],
+  // No two projects have the same name (FR-120, SC-056). The index holds the name's MD5 rather
+  // than the name: a name of 200 characters can take more bytes than a btree entry can hold.
+  (table) => [uniqueIndex('projects_name_key').on(sql`md5(${table.name})`)],
 )
 
 /** The channels a change can come through (FR-116): the UI, the REST API, the MCP server, GitHub. */
