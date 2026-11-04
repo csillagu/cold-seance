@@ -22,5 +22,6 @@ It delivers:
 - [FR-144](FR-144-derive-a-task-s-planned-finish-from-its-start-and.md): Derive a task's planned finish from its start and duration
 - [FR-146](FR-146-use-the-global-calendar-in-place-of-a-missing-assi.md): Use the global calendar in place of a missing assignee calendar
 - [FR-148](FR-148-never-move-a-task-because-its-assigned-people-beca.md): Never move a task because its assigned people became unable to do it
+- [FR-195](FR-195-place-a-floating-milestone-at-the-finish-of-what-i.md): Place a floating milestone at the finish of what it is blocked by
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect". FR-195 was added for issue #65, from the owner's description of milestones in the design session of 2026-11-04; the owner confirmed putting it in this SC in the same session.

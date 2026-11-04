@@ -13,5 +13,6 @@ It delivers:
 - [FR-029](FR-029-store-assignment-as-a-concrete-list-of-people.md): Store assignment as a concrete list of people
 - [FR-030](FR-030-accept-an-assignment-that-includes-people-outside.md): Accept an assignment that includes people outside the eligibility expression
 - [FR-031](FR-031-reject-eligibility-or-assignment-for-someone-witho.md): Reject eligibility or assignment for someone without read access to the project
+- [FR-192](FR-192-reject-assignees-and-an-eligibility-expression-on.md): Reject assignees and an eligibility expression on a milestone
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect". FR-192 was added for issue #65, from the owner's description of milestones in the design session of 2026-11-04; the owner confirmed putting it in this SC in the same session.
