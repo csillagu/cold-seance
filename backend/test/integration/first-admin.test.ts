@@ -4,8 +4,6 @@ import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { accounts } from '../../src/db/schema.ts'
 import { FirstAdminError, setUpFirstAdmin } from '../../src/service/first-admin.ts'
-import { SessionService } from '../../src/service/sessions.ts'
-import { createServices } from '../../src/service/services.ts'
 import { startBackend } from '../../src/start.ts'
 import { seedAccount } from '../helpers/accounts.ts'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
@@ -124,20 +122,22 @@ describe('the start', () => {
           payload: { username: 'root', password: ROOT.password },
         })
         expect(signedIn.statusCode).toBe(204)
-        // ...and creates alice, which only a system admin can.
-        const { accountId } = await new SessionService(x.db).signIn(ROOT)
-        const alice = await createServices(x.db).accounts.createAccount(
-          { accountId, channel: 'ui' },
-          { username: 'alice', password: 'alice-pw' },
-        )
-        expect(alice).toMatchObject({ username: 'alice', systemAdmin: false })
+        // ...and creates alice through that session, which only a system admin can.
+        const cookie = String(signedIn.headers['set-cookie']).split(';')[0]!
+        const created = await backend.app.inject({
+          method: 'POST',
+          url: '/api/accounts',
+          headers: { cookie },
+          payload: { username: 'alice', password: 'alice-pw' },
+        })
+        expect(created.statusCode).toBe(201)
+        expect(created.json()).toMatchObject({ username: 'alice', systemAdmin: false })
       } finally {
         await backend.app.close()
       }
     })
 
-    // Pending: TC-240 in full: root creates alice through the browser's session, signed in, which
-    // needs the session check (SC-107) and the pages (SC-075, SC-076).
+    // Pending: TC-240 in full: root signs in and creates alice on the pages (SC-075, SC-076).
   })
 
   it('starts without creating anyone when no first system admin is given', async () => {

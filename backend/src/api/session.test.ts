@@ -4,9 +4,9 @@ import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
 import { ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
-import { SIGN_IN_REFUSED } from '../service/sessions.ts'
+import { SIGN_IN_REFUSED, SIGN_OUT_NOT_YOURS } from '../service/sessions.ts'
 import type { Authenticator } from './caller.ts'
-import { SESSION_COOKIE, sessionCookie } from './session.ts'
+import { CLEARED_SESSION_COOKIE, SESSION_COOKIE, sessionCookie } from './session.ts'
 
 // The sign-in route translates requests for the session service and nothing more (DD-039); the
 // rules themselves are tested against the database in test/integration/sessions.test.ts.
@@ -22,16 +22,23 @@ afterEach(async () => {
 /** An authenticator that recognises nobody, as for a browser that is not signed in. */
 const nobody: Authenticator = async () => undefined
 
+/** Recognises a request that names its caller in `x-caller`, as signed in through the UI. */
+const named: Authenticator = async (request) => {
+  const accountId = request.headers['x-caller']
+  return typeof accountId === 'string' ? { accountId, channel: 'ui' } : undefined
+}
+
 function stubbed() {
   const { db, close } = createDatabase('postgres://nobody@unused.invalid/none')
   const services = createServices(db)
   const signIn = vi.spyOn(services.sessions, 'signIn')
-  const app = buildApp({}, { authenticators: [nobody], services })
+  const signOut = vi.spyOn(services.sessions, 'signOut')
+  const app = buildApp({}, { authenticators: [named], services })
   closers.push(async () => {
     await app.close()
     await close()
   })
-  return { app, signIn }
+  return { app, signIn, signOut }
 }
 
 describe('the session cookie', () => {
@@ -88,6 +95,84 @@ describe('POST /api/session', () => {
     const response = await app.inject({ method: 'POST', url: '/api/session', payload })
     expect(response.statusCode).toBe(400)
     expect(signIn).not.toHaveBeenCalled()
+  })
+})
+
+describe('the cleared session cookie', () => {
+  it('is the session cookie, empty, expiring at once, with the same attributes', () => {
+    expect(CLEARED_SESSION_COOKIE.split('; ')).toEqual([
+      `${SESSION_COOKIE}=`,
+      'Path=/',
+      'Max-Age=0',
+      'HttpOnly',
+      'Secure',
+      'SameSite=Strict',
+    ])
+  })
+})
+
+describe('DELETE /api/session', () => {
+  it("signs the caller out of the cookie's session and clears the cookie, with no body", async () => {
+    const { app, signOut } = stubbed()
+    signOut.mockResolvedValue()
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE, cookie: 'theme=dark; __Host-session=the-session-id' },
+    })
+    expect(response.statusCode).toBe(204)
+    expect(response.body).toBe('')
+    expect(response.headers['set-cookie']).toBe(CLEARED_SESSION_COOKIE)
+    expect(signOut).toHaveBeenCalledWith({ accountId: ALICE, channel: 'ui' }, 'the-session-id')
+  })
+
+  it('asks the service nothing when the request carries no session cookie, and still clears it', async () => {
+    const { app, signOut } = stubbed()
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE },
+    })
+    expect(response.statusCode).toBe(204)
+    expect(response.headers['set-cookie']).toBe(CLEARED_SESSION_COOKIE)
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it('refuses a caller no authenticator recognises, before the service is asked', async () => {
+    const { app, signOut } = stubbed()
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { cookie: '__Host-session=the-session-id' },
+    })
+    expect(response.statusCode).toBe(401)
+    expect(response.headers['set-cookie']).toBeUndefined()
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it("answers the service's refusal of someone else's session with 403, leaving the cookie", async () => {
+    const { app, signOut } = stubbed()
+    signOut.mockRejectedValue(new ServiceError('forbidden', SIGN_OUT_NOT_YOURS))
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE, cookie: '__Host-session=bobs-session' },
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.json().message).toBe(SIGN_OUT_NOT_YOURS)
+    expect(response.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('answers a failure of the service as a fault of the backend', async () => {
+    const { app, signOut } = stubbed()
+    signOut.mockRejectedValue(new Error('database down'))
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE, cookie: '__Host-session=the-session-id' },
+    })
+    expect(response.statusCode).toBe(500)
+    expect(response.json().message).toBe('Internal Server Error')
   })
 })
 
