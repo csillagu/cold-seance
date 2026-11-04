@@ -487,7 +487,7 @@ describe('eligibility and assignees through the task routes (SC-005)', () => {
     const body =
       paths['/api/projects/{projectId}/tasks'].post.requestBody.content['application/json'].schema
     expect(body.properties).toHaveProperty('eligibility')
-    expect(body.properties.assignees.type).toBe('array')
+    expect(body.properties.assignees.description).toMatch(/list of account ids/)
     const task =
       paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
     expect(task.required).toEqual(expect.arrayContaining(['eligibility', 'assignees']))

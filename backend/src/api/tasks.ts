@@ -126,11 +126,11 @@ const fieldProperties = {
       'ids and of ANDs and ORs of account ids. Null for none. Everyone it adds must be able to ' +
       'read the project. A milestone has none.',
   },
+  // No type, so that Fastify does not coerce a lone id into a list: the service alone decides what
+  // a list of assignees is, the same for every channel (DD-039).
   assignees: {
-    type: 'array',
-    items: { type: 'string' },
     description:
-      'Who will do the task: account ids, each once, in order; empty for nobody. They need not ' +
+      'Who will do the task: a list of account ids, each once, in order; empty for nobody. They need not ' +
       'be in the eligibility expression, but everyone added must be able to read the project. ' +
       'Nobody can be assigned to a milestone.',
   },

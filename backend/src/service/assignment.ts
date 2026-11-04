@@ -116,8 +116,12 @@ export class TaskAssignments {
       .where(inArray(accounts.id, unique))
     const ids = new Set(known.map((row) => row.id))
     for (const person of unique) {
-      if (!ids.has(person)) throw invalid(`There is no person with the account ${person}`)
-      if (!allows(await this.#roles.roleOf(person, projectId, executor), 'read')) {
+      // Someone with no account is refused as someone who cannot read the project, so that the
+      // refusal does not tell which ids are accounts.
+      if (
+        !ids.has(person) ||
+        !allows(await this.#roles.roleOf(person, projectId, executor), 'read')
+      ) {
         throw invalid(
           `The person ${person} cannot read this project, so cannot be ${what} its tasks`,
         )

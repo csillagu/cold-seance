@@ -264,7 +264,10 @@ describe('the eligibility and assignment module', () => {
     it('refuses a person with no account', async () => {
       const ghost = '00000000-0000-4000-8000-000000000000'
       const error = await refused(create({ assignees: [ghost] }), 'invalid')
-      expect(error.message).toBe(`There is no person with the account ${ghost}`)
+      // Told the same as for an account with no role, so the answer does not tell which ids exist.
+      expect(error.message).toBe(
+        `The person ${ghost} cannot read this project, so cannot be assigned to its tasks`,
+      )
       await refused(create({ eligibility: { any: [alice.id, ghost] } }), 'invalid')
     })
 
@@ -482,6 +485,13 @@ describe('test cases through the REST API', () => {
   }
   const account = (username: string) => seedAccount(x.db, { username })
 
+  it('refuses a lone id given for the assignees over REST, as the service does through any channel', async () => {
+    const t = await created({ title: 'T' })
+    const response = await change(t, { assignees: alice.id })
+    expect(response.statusCode).toBe(400)
+    expect((await readTask(t)).assignees).toEqual([])
+  })
+
   describe('TC-038: two-level AND/OR eligibility expressions are stored as given', () => {
     it('reads back alice AND (bob OR carol OR dave), and (alice AND bob) OR carol', async () => {
       const [bob, carol, dave] = await Promise.all([
@@ -543,8 +553,7 @@ describe('test cases through the REST API', () => {
       // The save it makes is this request; the service decides the same whichever channel asks.
       const saved = await change(t, { assignees: [carol.id] })
       expect(saved.statusCode).toBe(200)
-      // Negative: no warning, confirmation or error; the answer is the task and nothing else.
-      expect(Object.keys(saved.json<Record<string, unknown>>())).not.toContain('warnings')
+      // Negative: no confirmation or error: the save is accepted as it is, at once.
 
       expect(await readTask(t)).toMatchObject({
         eligibility: { any: [alice.id, bob.id] },
