@@ -1,5 +1,5 @@
 {
-  "id": "568249d6-fdc3-45c0-91bc-384abc27be6b",
+  "id": "ce098b82-3e7c-4506-b2d7-b0a226698d88",
   "prevId": "e9385c5b-63f9-468a-b4ef-a4009a2fe152",
   "version": "7",
   "dialect": "postgresql",
@@ -1560,7 +1560,7 @@
         },
         "tasks_ai_only_load": {
           "name": "tasks_ai_only_load",
-          "value": "\"tasks\".\"ai_only_load\" is null or (\"tasks\".\"ai_share\" = 100 and \"tasks\".\"ai_only_load\" >= 0)"
+          "value": "\"tasks\".\"ai_only_load\" is null or (\"tasks\".\"ai_share\" is not distinct from 100 and \"tasks\".\"ai_only_load\" >= 0)"
         },
         "tasks_milestone_date_iff_fixed": {
           "name": "tasks_milestone_date_iff_fixed",

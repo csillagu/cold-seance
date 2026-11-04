@@ -171,6 +171,10 @@ describe('the person-load percentage rules', () => {
       await expect(
         x.db.update(tasks).set({ aiShare: 100, aiOnlyLoad: -1 }).where(eq(tasks.id, task.id)),
       ).rejects.toMatchObject({ cause: { code: '23514', constraint: 'tasks_ai_only_load' } })
+      // Nor a task with no AI share given, a normal task.
+      await expect(
+        x.db.update(tasks).set({ aiShare: null, aiOnlyLoad: 5 }).where(eq(tasks.id, task.id)),
+      ).rejects.toMatchObject({ cause: { code: '23514', constraint: 'tasks_ai_only_load' } })
     })
   })
 
@@ -459,6 +463,8 @@ describe('test cases through the REST API', () => {
       expect(changed.statusCode).toBe(200)
 
       const read = await readTask(t.id)
+      // Only alice's assignment is overridden, to 30%; bob has the task's own.
+      expect(read.loadOverrides).toEqual({ [alice.id]: 30 })
       expect(assignmentLoad(read, alice.id)).toBe(30)
       expect(assignmentLoad(read, bob.id)).toBe(100)
       // Negative: T's own person-load percentage is still 100%, its AI share still 0%.
@@ -479,7 +485,8 @@ describe('test cases through the REST API', () => {
   })
 
   // TC-221 (the UI offers 1% as an AI-only task's default load) is pending: it is a test of the
-  // assignment editor (SC-100) in the browser, part of the frontend lane (F5).
+  // assignment editor (SC-100) in the browser, part of the frontend lane (F5). It is not an
+  // \`it.todo\`, which the lint refuses.
 
   it('refuses over REST what the service refuses, as 400', async () => {
     const t = await createTask({ title: 'T', aiShare: 50, assignees: [alice.id] })
@@ -488,5 +495,13 @@ describe('test cases through the REST API', () => {
     expect((await change(t.id, { loadOverrides: { [alice.id]: '30' } })).statusCode).toBe(400)
     expect((await change(t.id, { loadOverrides: [30] })).statusCode).toBe(400)
     expect(await readTask(t.id)).toMatchObject({ personLoad: 50, loadOverrides: {} })
+  })
+
+  it('takes no person load over REST that the service would not take, uncoerced', async () => {
+    const t = await createTask({ title: 'T', aiShare: 100 })
+    for (const personLoad of [true, '5', '']) {
+      expect((await change(t.id, { personLoad })).statusCode).toBe(400)
+    }
+    expect((await readTask(t.id)).personLoad).toBe(0)
   })
 })

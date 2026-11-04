@@ -298,7 +298,7 @@ export const tasks = pgTable(
     check('tasks_ai_share_percentage', sql`${table.aiShare} between 0 and 100`),
     check(
       'tasks_ai_only_load',
-      sql`${table.aiOnlyLoad} is null or (${table.aiShare} = 100 and ${table.aiOnlyLoad} >= 0)`,
+      sql`${table.aiOnlyLoad} is null or (${table.aiShare} is not distinct from 100 and ${table.aiOnlyLoad} >= 0)`,
     ),
     check(
       'tasks_milestone_date_iff_fixed',

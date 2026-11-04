@@ -133,12 +133,14 @@ const fieldProperties = {
   }),
   effort: nullable('number'),
   aiShare: nullable('number', { description: 'The share done by AI, in percent' }),
-  personLoad: nullable('number', {
+  // No type, so that Fastify does not coerce a value: the service alone decides what a valid
+  // person load is, the same for every channel (DD-039).
+  personLoad: {
     description:
       "The task's person load, in percent, which can be set only for an AI-only task (AI share " +
       '100): any number of zero or more, such as 0, 0.5 or 150. Null puts it back to the ' +
       "default. Any other task's person load is 100 minus its AI share.",
-  }),
+  },
   milestone: {
     type: ['object', 'null'],
     description:
