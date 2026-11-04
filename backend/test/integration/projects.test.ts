@@ -11,6 +11,7 @@ import { PROJECT_NAME_MAX_LENGTH, ProjectService } from '../../src/service/proje
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
+import { groupTable } from '../helpers/group-roles.ts'
 
 // Project creation (SC-017) and its name uniqueness check (SC-056) against a real PostgreSQL: their
 // rules, then the test cases of FR-119, FR-120 and FR-158 through the REST API.
@@ -228,6 +229,21 @@ describe('the project service', () => {
       const project = await service.createProject(by(owner), { name: fresh('Shared') })
       await roles.setRole(by(owner), project.id, guest.id, 'read-only')
       expect(await service.listProjects(by(guest))).toEqual([project])
+    })
+
+    it('lists a project reached through a group, and drops it once it is not', async () => {
+      const groups = groupTable()
+      const audit = new AuditLogService(x.db)
+      const grouped = new ProjectService(x.db, audit, new ProjectRoleService(x.db, audit, groups))
+      const owner = await seedAccount(x.db, { username: fresh('owner') })
+      const member = await seedAccount(x.db, { username: fresh('member') })
+      const own = await service.createProject(by(member), { name: fresh('Own') })
+      const reached = await service.createProject(by(owner), { name: fresh('Grouped') })
+      expect(await grouped.listProjects(by(member))).toEqual([own])
+      groups.give(member, reached.id, 'read-only')
+      expect(await grouped.listProjects(by(member))).toEqual([reached, own])
+      groups.takeAway(member, reached.id)
+      expect(await grouped.listProjects(by(member))).toEqual([own])
     })
 
     it('lists nothing for someone with no role, or a caller id that is not a UUID', async () => {

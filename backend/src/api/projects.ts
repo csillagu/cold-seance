@@ -13,7 +13,7 @@ const project = {
 
 /**
  * The routes of projects (SC-017, SC-051, SC-116, SC-026): create a project, list the projects the
- * caller holds a role in, search the projects they can read by part of the name, and read one,
+ * caller can read, search the projects they can read by part of the name, and read one,
  * which someone who cannot see it is told is not visible to them.
  * They only translate the request; the project service decides what is allowed (DD-039).
  */

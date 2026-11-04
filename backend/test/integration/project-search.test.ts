@@ -107,7 +107,15 @@ describe('the project search', () => {
       const alice = await person()
       await project(alice, `Apollo ${randomUUID()}`)
       expect(await service.searchProjects(by(alice), 'Apolo')).toEqual([])
-      expect(await service.searchProjects(by(alice), 'Apollo  ')).toEqual([])
+      expect(await service.searchProjects(by(alice), 'Apollo  X')).toEqual([])
+    })
+
+    it('trims the search text, so spaces around it do not stop a match', async () => {
+      const alice = await person()
+      const apollo = await project(alice, `Apollo ${randomUUID()}`)
+      for (const text of ['  apollo', 'APOLLO  ', '\tapollo\n', ' apollo ']) {
+        expect(await service.searchProjects(by(alice), text)).toEqual([apollo])
+      }
     })
 
     it('takes the characters % _ and \\ in the text as themselves, not as patterns', async () => {
@@ -126,6 +134,7 @@ describe('the project search', () => {
       const one = await project(alice, `One ${randomUUID()}`)
       const two = await project(alice, `Two ${randomUUID()}`)
       expect(await service.searchProjects(by(alice), '')).toEqual([one, two])
+      expect(await service.searchProjects(by(alice), '   ')).toEqual([one, two])
     })
   })
 
