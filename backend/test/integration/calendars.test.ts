@@ -258,7 +258,7 @@ describe('the calendar service', () => {
     })
 
     it('adds and removes more holidays than one statement can take, in either calendar', async () => {
-      const many = daysFrom('1900-01-01', '2009-07-06')
+      const many = daysFrom('1900-01-01', '2009-12-31')
       expect(many.length).toBeGreaterThan(40_000)
       const own = await service.changePersonalCalendar(by(alice), alice.id, { addHolidays: many })
       expect(own.holidays).toEqual(many)
