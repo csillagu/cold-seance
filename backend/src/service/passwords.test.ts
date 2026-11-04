@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { argon2idMatches } from '../../test/helpers/passwords.ts'
-import { ARGON2ID, hashPassword } from './passwords.ts'
+import { argon2Sync } from 'node:crypto'
+import { ARGON2ID, hashPassword, verifyPassword } from './passwords.ts'
 
 const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
 
@@ -49,5 +50,62 @@ describe('argon2idMatches (test helper)', () => {
   it('refuses a string that is not an Argon2id PHC string', () => {
     expect(argon2idMatches('plain-text-secret', 'plain-text-secret')).toBe(false)
     expect(argon2idMatches('$argon2i$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA', 'x')).toBe(false)
+  })
+})
+
+const SALT = 'c2FsdHNhbHRzYWx0c2FsdA'
+const TAG = 'dGFndGFndGFndGFndGFndGFndGFndGFndGFndGFndGE'
+
+describe('verifyPassword', () => {
+  it('matches the password a hash was made from, and no other', async () => {
+    const hash = await hashPassword('correct horse battery staple')
+    expect(await verifyPassword(hash, 'correct horse battery staple')).toBe(true)
+    expect(await verifyPassword(hash, 'correct horse battery stapler')).toBe(false)
+    expect(await verifyPassword(hash, '')).toBe(false)
+  })
+
+  it('checks a hash with the parameters and salt it names, not the current ones', async () => {
+    // An Argon2id hash made with other parameters, as an older or newer setting might have.
+    const tag = argon2Sync('argon2id', {
+      message: 'pw',
+      nonce: Buffer.from(SALT, 'base64'),
+      memory: 8192,
+      passes: 3,
+      parallelism: 1,
+      tagLength: 32,
+    })
+      .toString('base64')
+      .replace(/=+$/, '')
+    const other = ['', 'argon2id', 'v=19', 'm=8192,t=3,p=1', SALT, tag].join('$')
+    expect(await verifyPassword(other, 'pw')).toBe(true)
+    expect(await verifyPassword(other, 'px')).toBe(false)
+  })
+
+  it.each([
+    ['not a PHC string', 'plain text'],
+    ['another algorithm', ['', 'argon2i', 'v=19', 'm=19456,t=2,p=1', SALT, TAG].join('$')],
+    ['an empty string', ''],
+  ])('matches no password against %s', async (_, hash) => {
+    expect(await verifyPassword(hash, 'plain text')).toBe(false)
+  })
+
+  it.each([
+    ['too much memory', 'm=77825,t=2,p=1'],
+    ['too many passes', 'm=19456,t=9,p=1'],
+    ['too many lanes', 'm=19456,t=2,p=5'],
+  ])(
+    'refuses to check a hash asking for %s, more than a few times what new hashes use',
+    async (_, params) => {
+      const hash = ['', 'argon2id', 'v=19', params, SALT, TAG].join('$')
+      expect(await verifyPassword(hash, 'pw')).toBe(false)
+    },
+  )
+
+  it('matches no password against a hash whose parameters Argon2id cannot use', async () => {
+    // Too little memory for its lanes, and a tag too short: Argon2id computes neither.
+    const tooLittleMemory = ['', 'argon2id', 'v=19', 'm=1,t=2,p=1', SALT, TAG].join('$')
+    const tooShortTag = ['', 'argon2id', 'v=19', 'm=19456,t=2,p=1', SALT, 'dGE'].join('$')
+    expect(await verifyPassword(tooLittleMemory, 'pw')).toBe(false)
+    expect(await verifyPassword(tooShortTag, 'pw')).toBe(false)
   })
 })

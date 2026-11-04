@@ -153,3 +153,14 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC-106 | implemented | #41 | https://github.com/csillagu/cold-seance/pull/42 |
 | SC-015 | implemented | #43 | https://github.com/csillagu/cold-seance/pull/44 |
 | SC-013 | implemented | #45 | https://github.com/csillagu/cold-seance/pull/46 |
+| SC-014 | implemented | #47 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-016 | implemented | #48 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-017 | implemented | #49 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-049 | implemented | #51 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-050 | implemented | #52 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-051 | implemented | #53 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-052 | implemented | #54 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-053 | implemented | #55 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-054 | implemented | #56 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-055 | implemented | #57 | https://github.com/csillagu/cold-seance/pull/50 |
+| SC-056 | implemented | #58 | https://github.com/csillagu/cold-seance/pull/50 |

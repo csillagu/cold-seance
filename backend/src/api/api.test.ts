@@ -333,13 +333,19 @@ describe('the service layer', () => {
 
   it("serves the backend's own route groups by default, failing a route that needs the missing service layer as a fault", async () => {
     const app = appWith({ authenticators: [aliceByHeader] })
-    for (const url of ['/api/accounts', '/api/audit-log']) {
+    for (const url of [
+      '/api/accounts',
+      '/api/audit-log',
+      '/api/projects/6f1c2a5e-0000-4000-8000-0000000000a1/members',
+      '/api/tokens',
+      '/api/projects',
+    ]) {
       const response = await app.inject({ method: 'GET', url, headers: { authorization: TOKEN } })
       expect(response.statusCode).toBe(500)
       expect(response.json()).toMatchObject({ message: 'Internal Server Error' })
     }
     expect(routeGroups.map((g) => g.prefix)).toEqual(
-      expect.arrayContaining(['/accounts', '/audit-log']),
+      expect.arrayContaining(['/accounts', '/audit-log', '/projects', '/tokens']),
     )
   })
 })

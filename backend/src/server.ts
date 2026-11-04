@@ -1,5 +1,6 @@
 import { ConfigError } from './config/config.ts'
 import { MigrationError } from './db/migrate.ts'
+import { FirstAdminError } from './service/first-admin.ts'
 import { closeOnSignals, listen, startBackend } from './start.ts'
 
 // Until the backend is up, a stop (docker stop sends SIGTERM) ends the start at once: as the
@@ -16,7 +17,13 @@ let backend
 try {
   backend = await startBackend({ server: { logger: true } })
 } catch (error) {
-  if (!(error instanceof ConfigError || error instanceof MigrationError)) throw error
+  if (!(
+    error instanceof ConfigError ||
+    error instanceof MigrationError ||
+    error instanceof FirstAdminError
+  )) {
+    throw error
+  }
   console.error(error.message)
   process.exit(1)
 }

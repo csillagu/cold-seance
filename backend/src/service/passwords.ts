@@ -1,4 +1,4 @@
-import { argon2, randomBytes } from 'node:crypto'
+import { argon2, randomBytes, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 
 const argon2Async = promisify(argon2)
@@ -33,4 +33,47 @@ export async function hashPassword(password: string): Promise<string> {
 
 function unpadded(bytes: Buffer): string {
   return bytes.toString('base64').replace(/=+$/, '')
+}
+
+const PHC = /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/
+
+/**
+ * The bounds a stored hash's parameters must keep within to be checked at all: a few times the
+ * parameters new hashes are made with, so that a hash written by hand cannot make one sign-in
+ * take far longer, or far more memory, than any other.
+ */
+const MAX_MEMORY = 4 * ARGON2ID.memory
+const MAX_PASSES = 4 * ARGON2ID.passes
+const MAX_PARALLELISM = 4
+
+/**
+ * Whether `password` is the password `hash`, a PHC string written by `hashPassword`, was made
+ * from (DD-056): recomputes the Argon2id hash with the salt and parameters the string names and
+ * compares the two in constant time. A string that is not such a hash matches no password.
+ */
+export async function verifyPassword(hash: string, password: string): Promise<boolean> {
+  const match = PHC.exec(hash)
+  if (!match) return false
+  const [, memory, passes, parallelism, salt = '', tag = ''] = match
+  const params = {
+    memory: Number(memory),
+    passes: Number(passes),
+    parallelism: Number(parallelism),
+  }
+  if (
+    params.memory > MAX_MEMORY ||
+    params.passes > MAX_PASSES ||
+    params.parallelism > MAX_PARALLELISM
+  ) {
+    return false
+  }
+  const expected = Buffer.from(tag, 'base64')
+  const actual = await argon2Async('argon2id', {
+    message: password,
+    nonce: Buffer.from(salt, 'base64'),
+    ...params,
+    tagLength: expected.length,
+  }).catch(() => undefined)
+  // The same length by construction: the tag length is the stored hash's own.
+  return actual !== undefined && timingSafeEqual(actual, expected)
 }

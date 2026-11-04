@@ -14,8 +14,9 @@ const account = {
 
 /**
  * The routes of account administration (SC-015, SC-026): list the accounts, create one, and make
- * someone a system admin. They only translate the request; the account service decides who may do
- * what (DD-039).
+ * someone a system admin; and of the GitHub account link (SC-054): read and set the GitHub account
+ * a person's account is linked to. They only translate the request; the services decide who may
+ * do what (DD-039).
  */
 export const accountRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
   group.get(
@@ -61,5 +62,50 @@ export const accountRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group
       },
     },
     async (request) => services.accounts.makeSystemAdmin(callerOf(request), request.body.accountId),
+  )
+
+  const link = {
+    type: 'object',
+    required: ['accountId', 'githubLogin'],
+    properties: {
+      accountId: { type: 'string', format: 'uuid' },
+      githubLogin: {
+        type: ['string', 'null'],
+        description: 'The name of the linked GitHub account; null until one is linked.',
+      },
+    },
+  } as const
+  const accountParams = {
+    type: 'object',
+    required: ['accountId'],
+    properties: { accountId: { type: 'string', format: 'uuid' } },
+  } as const
+
+  group.get<{ Params: { accountId: string } }>(
+    '/:accountId/github',
+    { schema: { params: accountParams, response: { 200: link } } },
+    async (request) => services.githubLinks.linkOf(callerOf(request), request.params.accountId),
+  )
+
+  group.put<{ Params: { accountId: string }; Body: { githubLogin: string } }>(
+    '/:accountId/github',
+    {
+      schema: {
+        params: accountParams,
+        body: {
+          type: 'object',
+          required: ['githubLogin'],
+          properties: { githubLogin: { type: 'string' } },
+          additionalProperties: false,
+        },
+        response: { 200: link },
+      },
+    },
+    async (request) =>
+      services.githubLinks.link(
+        callerOf(request),
+        request.params.accountId,
+        request.body.githubLogin,
+      ),
   )
 }

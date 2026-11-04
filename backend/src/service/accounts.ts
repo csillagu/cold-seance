@@ -1,10 +1,12 @@
-import { and, asc, DrizzleQueryError, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { violates } from './db-errors.ts'
 import { ServiceError } from './errors.ts'
 import { hashPassword } from './passwords.ts'
+import { characters } from './text.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 
 /** An account as the service layer hands it out: never with its password hash. */
@@ -62,22 +64,7 @@ export class AccountService {
    */
   async createAccount(caller: Caller, account: NewAccount): Promise<Account> {
     await this.#requireSystemAdmin(caller)
-    // In one Unicode form, so that the same name typed two ways is one username.
-    const username = account.username.normalize('NFC').trim()
-    if (username === '') throw new ServiceError('invalid', 'A username is required')
-    if (characters(username) > USERNAME_MAX_LENGTH) {
-      throw new ServiceError(
-        'invalid',
-        `A username can have at most ${USERNAME_MAX_LENGTH} characters`,
-      )
-    }
-    if (account.password === '') throw new ServiceError('invalid', 'A password is required')
-    if (characters(account.password) > PASSWORD_MAX_LENGTH) {
-      throw new ServiceError(
-        'invalid',
-        `A password can have at most ${PASSWORD_MAX_LENGTH} characters`,
-      )
-    }
+    const username = checkNewAccount(account)
 
     const passwordHash = await hashPassword(account.password)
     // The unique index on the lower-cased username decides, so two concurrent requests for the
@@ -155,22 +142,34 @@ export class AccountService {
   }
 }
 
-/** Whether a database error is a violation of the given unique index (PostgreSQL's 23505). */
-function violates(error: unknown, index: string): boolean {
-  const cause = error instanceof DrizzleQueryError ? error.cause : error
-  return (
-    typeof cause === 'object' &&
-    cause !== null &&
-    'code' in cause &&
-    cause.code === '23505' &&
-    'constraint' in cause &&
-    cause.constraint === index
-  )
+/**
+ * What is wrong with the username and password a new account is to have, if anything: an empty or
+ * too long username, or an empty or too long password.
+ */
+export function newAccountProblem(account: NewAccount): string | undefined {
+  const username = keptUsername(account.username)
+  if (username === '') return 'A username is required'
+  if (characters(username) > USERNAME_MAX_LENGTH) {
+    return `A username can have at most ${USERNAME_MAX_LENGTH} characters`
+  }
+  if (account.password === '') return 'A password is required'
+  if (characters(account.password) > PASSWORD_MAX_LENGTH) {
+    return `A password can have at most ${PASSWORD_MAX_LENGTH} characters`
+  }
+  return undefined
 }
 
-/** The length of a text as a person counts it: in characters, an emoji or accented letter as one. */
-function characters(text: string): number {
-  let count = 0
-  for (const _ of new Intl.Segmenter().segment(text)) count++
-  return count
+/** A username as it is kept: trimmed, in one Unicode form, so the same name typed two ways is one. */
+export function keptUsername(username: string): string {
+  return username.normalize('NFC').trim()
+}
+
+/**
+ * Checks the username and password a new account is to have, and answers the username as it is
+ * kept. Refused, as `invalid`, with what `newAccountProblem` finds.
+ */
+export function checkNewAccount(account: NewAccount): string {
+  const problem = newAccountProblem(account)
+  if (problem !== undefined) throw new ServiceError('invalid', problem)
+  return keptUsername(account.username)
 }

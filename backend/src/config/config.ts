@@ -61,6 +61,11 @@ export interface Config {
     /** The interval of the re-check of linked issues, one hour unless set (SRC-213). */
     recheckIntervalMinutes: number
   }
+  /**
+   * The first system admin, created at start while there is no system admin yet (FR-165, SC-053),
+   * and ignored once one exists. Given by environment variables, or in the file.
+   */
+  firstAdmin: { username: string; password: string } | undefined
 }
 
 type Kind = 'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' | 'host' | 'port'
@@ -89,7 +94,7 @@ export const defaultRecheckIntervalMinutes = 60
 export const defaultServerHost = '127.0.0.1'
 export const defaultServerPort = 3000
 
-/** Every setting named in DD-059, the listen address included. */
+/** Every setting named in DD-059, the listen address and the first system admin (FR-165) included. */
 export const settings: readonly Setting[] = [
   { path: ['server', 'host'], kind: 'host', required: false },
   { path: ['server', 'port'], kind: 'port', required: false },
@@ -111,6 +116,8 @@ export const settings: readonly Setting[] = [
   })),
   { path: ['github', 'webhookSecret'], kind: 'secret', required: false },
   { path: ['github', 'recheckIntervalMinutes'], kind: 'positiveInteger', required: false },
+  { path: ['firstAdmin', 'username'], kind: 'secret', required: false },
+  { path: ['firstAdmin', 'password'], kind: 'secret', required: false },
 ]
 
 /** `['github', 'apps', 'readIssues', 'appId']` → `COLD_SEANCE_GITHUB_APPS_READ_ISSUES_APP_ID`. */
@@ -205,6 +212,17 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
   for (const [fn, { app, token }] of access) {
     if (app === token) problems.push(githubFunctionProblem(fn, app))
   }
+  // The first system admin needs both a username and a password to be created and to sign in.
+  const firstAdmin = (part: string) =>
+    settings.find((s) => s.path.join('.') === `firstAdmin.${part}`)!
+  if (
+    (raws.get(firstAdmin('username')) === undefined) !==
+    (raws.get(firstAdmin('password')) === undefined)
+  ) {
+    problems.push(
+      `${settingName(firstAdmin('username'))} and ${settingName(firstAdmin('password'))} are given together or not at all`,
+    )
+  }
 
   if (problems.length > 0) throw new ConfigError(problems)
 
@@ -242,7 +260,15 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
         values.numbers.get(key('github', 'recheckIntervalMinutes')) ??
         defaultRecheckIntervalMinutes,
     },
+    firstAdmin: firstAdminOf(values.strings),
   }
+}
+
+/** The first system admin's username and password, if both are given. */
+function firstAdminOf(strings: Map<string, string>): Config['firstAdmin'] {
+  const username = strings.get('firstAdmin.username')
+  const password = strings.get('firstAdmin.password')
+  return username !== undefined && password !== undefined ? { username, password } : undefined
 }
 
 /** A GitHub function given both an App and a token (`both`), or neither, named with its settings. */

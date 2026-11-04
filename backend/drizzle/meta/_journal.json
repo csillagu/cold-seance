@@ -15,6 +15,48 @@
       "when": 1793742506427,
       "tag": "0001_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793747361152,
+      "tag": "0002_project_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793747658321,
+      "tag": "0003_api_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793747973840,
+      "tag": "0004_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793749461549,
+      "tag": "0005_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793750207650,
+      "tag": "0006_github_login",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793750852253,
+      "tag": "0007_project_name_unique",
+      "breakpoints": true
     }
   ]
 }

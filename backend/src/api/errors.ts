@@ -4,11 +4,17 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import { ServiceError, type ServiceErrorKind } from '../service/errors.ts'
 
 const STATUS: Record<ServiceErrorKind, number> = {
+  unauthenticated: 401,
   invalid: 400,
   forbidden: 403,
+  // Not 404: the answer must not suggest that the project might not exist (FR-017).
+  'not-visible': 403,
   'not-found': 404,
   conflict: 409,
 }
+
+/** The `error` of the response to a request about a project the caller cannot see (SC-051). */
+export const NOT_VISIBLE = 'Not Visible'
 
 /** The body of every REST API error response, in the shape Fastify uses for its own errors. */
 export interface ApiErrorBody {
@@ -17,8 +23,8 @@ export interface ApiErrorBody {
   message: string
 }
 
-export function errorBody(statusCode: number, message: string): ApiErrorBody {
-  return { statusCode, error: STATUS_CODES[statusCode] ?? 'Error', message }
+export function errorBody(statusCode: number, message: string, error?: string): ApiErrorBody {
+  return { statusCode, error: error ?? STATUS_CODES[statusCode] ?? 'Error', message }
 }
 
 /** Thrown when no authenticator recognises the caller of a REST API request. */
@@ -43,10 +49,14 @@ export function handleApiError(
 ): FastifyReply {
   if (error instanceof ServiceError) {
     const statusCode = STATUS[error.kind]
-    return reply.code(statusCode).send(errorBody(statusCode, error.message))
+    // A project the caller cannot see is named for what it is, not "Forbidden", which reads as
+    // "no permission" (FR-017), and so a client can tell it from a refusal by role.
+    const name = error.kind === 'not-visible' ? NOT_VISIBLE : undefined
+    return reply.code(statusCode).send(errorBody(statusCode, error.message, name))
   }
   if (error instanceof UnauthenticatedError) {
-    return reply.code(401).send(errorBody(401, error.message))
+    // How to authenticate: with an API token (RFC 6750), or the browser's session cookie.
+    return reply.code(401).header('www-authenticate', 'Bearer').send(errorBody(401, error.message))
   }
   const statusCode = isFastifyClientError(error) ? error.statusCode : undefined
   if (statusCode !== undefined) {

@@ -40,6 +40,8 @@ function stubbed() {
     listAccounts: vi.spyOn(services.accounts, 'listAccounts'),
     createAccount: vi.spyOn(services.accounts, 'createAccount'),
     makeSystemAdmin: vi.spyOn(services.accounts, 'makeSystemAdmin'),
+    link: vi.spyOn(services.githubLinks, 'link'),
+    linkOf: vi.spyOn(services.githubLinks, 'linkOf'),
   }
   const app = buildApp({}, { authenticators: [asRoot], services })
   closers.push(async () => {
@@ -191,5 +193,93 @@ describe('POST /api/accounts/system-admins', () => {
     })
     expect(response.statusCode).toBe(404)
     expect(response.json()).toMatchObject({ message: 'There is no such account' })
+  })
+})
+
+describe('the GitHub account link routes', () => {
+  const caller = { accountId: ROOT, channel: 'rest-api' }
+
+  it("GET reads the person's link from the service", async () => {
+    const { app, accounts } = stubbed()
+    accounts.linkOf.mockResolvedValue({ accountId: ERIN.id, githubLogin: 'tc-erin' })
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/accounts/${ERIN.id}/github`,
+      headers: root,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ accountId: ERIN.id, githubLogin: 'tc-erin' })
+    expect(accounts.linkOf).toHaveBeenCalledWith(caller, ERIN.id)
+  })
+
+  it('GET sends an account with no link with a null name', async () => {
+    const { app, accounts } = stubbed()
+    accounts.linkOf.mockResolvedValue({ accountId: ERIN.id, githubLogin: null })
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/accounts/${ERIN.id}/github`,
+      headers: root,
+    })
+    expect(response.json()).toEqual({ accountId: ERIN.id, githubLogin: null })
+  })
+
+  it('PUT hands the service the person and the name, and sends the link', async () => {
+    const { app, accounts } = stubbed()
+    accounts.link.mockResolvedValue({ accountId: ERIN.id, githubLogin: 'tc-erin' })
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/accounts/${ERIN.id}/github`,
+      headers: root,
+      payload: { githubLogin: 'tc-erin' },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ accountId: ERIN.id, githubLogin: 'tc-erin' })
+    expect(accounts.link).toHaveBeenCalledWith(caller, ERIN.id, 'tc-erin')
+  })
+
+  it.each([
+    ['no name', {}],
+    ['a name that is not text', { githubLogin: { name: 'tc-erin' } }],
+  ])('PUT refuses %s before the service is asked', async (_, payload) => {
+    const { app, accounts } = stubbed()
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/accounts/${ERIN.id}/github`,
+      headers: root,
+      payload,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(accounts.link).not.toHaveBeenCalled()
+  })
+
+  it('refuses an account id that is not a UUID before the service is asked', async () => {
+    const { app, accounts } = stubbed()
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/accounts/erin/github',
+      headers: root,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(accounts.linkOf).not.toHaveBeenCalled()
+  })
+
+  it("answers 409 with the service's message for a GitHub account linked to someone else", async () => {
+    const { app, accounts } = stubbed()
+    accounts.link.mockRejectedValue(
+      new ServiceError(
+        'conflict',
+        'The GitHub account tc-erin is already linked to another account',
+      ),
+    )
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/accounts/${ERIN.id}/github`,
+      headers: root,
+      payload: { githubLogin: 'tc-erin' },
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().message).toBe(
+      'The GitHub account tc-erin is already linked to another account',
+    )
   })
 })

@@ -3,7 +3,7 @@ import type { Database, Executor } from '../db/client.ts'
 import { accounts, auditLog } from '../db/schema.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 import type { Caller, Channel } from './caller.ts'
-import { ServiceError } from './errors.ts'
+import { notVisible, ServiceError } from './errors.ts'
 import { noProjectRoles, type ProjectRole, type ProjectRoles } from './project-roles.ts'
 
 /**
@@ -174,6 +174,8 @@ export class AuditLogService {
       projectId !== undefined && isUuid(projectId) && isUuid(caller.accountId)
         ? await this.#roles.roleOf(caller.accountId, projectId)
         : undefined
+    // Someone with no role in the project cannot see it at all (FR-017).
+    if (projectId !== undefined && role === undefined) throw notVisible()
     if (role === undefined || !READER_ROLES.has(role)) {
       throw new ServiceError(
         'forbidden',

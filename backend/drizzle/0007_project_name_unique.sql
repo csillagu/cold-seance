@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "projects_name_key" ON "projects" USING btree (md5("name"));

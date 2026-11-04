@@ -14,17 +14,21 @@ import {
 } from '../../src/service/audit.ts'
 import { CHANNELS, type Caller, type Channel } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
-import type { ProjectRole, ProjectRoles } from '../../src/service/project-roles.ts'
-import type { Services } from '../../src/service/services.ts'
+import {
+  ProjectRoleService,
+  type ProjectRole,
+  type ProjectRoles,
+} from '../../src/service/project-roles.ts'
+import { createServices, type Services } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
+import { grantRole, insertProject } from '../helpers/projects.ts'
 
 // The audit log (SC-013) against a real PostgreSQL: the rules of recording and reading it, then
 // the test cases of FR-116, FR-138, FR-139 and FR-164, as far as the parts built so far reach.
 //
-// The project role store (SC-014) does not exist yet. The tests hand the audit log a table of
-// roles in its place, through the same `ProjectRoles` interface the store will fill; projects
-// (SC-017) do not exist either, so a project here is only an id.
+// The roles come from the project role store (SC-014), and the projects (SC-017) and roles are
+// given straight in their tables.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -33,12 +37,14 @@ const via = (account: Seeded, channel: Channel = 'ui'): Caller => ({
   channel,
 })
 
-/** Project roles from a table, standing in for the project role store (SC-014). */
-function roleTable(): ProjectRoles & { grant(a: Seeded, p: string, role: ProjectRole): void } {
-  const roles = new Map<string, ProjectRole>()
+/** The project role store (SC-014) over the test database, with a way to give roles directly. */
+function roleTable(db: Database): ProjectRoles & {
+  grant(a: Seeded, p: string, role: ProjectRole): Promise<void>
+} {
+  const store = new ProjectRoleService(db, new AuditLogService(db))
   return {
-    grant: (account, projectId, role) => roles.set(`${account.id}/${projectId}`, role),
-    roleOf: async (accountId, projectId) => roles.get(`${accountId}/${projectId}`),
+    grant: (account, projectId, role) => grantRole(db, account, projectId, role),
+    roleOf: (accountId, projectId) => store.roleOf(accountId, projectId),
   }
 }
 
@@ -78,7 +84,7 @@ describe('the audit log service', () => {
 
   beforeAll(async () => {
     x = await createTestDatabase()
-    roles = roleTable()
+    roles = roleTable(x.db)
     audit = new AuditLogService(x.db, roles)
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
@@ -89,9 +95,12 @@ describe('the audit log service', () => {
     await x?.drop()
   })
 
+  /** A project of its own for a test, with nobody holding a role in it. */
+  const newProject = () => insertProject(x.db, alice)
+
   describe('record', () => {
     it('records who made a change, when, through which channel, and what it was', async () => {
-      const project = randomUUID()
+      const project = await newProject()
       const before = await now(x.db)
       await audit.record(x.db, via(alice, 'rest-api'), renamed(project, 'T', 'Draft', 'Final'))
       const after = await now(x.db)
@@ -112,7 +121,7 @@ describe('the audit log service', () => {
     })
 
     it.each(CHANNELS)('records the %s channel as the channel of a change', async (channel) => {
-      const project = randomUUID()
+      const project = await newProject()
       await audit.record(x.db, via(alice, channel), renamed(project, 'T', 'a', 'b'))
       const entries = await audit.readLog(via(root), { projectId: project })
       expect(entries.map((e) => e.channels)).toEqual([[channel]])
@@ -130,7 +139,7 @@ describe('the audit log service', () => {
     })
 
     it('writes nothing when the transaction the change was made in is rolled back', async () => {
-      const project = randomUUID()
+      const project = await newProject()
       const failure = new Error('the change failed after its entry was written')
       await expect(
         x.db.transaction(async (tx) => {
@@ -145,7 +154,7 @@ describe('the audit log service', () => {
       const nobody = { accountId: randomUUID(), channel: 'ui' } as const
       // PostgreSQL's foreign key violation: the entry must name an account.
       await expect(
-        audit.record(x.db, nobody, renamed(randomUUID(), 'T', 'a', 'b')),
+        audit.record(x.db, nobody, renamed(await newProject(), 'T', 'a', 'b')),
       ).rejects.toMatchObject({ cause: { code: '23503' } })
     })
 
@@ -171,7 +180,7 @@ describe('the audit log service', () => {
 
   describe('recordApprovedProposalChange', () => {
     it('records the approver as the one who made the change, through both channels', async () => {
-      const project = randomUUID()
+      const project = await newProject()
       await audit.recordApprovedProposalChange(x.db, via(bob, 'ui'), 'mcp', {
         action: 'task.moved',
         subject: { type: 'task', id: 'A' },
@@ -183,7 +192,7 @@ describe('the audit log service', () => {
     })
 
     it('records both channels, in that order, even when they are the same one', async () => {
-      const project = randomUUID()
+      const project = await newProject()
       await audit.recordApprovedProposalChange(x.db, via(bob, 'rest-api'), 'rest-api', {
         action: 'task.moved',
         subject: { type: 'task', id: 'A' },
@@ -196,7 +205,7 @@ describe('the audit log service', () => {
 
   describe('readLog', () => {
     it('lets a system admin read the whole log, every project and outside any project', async () => {
-      const [p, q] = [randomUUID(), randomUUID()]
+      const [p, q] = [await newProject(), await newProject()]
       const account = randomUUID()
       await audit.record(x.db, via(alice), renamed(p, 'A', 'a', 'b'))
       await audit.record(x.db, via(bob), renamed(q, 'B', 'a', 'b'))
@@ -209,7 +218,7 @@ describe('the audit log service', () => {
     })
 
     it("lets a system admin read one project's part, and only that part", async () => {
-      const [p, q] = [randomUUID(), randomUUID()]
+      const [p, q] = [await newProject(), await newProject()]
       await audit.record(x.db, via(alice), renamed(p, 'A', 'a', 'b'))
       await audit.record(x.db, via(bob), renamed(q, 'B', 'a', 'b'))
       const entries = await audit.readLog(via(root), { projectId: p })
@@ -219,23 +228,24 @@ describe('the audit log service', () => {
     it.each(['admin', 'read-write'] as const)(
       "lets a project's %s read that project's part, and only that part",
       async (role) => {
-        const [p, q] = [randomUUID(), randomUUID()]
+        const [p, q] = [await newProject(), await newProject()]
         const reader = await seedAccount(x.db, { username: `reader-${randomUUID()}` })
-        roles.grant(reader, p, role)
+        await roles.grant(reader, p, role)
         await audit.record(x.db, via(bob), renamed(p, 'A', 'a', 'b'))
         await audit.record(x.db, via(bob), renamed(q, 'B', 'a', 'b'))
         const entries = await audit.readLog(via(reader), { projectId: p })
         expect(entries.map((e) => e.subject.id)).toEqual(['A'])
-        await refused(audit.readLog(via(reader), { projectId: q }), 'forbidden')
+        // q, where the reader holds no role, is not visible to them (FR-017).
+        await refused(audit.readLog(via(reader), { projectId: q }), 'not-visible')
       },
     )
 
     it.each(['read-only', 'contributor'] as const)(
       "refuses a project's %s its part of the log",
       async (role) => {
-        const p = randomUUID()
+        const p = await newProject()
         const reader = await seedAccount(x.db, { username: `reader-${randomUUID()}` })
-        roles.grant(reader, p, role)
+        await roles.grant(reader, p, role)
         await audit.record(x.db, via(bob), renamed(p, 'A', 'a', 'b'))
         const error = await refused(audit.readLog(via(reader), { projectId: p }), 'forbidden')
         expect(error.message).toBe(
@@ -245,9 +255,9 @@ describe('the audit log service', () => {
     )
 
     it('refuses the whole log to everyone but system admins, a project admin included', async () => {
-      const p = randomUUID()
+      const p = await newProject()
       const admin = await seedAccount(x.db, { username: `admin-${randomUUID()}` })
-      roles.grant(admin, p, 'admin')
+      await roles.grant(admin, p, 'admin')
       for (const caller of [via(admin), via(alice)]) {
         const error = await refused(audit.readLog(caller), 'forbidden')
         expect(error.message).toBe('Only system admins can read the whole audit log')
@@ -255,22 +265,22 @@ describe('the audit log service', () => {
     })
 
     it('refuses a caller with no account, or an id that is no account id', async () => {
-      const p = randomUUID()
+      const p = await newProject()
       for (const accountId of [randomUUID(), 'root', '']) {
         const whole = await refused(audit.readLog({ accountId, channel: 'ui' }), 'forbidden')
         expect(whole.message).toBe('Only system admins can read the whole audit log')
         const part = await refused(
           audit.readLog({ accountId, channel: 'ui' }, { projectId: p }),
-          'forbidden',
+          'not-visible',
         )
-        expect(part.message).toMatch(/^Only system admins and the project's admins/)
+        expect(part.message).toBe('This project is not visible to you')
       }
     })
 
-    it('refuses someone with no role in the project, and asks for no role with an id that is no project id', async () => {
-      for (const projectId of [randomUUID(), 'Apollo']) {
-        const error = await refused(audit.readLog(via(alice), { projectId }), 'forbidden')
-        expect(error.message).toMatch(/^Only system admins and the project's admins/)
+    it('tells someone with no role in the project that it is not visible to them, whatever the id', async () => {
+      for (const projectId of [await newProject(), randomUUID(), 'Apollo']) {
+        const error = await refused(audit.readLog(via(alice), { projectId }), 'not-visible')
+        expect(error.message).toBe('This project is not visible to you')
       }
     })
 
@@ -279,7 +289,7 @@ describe('the audit log service', () => {
       expect(whole.message).not.toMatch(/limit/)
       const part = await refused(
         audit.readLog(via(alice), { projectId: 'x', before: -1 }),
-        'forbidden',
+        'not-visible',
       )
       expect(part.message).not.toMatch(/project id|before/)
     })
@@ -294,9 +304,9 @@ describe('the audit log service', () => {
     })
 
     it('refuses everyone but system admins while there is no project role store', async () => {
-      const p = randomUUID()
+      const p = await newProject()
       const withoutRoles = new AuditLogService(x.db)
-      await refused(withoutRoles.readLog(via(alice), { projectId: p }), 'forbidden')
+      await refused(withoutRoles.readLog(via(alice), { projectId: p }), 'not-visible')
       expect(await withoutRoles.readLog(via(root), { projectId: p })).toEqual([])
     })
   })
@@ -306,7 +316,7 @@ describe('the audit log service', () => {
     const count = DEFAULT_PAGE_SIZE + 5
 
     beforeAll(async () => {
-      project = randomUUID()
+      project = await newProject()
       for (let i = 0; i < count; i++) {
         await audit.record(x.db, via(alice), renamed(project, `T${i}`, 'a', 'b'))
       }
@@ -498,12 +508,12 @@ describe('account administration records its changes (FR-116)', () => {
 
 describe('test cases through the REST API', () => {
   // Each test case below needs parts that later solution components bring: sign-in (SC-052) and
-  // the API tokens (SC-055) for the UI and REST API channels, projects (SC-017) and the project
-  // role store (SC-014), tasks (SC-001), proposals (SC-010, SC-048), the MCP server (SC-027) and
-  // the GitHub change handler (SC-023). Until they land, each test checks the audit log's part of
-  // its test case: the change is recorded through the service layer, or made through the REST API
-  // where a change of that kind exists, and the log is read through the REST API as the test case
-  // reads it. The "Pending" note in each names what the full test case still waits for.
+  // the API tokens (SC-055) for the UI and REST API channels, tasks (SC-001), proposals (SC-010,
+  // SC-048), the MCP server (SC-027) and the GitHub change handler (SC-023). Until they land, each
+  // test checks the audit log's part of its test case: projects are created and roles given
+  // through the REST API, the change is recorded through the service layer, and the log is read
+  // through the REST API as the test case reads it. The "Pending" note in each names what the full
+  // test case still waits for.
   let x: TestDatabase
   let app: ReturnType<typeof buildApp>
   let roles: ReturnType<typeof roleTable>
@@ -515,9 +525,14 @@ describe('test cases through the REST API', () => {
 
   beforeAll(async () => {
     x = await createTestDatabase()
-    roles = roleTable()
+    roles = roleTable(x.db)
     audit = new AuditLogService(x.db, roles)
-    const services: Services = { accounts: new AccountService(x.db, audit), audit }
+    // The real service layer, but with the audit log that reads the roles given above.
+    const services: Services = {
+      ...createServices(x.db),
+      accounts: new AccountService(x.db, audit),
+      audit,
+    }
     app = buildApp({}, { authenticators: [testAuthenticator], services })
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
@@ -530,11 +545,16 @@ describe('test cases through the REST API', () => {
     await x?.drop()
   })
 
-  /** A project created by `creator`, who is its admin, as SC-017 will make it. */
-  const project = (creator: Seeded) => {
-    const id = randomUUID()
-    roles.grant(creator, id, 'admin')
-    return id
+  /** A project `creator` creates through the REST API, and so is the admin of (SC-017). */
+  const project = async (creator: Seeded): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(creator),
+      payload: { name: `project-${randomUUID()}` },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
   }
 
   const readLog = (reader: Seeded, projectId?: string) =>
@@ -547,6 +567,9 @@ describe('test cases through the REST API', () => {
 
   /** The entries of a log as the REST API sends them. */
   type Sent = Omit<AuditEntry, 'at'> & { at: string }
+
+  /** The entries but the creation of the project, which each project's log begins with. */
+  const afterCreation = (entries: Sent[]) => entries.filter((e) => e.action !== 'project.created')
 
   /**
    * Expects `at`, as sent, to be the time of a change made after `t`: no earlier than `t`, no
@@ -579,7 +602,7 @@ describe('test cases through the REST API', () => {
       await expectAtTime(entry!.at, t)
     })
 
-    // Pending: TC-170 in full: alice, signed in, renames task T in Apollo in the browser and reads Apollo's log (SC-052, SC-017, SC-014, SC-001).
+    // Pending: TC-170 in full: alice, signed in, renames task T in Apollo in the browser and reads Apollo's log (SC-052, SC-001).
   })
 
   describe('TC-171: a change through the REST API is logged with the REST API channel', () => {
@@ -598,19 +621,19 @@ describe('test cases through the REST API', () => {
       await expectAtTime(entry!.at, t)
     })
 
-    // Pending: TC-171 in full: with alice's API token, rename task T in Apollo and read Apollo's log (SC-016, SC-055, SC-017, SC-014, SC-001).
+    // Pending: TC-171 in full: with alice's API token, rename task T in Apollo and read Apollo's log (SC-016, SC-055, SC-001).
   })
 
   describe('TC-172: creating a proposal through the MCP server is logged with the MCP channel', () => {
     it("logs a change made through the MCP server with the MCP channel, in the project's log", async () => {
-      const apollo = project(alice)
+      const apollo = await project(alice)
       const t = await now(x.db)
       await audit.record(x.db, via(alice, 'mcp'), {
         action: 'proposal.created',
         subject: { type: 'proposal', id: 'P' },
         projectId: apollo,
       })
-      const entries = (await readLog(alice, apollo)).json<Sent[]>()
+      const entries = afterCreation((await readLog(alice, apollo)).json<Sent[]>())
       expect(entries).toHaveLength(1)
       expect(entries[0]).toMatchObject({
         by: { username: 'alice' },
@@ -621,12 +644,12 @@ describe('test cases through the REST API', () => {
       expect(entries.some((e) => e.subject.type === 'task')).toBe(false)
     })
 
-    // Pending: TC-172 in full: through the MCP server with alice's token, create a proposal moving T in Apollo, and check that no entry records a change to T (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-027).
+    // Pending: TC-172 in full: through the MCP server with alice's token, create a proposal moving T in Apollo, and check that no entry records a change to T (SC-016, SC-055, SC-001, SC-010, SC-027).
   })
 
   describe('TC-173: a change arriving from GitHub is logged with the GitHub channel', () => {
     it('logs a change arriving from GitHub with the GitHub channel and who made it', async () => {
-      const apollo = project(alice)
+      const apollo = await project(alice)
       const t = await now(x.db)
       await audit.record(x.db, via(alice, 'github'), {
         action: 'task.finished',
@@ -639,13 +662,13 @@ describe('test cases through the REST API', () => {
       expect(new Date(entry!.at).getTime()).toBeLessThanOrEqual((await now(x.db)).getTime())
     })
 
-    // Pending: TC-173 in full: tc-writer closes issue #1 and T is finished through GitHub (SC-017, SC-014, SC-001, SC-019, SC-110, SC-022, SC-054, SC-023). Open question for the owner: the TC says it is not stated how a GitHub user with no account in the tool is named, and the log now records only accounts as the ones who made a change.
+    // Pending: TC-173 in full: tc-writer closes issue #1 and T is finished through GitHub (SC-001, SC-019, SC-110, SC-022, SC-054, SC-023). Open question for the owner: the TC says it is not stated how a GitHub user with no account in the tool is named, and the log now records only accounts as the ones who made a change.
   })
 
   describe('TC-203: a system admin reads the whole audit log', () => {
     it('shows a system admin with no project role the changes in every project', async () => {
-      const apollo = project(alice)
-      const borealis = project(bob)
+      const apollo = await project(alice)
+      const borealis = await project(bob)
       await audit.record(x.db, via(alice), renamed(apollo, 'A', 'A', 'A2'))
       await audit.record(x.db, via(bob), renamed(borealis, 'B', 'B', 'B2'))
       const response = await readLog(root)
@@ -653,26 +676,27 @@ describe('test cases through the REST API', () => {
       const renames = response
         .json<Sent[]>()
         .filter((e) => e.projectId === apollo || e.projectId === borealis)
+        .filter((e) => e.action !== 'project.created')
       expect(renames.map((e) => e.subject.id).sort()).toEqual(['A', 'B'])
     })
 
-    // Pending: TC-203 in full: alice and bob rename tasks A and B in projects they created (SC-017, SC-001).
+    // Pending: TC-203 in full: alice and bob rename tasks A and B in projects they created (SC-001).
   })
 
   describe("TC-204: project admins and read-write members read only their projects' audit log", () => {
     it('lets alice and carol read Apollo, refuses them Borealis, and never shows the renaming of B', async () => {
-      const apollo = project(alice)
-      roles.grant(carol, apollo, 'read-write')
-      const borealis = project(bob)
-      roles.grant(alice, borealis, 'read-only')
-      roles.grant(carol, borealis, 'read-only')
+      const apollo = await project(alice)
+      await roles.grant(carol, apollo, 'read-write')
+      const borealis = await project(bob)
+      await roles.grant(alice, borealis, 'read-only')
+      await roles.grant(carol, borealis, 'read-only')
       await audit.record(x.db, via(alice), renamed(apollo, 'A', 'A', 'A2'))
       await audit.record(x.db, via(bob), renamed(borealis, 'B', 'B', 'B2'))
 
       for (const reader of [alice, carol]) {
         const own = await readLog(reader, apollo)
         expect(own.statusCode).toBe(200)
-        expect(own.json<Sent[]>().map((e) => e.subject.id)).toEqual(['A'])
+        expect(afterCreation(own.json<Sent[]>()).map((e) => e.subject.id)).toEqual(['A'])
         const other = await readLog(reader, borealis)
         expect(other.statusCode).toBe(403)
         expect(other.body).not.toContain('"B"')
@@ -680,14 +704,14 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-204 in full: with Apollo and Borealis created and their members' roles set (SC-017, SC-014, SC-001).
+    // Pending: TC-204 in full: with Apollo and Borealis created and their members' roles set (SC-001).
   })
 
   describe('TC-205: read-only members and contributors are refused the audit log', () => {
     it("refuses Apollo's read-only member and contributor, and shows neither the renaming of A", async () => {
-      const apollo = project(alice)
-      roles.grant(bob, apollo, 'read-only')
-      roles.grant(carol, apollo, 'contributor')
+      const apollo = await project(alice)
+      await roles.grant(bob, apollo, 'read-only')
+      await roles.grant(carol, apollo, 'contributor')
       await audit.record(x.db, via(alice), renamed(apollo, 'A', 'A', 'A2'))
       for (const reader of [bob, carol]) {
         const response = await readLog(reader, apollo)
@@ -696,13 +720,13 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-205 in full: with Apollo created and bob and carol given their roles (SC-017, SC-014, SC-001).
+    // Pending: TC-205 in full: with Apollo created and bob and carol given their roles (SC-001).
   })
 
   describe("TC-206: an approved proposal's changes are logged as the approver's", () => {
     it('names bob, who approved, as the one who made each move, and never alice', async () => {
-      const apollo = project(alice)
-      roles.grant(bob, apollo, 'read-write')
+      const apollo = await project(alice)
+      await roles.grant(bob, apollo, 'read-write')
       for (const task of ['A', 'B']) {
         await audit.recordApprovedProposalChange(x.db, via(bob, 'ui'), 'mcp', {
           action: 'task.moved',
@@ -721,13 +745,13 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-206 in full: bob approves a proposal alice's AI made through the MCP server (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-048, SC-027).
+    // Pending: TC-206 in full: bob approves a proposal alice's AI made through the MCP server (SC-016, SC-055, SC-001, SC-010, SC-048, SC-027).
   })
 
   describe("TC-239: an approved proposal's change is logged with both the MCP and the UI channel", () => {
     it('records the MCP server and the UI as the channels of the move, and neither of the others', async () => {
-      const apollo = project(alice)
-      roles.grant(bob, apollo, 'read-write')
+      const apollo = await project(alice)
+      await roles.grant(bob, apollo, 'read-write')
       await audit.recordApprovedProposalChange(x.db, via(bob, 'ui'), 'mcp', {
         action: 'task.moved',
         subject: { type: 'task', id: 'A' },
@@ -739,6 +763,6 @@ describe('test cases through the REST API', () => {
       expect(move?.channels).not.toContain('github')
     })
 
-    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-016, SC-055, SC-017, SC-014, SC-001, SC-010, SC-048, SC-027, SC-052). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
+    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-016, SC-055, SC-001, SC-010, SC-048, SC-027, SC-052). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
   })
 })
