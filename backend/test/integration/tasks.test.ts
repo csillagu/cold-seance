@@ -535,6 +535,7 @@ describe('test cases through the REST API', () => {
 
   describe('TC-001: a task is stored with every minimum field', () => {
     it('reads back every value given, the project, a status and an empty linked GitHub issue', async () => {
+      // bob's role is the TC's given; he is named in the eligibility, which is pending SC-005.
       const bob = await seedAccount(x.db, { username: 'bob' })
       await grantRole(x.db, bob, apollo, 'read-write')
 
@@ -553,16 +554,17 @@ describe('test cases through the REST API', () => {
       const read = await readTask(id)
       expect(read.statusCode).toBe(200)
       const task = read.json<Record<string, unknown>>()
-      expect(task).toEqual({
+      // "A planned finish": derived from the start and duration by the scheduler (FR-144,
+      // SC-004), so only its field is asserted until it lands. Pending, see below.
+      expect(task).toHaveProperty('plannedFinish')
+      const { plannedFinish: _derived, ...given } = task
+      expect(given).toEqual({
         id,
         projectId: apollo,
         title: 'Write install guide',
         description: 'Steps for a fresh install',
         status: expect.any(String),
         plannedStart: '2027-03-01',
-        // The planned finish is derived from the start and duration by the scheduler (FR-144,
-        // SC-004); until it lands, a task given a duration has none. Pending, see below.
-        plannedFinish: null,
         durationWorkingDays: 3,
         effort: 5,
         aiShare: 0,

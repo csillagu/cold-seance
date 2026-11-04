@@ -142,9 +142,12 @@ export class TaskService {
    */
   async updateTask(caller: Caller, taskId: string, changes: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
-      // Locked, so that two edits of one task cannot each check against what the other changes.
+      // The role is checked before the task is locked, so that someone who may not edit it
+      // cannot hold it up; then it is locked, so that two edits of one task cannot each check
+      // against what the other changes. A task never changes project, so the check still holds.
+      const found = await this.#find(taskId, tx, false)
+      await this.#roles.permissions.require(caller, found.projectId, 'edit-plan', tx)
       const current = await this.#find(taskId, tx, true)
-      await this.#roles.permissions.require(caller, current.projectId, 'edit-plan', tx)
       const merged = validFields(changes, current)
       const changed = FIELDS.filter((field) => merged[field] !== current[field])
       if (changed.length === 0) return withIssue(current)
