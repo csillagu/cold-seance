@@ -23,7 +23,25 @@ const TASK: Task = {
   durationWorkingDays: 3,
   effort: 5,
   aiShare: 0,
+  milestone: null,
   githubIssue: null,
+}
+const LAUNCH: Task = {
+  ...TASK,
+  id: '6f1c2a5e-0000-4000-8000-0000000000b3',
+  title: 'Launch',
+  description: '',
+  plannedStart: null,
+  durationWorkingDays: null,
+  effort: null,
+  aiShare: null,
+  milestone: { variant: 'fixed-date', date: '2027-03-12' },
+}
+const DOCS_READY: Task = {
+  ...LAUNCH,
+  id: '6f1c2a5e-0000-4000-8000-0000000000b4',
+  title: 'Docs ready',
+  milestone: { variant: 'floating', date: null },
 }
 const UNSCHEDULED: Task = {
   ...TASK,
@@ -121,7 +139,40 @@ describe('POST /api/projects/:projectId/tasks', () => {
   })
 
   it.each([
+    [
+      'fixed-date',
+      LAUNCH,
+      { title: 'Launch', milestone: { variant: 'fixed-date', date: '2027-03-12' } },
+    ],
+    ['floating', DOCS_READY, { title: 'Docs ready', milestone: { variant: 'floating' } }],
+  ])('hands the service a %s milestone as given, and sends it back', async (_, made, payload) => {
+    const { app, tasks } = stubbed()
+    tasks.createTask.mockResolvedValue(made)
+    const response = await app.inject({ method: 'POST', url, headers: erin, payload })
+    expect(response.statusCode).toBe(201)
+    expect(response.json()).toEqual(made)
+    expect(tasks.createTask).toHaveBeenCalledWith(caller, PROJECT, payload)
+  })
+
+  it('hands a milestone with a duration to the service, which decides on it, and sends its 400', async () => {
+    const { app, tasks } = stubbed()
+    const message =
+      'A milestone takes no time: it has no planned start or finish, duration, effort or AI share'
+    tasks.createTask.mockRejectedValue(new ServiceError('invalid', message))
+    const payload = {
+      title: 'Launch',
+      milestone: { variant: 'fixed-date', date: '2027-04-01' },
+      durationWorkingDays: 2,
+    }
+    const response = await app.inject({ method: 'POST', url, headers: erin, payload })
+    expect(tasks.createTask).toHaveBeenCalledWith(caller, PROJECT, payload)
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe(message)
+  })
+
+  it.each([
     ['no title', {}],
+    ['a milestone that is not an object', { title: 'x', milestone: ['floating'] }],
     ['a title that is not text', { title: { text: 'x' } }],
     ['a duration that is not a number', { title: 'x', durationWorkingDays: 'three' }],
     ['an effort that is not a number', { title: 'x', effort: [] }],
@@ -254,6 +305,37 @@ describe('PATCH /api/tasks/:taskId', () => {
     })
   })
 
+  it("hands the service a milestone's new date and sends the milestone", async () => {
+    const { app, tasks } = stubbed()
+    const moved: Task = { ...LAUNCH, milestone: { variant: 'fixed-date', date: '2027-03-19' } }
+    tasks.updateTask.mockResolvedValue(moved)
+    const payload = { milestone: { variant: 'fixed-date', date: '2027-03-19' } }
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${LAUNCH.id}`,
+      headers: erin,
+      payload,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(moved)
+    expect(tasks.updateTask).toHaveBeenCalledWith(caller, LAUNCH.id, payload)
+  })
+
+  it('hands a change of kind to the service, which decides on it, and sends its 400', async () => {
+    const { app, tasks } = stubbed()
+    const message = 'A milestone cannot be made a task that is not a milestone'
+    tasks.updateTask.mockRejectedValue(new ServiceError('invalid', message))
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${LAUNCH.id}`,
+      headers: erin,
+      payload: { milestone: null },
+    })
+    expect(tasks.updateTask).toHaveBeenCalledWith(caller, LAUNCH.id, { milestone: null })
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toBe(message)
+  })
+
   it('drops a field no task has, such as its status, which its own module sets', async () => {
     const { app, tasks } = stubbed()
     tasks.updateTask.mockResolvedValue(TASK)
@@ -293,5 +375,19 @@ describe('the OpenAPI description', () => {
     expect(Object.keys(body.properties).filter((name) => /duration/i.test(name))).toEqual([
       'durationWorkingDays',
     ])
+  })
+
+  it('describes whether a task is a milestone, and of which variant', async () => {
+    const { app } = stubbed()
+    const paths = (
+      await app.inject({ method: 'GET', url: '/api/openapi.json', headers: erin })
+    ).json().paths
+    const body =
+      paths['/api/projects/{projectId}/tasks'].post.requestBody.content['application/json'].schema
+    expect(body.properties.milestone.properties).toHaveProperty('variant')
+    const task =
+      paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
+    expect(task.required).toContain('milestone')
+    expect(task.properties.milestone.properties.variant.enum).toEqual(['fixed-date', 'floating'])
   })
 })

@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
-import { tasks } from '../db/schema.ts'
+import { MILESTONE_VARIANTS, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
@@ -16,6 +16,9 @@ import { isUuid } from './system-admins.ts'
  * module (SC-005), and the planned finish its start and duration give by the scheduler (FR-144,
  * SC-004). `githubIssue` is the GitHub issue linked to the task: none until the task is assigned
  * to a repository and its issue is created (SC-036, SC-060), so always `null` for now.
+ *
+ * `milestone` is `null` for a task that is not a milestone. A milestone (FR-190) takes no time, so
+ * its planned dates, duration, effort and AI share are always `null` (FR-191).
  */
 export interface Task {
   id: string
@@ -33,8 +36,19 @@ export interface Task {
   effort: number | null
   /** The share of the task done by AI, a percentage from 0 to 100, or `null` when not given. */
   aiShare: number | null
+  milestone: Milestone | null
   githubIssue: null
 }
+
+/** The variants of a milestone: pinned to a fixed date, or floating (FR-190). */
+export type MilestoneVariant = (typeof MILESTONE_VARIANTS)[number]
+
+/**
+ * What makes a task a milestone (FR-190): pinned to a fixed date, with that date, `YYYY-MM-DD`; or
+ * floating, with no date of its own.
+ */
+export type Milestone =
+  { variant: 'fixed-date'; date: string } | { variant: 'floating'; date: null }
 
 /**
  * The fields of a task that its creator gives and an editor changes. Only the title is required
@@ -48,6 +62,10 @@ export interface TaskFields {
   durationWorkingDays: number | null
   effort: number | null
   aiShare: number | null
+  /** Whether the task is a milestone, and of which variant; `null` for a task that is not one. */
+  milestoneVariant: MilestoneVariant | null
+  /** The date a fixed-date milestone is pinned to; `null` for any other task. */
+  milestoneDate: string | null
 }
 
 /**
@@ -55,7 +73,16 @@ export interface TaskFields {
  * be left out, and the service checks each value given itself, whatever its type, so every
  * channel is held to the same rules (DD-039). `null` leaves a field unset, or clears it.
  */
-export type TaskInput = { readonly [Field in keyof TaskFields]?: unknown }
+export type TaskInput = {
+  readonly [Field in Exclude<keyof TaskFields, 'milestoneVariant' | 'milestoneDate'>]?: unknown
+} & {
+  /**
+   * Whether the task is a milestone, as `{ variant: 'fixed-date', date }` or `{ variant:
+   * 'floating' }`, or `null` for a task that is not one (FR-190). It is chosen when the task is
+   * created and cannot change after (FR-194); a fixed-date milestone's date can.
+   */
+  readonly milestone?: unknown
+}
 
 /** The largest duration a task can have: the largest number its column holds. */
 export const MAX_DURATION_WORKING_DAYS = 2_147_483_647
@@ -68,6 +95,8 @@ const FIELDS = [
   'durationWorkingDays',
   'effort',
   'aiShare',
+  'milestoneVariant',
+  'milestoneDate',
 ] as const satisfies readonly (keyof TaskFields)[]
 
 const columns = {
@@ -81,9 +110,12 @@ const columns = {
   durationWorkingDays: tasks.durationWorkingDays,
   effort: tasks.effort,
   aiShare: tasks.aiShare,
+  milestoneVariant: tasks.milestoneVariant,
+  milestoneDate: tasks.milestoneDate,
 } as const
 
-type Row = Omit<Task, 'githubIssue'>
+type Row = Omit<Task, 'githubIssue' | 'milestone'> &
+  Pick<TaskFields, 'milestoneVariant' | 'milestoneDate'>
 
 /**
  * The task record module of the service layer (DD-039, SC-001): it creates, edits, lists and reads
@@ -95,6 +127,11 @@ type Row = Omit<Task, 'githubIssue'>
  * and admins may create and edit them (FR-108). Someone with no role in the project is told it is
  * not visible to them (FR-017). Each creation and edit is recorded in the audit log (FR-116), in
  * the transaction that makes it. A task's status is set by the status transitions (SC-003).
+ *
+ * A task can be made a milestone when it is created, pinned to a fixed date or floating (FR-190).
+ * A milestone takes no time: it has no planned dates, duration, effort or AI share (FR-191). A
+ * task's kind and a milestone's variant cannot change once it is created, though a fixed-date
+ * milestone's date can (FR-194).
  */
 export class TaskService {
   readonly #db: Database
@@ -110,7 +147,8 @@ export class TaskService {
   /**
    * Creates a task in the project, not started. Refused as not visible to someone with no role in
    * the project, and as forbidden to someone whose role does not allow editing the plan; refused
-   * as invalid if a field is not valid (see `validFields`).
+   * as invalid if a field is not valid (see `validFields`), including a milestone given a planned
+   * date, duration, effort or AI share (FR-191).
    */
   async createTask(caller: Caller, projectId: string, task: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -118,7 +156,7 @@ export class TaskService {
       // fields, so that a refusal tells nothing about what was sent.
       await this.#roles.permissions.require(caller, projectId, 'edit-plan', tx)
       // A title must be given, so a missing one is checked as an empty one.
-      const fields = validFields({ ...task, title: task.title ?? '' }, UNSET)
+      const fields = validFields({ ...task, title: task.title ?? '' }, UNSET, 'create')
       const [created] = await tx
         .insert(tasks)
         .values({ projectId, ...fields })
@@ -138,7 +176,9 @@ export class TaskService {
    * Changes the given fields of the task, leaving the others as they are. Refused as not found if
    * there is no such task, as not visible to someone with no role in its project, and as
    * forbidden to someone whose role there does not allow editing the plan; refused as invalid if
-   * a field is not valid, or if the task's planned finish would come before its planned start.
+   * a field is not valid, or if the task's planned finish would come before its planned start;
+   * refused as invalid too if the change would make the task a milestone or not one, or change a
+   * milestone's variant (FR-194).
    */
   async updateTask(caller: Caller, taskId: string, changes: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -148,7 +188,7 @@ export class TaskService {
       const found = await this.#find(taskId, tx, false)
       await this.#roles.permissions.require(caller, found.projectId, 'edit-plan', tx)
       const current = await this.#find(taskId, tx, true)
-      const merged = validFields(changes, current)
+      const merged = validFields(changes, current, 'update')
       const changed = FIELDS.filter((field) => merged[field] !== current[field])
       if (changed.length === 0) return withIssue(current)
       const [updated] = await tx
@@ -205,8 +245,17 @@ function noSuchTask(): ServiceError {
   return new ServiceError('not-found', 'There is no such task')
 }
 
-function withIssue(row: Row): Task {
-  return { ...row, githubIssue: null }
+function withIssue({ milestoneVariant, milestoneDate, ...row }: Row): Task {
+  return { ...row, milestone: milestoneOf(milestoneVariant, milestoneDate), githubIssue: null }
+}
+
+function milestoneOf(variant: MilestoneVariant | null, date: string | null): Milestone | null {
+  if (variant === null) return null
+  if (variant === 'floating') return { variant, date: null }
+  // Cannot happen: the table holds a date for every fixed-date milestone
+  // (tasks_milestone_date_iff_fixed).
+  if (date === null) throw new Error('A fixed-date milestone was stored without its date')
+  return { variant, date }
 }
 
 /** The given fields of a task, for the audit log. */
@@ -225,8 +274,12 @@ function only(fields: TaskFields, keys: readonly (keyof TaskFields)[]): Record<s
  * - A duration is a whole number of working days, at least one (DD-006, FR-002): no fraction of a
  *   day and no other unit is taken.
  * - Effort is a number of zero or more; the AI share a percentage from 0 to 100.
+ * - A milestone is fixed-date, with a date, or floating, with none (FR-190). It is chosen when the
+ *   task is created and cannot change after, nor its variant; a fixed-date milestone's date can
+ *   (FR-194). Whichever fields were given, a milestone has no planned dates, duration, effort or
+ *   AI share (FR-191).
  */
-function validFields(input: TaskInput, base: TaskFields): TaskFields {
+function validFields(input: TaskInput, base: TaskFields, action: 'create' | 'update'): TaskFields {
   const given = <T>(value: unknown, check: (value: unknown) => T, otherwise: T): T =>
     value === undefined ? otherwise : check(value)
   const valid: TaskFields = {
@@ -237,6 +290,22 @@ function validFields(input: TaskInput, base: TaskFields): TaskFields {
     durationWorkingDays: given(input.durationWorkingDays, validDuration, base.durationWorkingDays),
     effort: given(input.effort, validEffort, base.effort),
     aiShare: given(input.aiShare, validAiShare, base.aiShare),
+    ...given(input.milestone, (v) => validMilestone(v, base, action), {
+      milestoneVariant: base.milestoneVariant,
+      milestoneDate: base.milestoneDate,
+    }),
+  }
+  if (
+    valid.milestoneVariant !== null &&
+    (valid.plannedStart !== null ||
+      valid.plannedFinish !== null ||
+      valid.durationWorkingDays !== null ||
+      valid.effort !== null ||
+      valid.aiShare !== null)
+  ) {
+    throw invalid(
+      'A milestone takes no time: it has no planned start or finish, duration, effort or AI share',
+    )
   }
   if (
     valid.plannedStart !== null &&
@@ -257,6 +326,54 @@ const UNSET: TaskFields = {
   durationWorkingDays: null,
   effort: null,
   aiShare: null,
+  milestoneVariant: null,
+  milestoneDate: null,
+}
+
+type MilestoneFields = Pick<TaskFields, 'milestoneVariant' | 'milestoneDate'>
+
+/**
+ * The milestone fields `value` gives: none for `null`, a task that is not a milestone. When a task
+ * is edited, its kind and its variant must stay as they were (FR-194).
+ */
+function validMilestone(
+  value: unknown,
+  base: TaskFields,
+  action: 'create' | 'update',
+): MilestoneFields {
+  const fields = milestoneFields(value)
+  if (action === 'update') {
+    if ((fields.milestoneVariant === null) !== (base.milestoneVariant === null)) {
+      throw invalid(
+        base.milestoneVariant === null
+          ? 'A task cannot be made a milestone once it is created'
+          : 'A milestone cannot be made a task that is not a milestone',
+      )
+    }
+    if (fields.milestoneVariant !== base.milestoneVariant) {
+      throw invalid("A milestone's variant, fixed-date or floating, cannot be changed")
+    }
+  }
+  return fields
+}
+
+function milestoneFields(value: unknown): MilestoneFields {
+  if (value === null) return { milestoneVariant: null, milestoneDate: null }
+  const { variant, date } =
+    typeof value === 'object' && !Array.isArray(value)
+      ? (value as { variant?: unknown; date?: unknown })
+      : { variant: undefined, date: undefined }
+  if (variant === 'fixed-date') {
+    if (!isDate(date)) throw invalid('A fixed-date milestone is pinned to a date, YYYY-MM-DD')
+    return { milestoneVariant: variant, milestoneDate: date }
+  }
+  if (variant === 'floating') {
+    if (date !== undefined && date !== null) {
+      throw invalid('A floating milestone has no date of its own')
+    }
+    return { milestoneVariant: variant, milestoneDate: null }
+  }
+  throw invalid("A milestone's variant is fixed-date or floating")
 }
 
 function validTitle(value: unknown): string {
