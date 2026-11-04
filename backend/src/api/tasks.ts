@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
-import { TASK_STATUSES } from '../db/schema.ts'
+import { MILESTONE_VARIANTS, TASK_STATUSES } from '../db/schema.ts'
 import type { TaskInput } from '../service/tasks.ts'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
@@ -21,6 +21,7 @@ const task = {
     'durationWorkingDays',
     'effort',
     'aiShare',
+    'milestone',
     'githubIssue',
   ],
   properties: {
@@ -36,6 +37,17 @@ const task = {
     }),
     effort: nullable('number'),
     aiShare: nullable('number', { description: 'The share done by AI, in percent' }),
+    milestone: {
+      type: ['object', 'null'],
+      description:
+        'Whether the task is a milestone: pinned to a fixed date, with that date, or floating, ' +
+        'with none. Null for a task that is not a milestone.',
+      required: ['variant', 'date'],
+      properties: {
+        variant: { type: 'string', enum: [...MILESTONE_VARIANTS] },
+        date: nullable('string', { format: 'date' }),
+      },
+    },
     githubIssue: {
       type: 'null',
       description: 'The linked GitHub issue; none until the task is assigned to a repository',
@@ -57,6 +69,15 @@ const fieldProperties = {
   }),
   effort: nullable('number'),
   aiShare: nullable('number', { description: 'The share done by AI, in percent' }),
+  milestone: {
+    type: ['object', 'null'],
+    description:
+      'Makes the task a milestone when it is created: `{ "variant": "fixed-date", "date": ' +
+      '"YYYY-MM-DD" }` or `{ "variant": "floating" }`; null for a task that is not one. Once ' +
+      'created, a task cannot become a milestone or stop being one, nor a milestone change ' +
+      "variant; a fixed-date milestone's date can be changed.",
+    properties: { variant: { type: 'string' }, date: nullable('string') },
+  },
 } as const
 
 const projectParams = {

@@ -176,11 +176,24 @@ export const TASK_STATUSES = ['not-started', 'in-progress', 'on-hold', 'done', '
 export const taskStatus = pgEnum('task_status', TASK_STATUSES)
 
 /**
+ * The two kinds of milestone (FR-190, SRC-236): one pinned to a fixed date, and one that floats,
+ * coming once the things it needs are done. A task that is not a milestone has neither.
+ */
+export const MILESTONE_VARIANTS = ['fixed-date', 'floating'] as const
+
+export const milestoneVariant = pgEnum('milestone_variant', MILESTONE_VARIANTS)
+
+/**
  * The tasks (FR-001, SC-001), each in its project. A task's planned start, planned finish and
  * duration are each optional: a task with no planned dates is an unscheduled task of its project,
  * kept with its other tasks (FR-003). A duration is a whole number of working days (DD-006,
  * FR-002); the planned finish it gives is derived by the scheduler (FR-144, SC-004). Effort is a
  * number in the unit the tool states for it; the AI share is a percentage.
+ *
+ * A task can be made a milestone when it is created (FR-190): `milestone_variant` says whether it
+ * is pinned to a fixed date, `milestone_date`, or floating, and is null for a task that is not a
+ * milestone. A milestone takes no time, so it has no planned dates, duration, effort or AI share
+ * (FR-191); a fixed-date milestone's only date is the one it is pinned to.
  */
 export const tasks = pgTable(
   'tasks',
@@ -197,6 +210,8 @@ export const tasks = pgTable(
     durationWorkingDays: integer('duration_working_days'),
     effort: doublePrecision('effort'),
     aiShare: doublePrecision('ai_share'),
+    milestoneVariant: milestoneVariant('milestone_variant'),
+    milestoneDate: date('milestone_date', { mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -205,5 +220,13 @@ export const tasks = pgTable(
     check('tasks_finish_not_before_start', sql`${table.plannedFinish} >= ${table.plannedStart}`),
     check('tasks_effort_not_negative', sql`${table.effort} >= 0`),
     check('tasks_ai_share_percentage', sql`${table.aiShare} between 0 and 100`),
+    check(
+      'tasks_milestone_date_iff_fixed',
+      sql`(${table.milestoneVariant} is not distinct from 'fixed-date') = (${table.milestoneDate} is not null)`,
+    ),
+    check(
+      'tasks_milestone_takes_no_time',
+      sql`${table.milestoneVariant} is null or (${table.plannedStart} is null and ${table.plannedFinish} is null and ${table.durationWorkingDays} is null and ${table.effort} is null and ${table.aiShare} is null)`,
+    ),
   ],
 )

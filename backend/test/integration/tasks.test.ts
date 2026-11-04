@@ -89,6 +89,7 @@ describe('the task service', () => {
         durationWorkingDays: 3,
         effort: 5,
         aiShare: 0,
+        milestone: null,
         githubIssue: null,
       })
       expect(await stored(task.id)).toMatchObject({ projectId: project, title: task.title })
@@ -568,6 +569,7 @@ describe('test cases through the REST API', () => {
         durationWorkingDays: 3,
         effort: 5,
         aiShare: 0,
+        milestone: null,
         githubIssue: null,
       })
       // The linked GitHub issue field is present and empty.
