@@ -8,4 +8,4 @@ The system must place a floating milestone, when it schedules, on the date the l
 
 It serves [UC-021](UC-021-link-tasks-with-constraints.md).
 
-Origin: composed by Claude from the items linked above, for issue #65. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. That the milestone lies on its blockers' last finish day, and not the next working day as a blocked task would start, is Claude's reading of "it takes no time to finish"; it awaits the owner's confirmation.
+Origin: composed by Claude from the items linked above, for issue #65. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. That the milestone lies on its blockers' last finish day, and not the next working day as a blocked task would start, was Claude's reading of "it takes no time to finish", confirmed by the owner in the design session of 2026-11-04 ([SRC-236](SRC-236-a-milestone-is-a-kind-of-task-fixed-date-or-floati.md)).

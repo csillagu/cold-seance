@@ -8,4 +8,4 @@ The system must reject turning a task into a milestone, or a milestone into a ta
 
 It serves [UC-027](UC-027-pin-a-milestone-to-a-fixed-date.md).
 
-Origin: composed by Claude from the items linked above, for issue #65. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. That a fixed-date milestone's date stays editable is Claude's reading: the owner's "no" was to changing the kind and the variant, and UC-027 has the actor pin a milestone that already exists.
+Origin: composed by Claude from the items linked above, for issue #65. The wording is Claude's, not the stakeholder's; every obligation rests on a linked item. That a fixed-date milestone's date stays editable was Claude's reading, confirmed by the owner in the design session of 2026-11-04 ([SRC-236](SRC-236-a-milestone-is-a-kind-of-task-fixed-date-or-floati.md)).
