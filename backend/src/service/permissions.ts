@@ -1,4 +1,5 @@
 import type { Executor } from '../db/client.ts'
+import type { TASK_STATUSES } from '../db/schema.ts'
 import type { Caller } from './caller.ts'
 import { notVisible, ServiceError } from './errors.ts'
 import type { ProjectRole } from './project-roles.ts'
@@ -17,10 +18,10 @@ import type { ProjectRole } from './project-roles.ts'
 export type ProjectAction = 'read' | 'edit-plan' | 'handle-proposals' | 'manage-project'
 
 /**
- * The statuses a task can be in. The task modules (SC-001, SC-003, SC-038) take this one
- * definition over.
+ * The statuses a task can be in, as the schema defines them. The task modules (SC-001, SC-003,
+ * SC-038) take this one definition over.
  */
-export type TaskStatus = 'not-started' | 'in-progress' | 'on-hold' | 'done' | 'cancelled'
+export type TaskStatus = (typeof TASK_STATUSES)[number]
 
 /** A change of a task's status, as the permission check needs to know it. */
 export interface StatusChange {

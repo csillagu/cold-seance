@@ -5,7 +5,10 @@ import {
   bigint,
   boolean,
   check,
+  date,
+  doublePrecision,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -161,5 +164,46 @@ export const sessions = pgTable(
   (table) => [
     uniqueIndex('sessions_secret_hash_key').on(table.secretHash),
     index('sessions_account_id_idx').on(table.accountId),
+  ],
+)
+
+/**
+ * The statuses a task can be in, the one definition the task modules (SC-001, SC-003, SC-038) and
+ * the permission checks (SC-049) take over. A new task is not started.
+ */
+export const TASK_STATUSES = ['not-started', 'in-progress', 'on-hold', 'done', 'cancelled'] as const
+
+export const taskStatus = pgEnum('task_status', TASK_STATUSES)
+
+/**
+ * The tasks (FR-001, SC-001), each in its project. A task's planned start, planned finish and
+ * duration are each optional: a task with no planned dates is an unscheduled task of its project,
+ * kept with its other tasks (FR-003). A duration is a whole number of working days (DD-006,
+ * FR-002); the planned finish it gives is derived by the scheduler (FR-144, SC-004). Effort is a
+ * number in the unit the tool states for it; the AI share is a percentage.
+ */
+export const tasks = pgTable(
+  'tasks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    status: taskStatus('status').notNull().default('not-started'),
+    plannedStart: date('planned_start', { mode: 'string' }),
+    plannedFinish: date('planned_finish', { mode: 'string' }),
+    durationWorkingDays: integer('duration_working_days'),
+    effort: doublePrecision('effort'),
+    aiShare: doublePrecision('ai_share'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('tasks_project_id_idx').on(table.projectId, table.createdAt),
+    check('tasks_duration_whole_days', sql`${table.durationWorkingDays} >= 1`),
+    check('tasks_finish_not_before_start', sql`${table.plannedFinish} >= ${table.plannedStart}`),
+    check('tasks_effort_not_negative', sql`${table.effort} >= 0`),
+    check('tasks_ai_share_percentage', sql`${table.aiShare} between 0 and 100`),
   ],
 )

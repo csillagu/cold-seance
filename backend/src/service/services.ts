@@ -6,6 +6,7 @@ import { GitHubLinkService } from './github-links.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { SessionService } from './sessions.ts'
+import { TaskService } from './tasks.ts'
 import { ViewReadFilter } from './view-filter.ts'
 
 /**
@@ -21,6 +22,7 @@ export interface Services {
   projectRoles: ProjectRoleService
   projects: ProjectService
   sessions: SessionService
+  tasks: TaskService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
 }
@@ -41,6 +43,7 @@ export function createServices(db: Database): Services {
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles),
     sessions: new SessionService(db),
+    tasks: new TaskService(db, audit, projectRoles),
     viewFilter: new ViewReadFilter(projectRoles),
   }
 }
