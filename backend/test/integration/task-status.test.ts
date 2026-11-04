@@ -192,12 +192,33 @@ describe('the task status service', () => {
     })
   })
 
+  describe('the other moves between not started, in progress, on hold and done', () => {
+    // GitHub may finish or hold a task whatever its status (FR-092, FR-093, FR-099), so no move
+    // among these is refused; each records only what it is.
+    it.each<[TaskStatus, TaskStatus, Partial<Row>, string | null, string | null]>([
+      ['not-started', 'on-hold', {}, null, null],
+      ['not-started', 'done', {}, null, '2027-03-01'],
+      ['on-hold', 'done', { actualStart: '2027-02-15' }, '2027-02-15', '2027-03-01'],
+      [
+        'done',
+        'on-hold',
+        { actualStart: '2027-02-15', actualFinish: '2027-02-20' },
+        '2027-02-15',
+        null,
+      ],
+      ['on-hold', 'in-progress', {}, '2027-03-01', null],
+      ['done', 'in-progress', { actualFinish: '2027-02-20' }, '2027-03-01', null],
+    ])(
+      'sets a task %s to %s, recording only what the move is',
+      async (from, to, given, actualStart, actualFinish) => {
+        const id = await seed({ status: from, ...given })
+        expect(await set(id, to)).toMatchObject({ status: to, actualStart, actualFinish })
+      },
+    )
+  })
+
   describe('the moves it does not make', () => {
     it.each<[TaskStatus, TaskStatus, string]>([
-      ['not-started', 'on-hold', 'A task not started cannot be set to on hold'],
-      ['not-started', 'done', 'A task not started cannot be set to done'],
-      ['on-hold', 'done', 'A task on hold cannot be set to done'],
-      ['done', 'on-hold', 'A task done cannot be set to on hold'],
       ['in-progress', 'not-started', 'A task cannot be set back to not started'],
       ['done', 'not-started', 'A task cannot be set back to not started'],
       [
@@ -206,6 +227,9 @@ describe('the task status service', () => {
         'A task is cancelled by cancelling it, not by setting its status',
       ],
       ['cancelled', 'in-progress', 'The status of a cancelled task cannot be set'],
+      ['cancelled', 'done', 'The status of a cancelled task cannot be set'],
+      ['cancelled', 'cancelled', 'A task is cancelled by cancelling it, not by setting its status'],
+      ['not-started', 'not-started', 'A task cannot be set back to not started'],
     ])('refuses to set a task %s to %s, changing nothing', async (from, to, message) => {
       const id = await seed({ status: from })
       const before = await stored(id)
@@ -340,12 +364,19 @@ describe('the task status service', () => {
   describe('two changes at once', () => {
     it('makes them one after the other, so the second starts from what the first left', async () => {
       const id = await seed({ status: 'in-progress', actualStart: '2027-02-01' })
-      const results = await Promise.allSettled([set(id, 'done'), set(id, 'on-hold')])
-      // Whichever came second found the task no longer in progress, and was refused.
-      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
-      const rejected = results.find((result) => result.status === 'rejected')
-      expect(rejected?.reason).toBeInstanceOf(ServiceError)
-      expect(await entries(id)).toHaveLength(1)
+      await Promise.all([set(id, 'done'), set(id, 'on-hold')])
+      // Whichever came second started from the status the first left, and the actual finish
+      // matches the status the task ends in.
+      const [first, second] = await entries(id)
+      const final = await stored(id)
+      const other = final?.status === 'done' ? 'on-hold' : 'done'
+      expect(first).toMatchObject({
+        details: { changes: { status: other }, previous: { status: 'in-progress' } },
+      })
+      expect(second).toMatchObject({
+        details: { changes: { status: final?.status }, previous: { status: other } },
+      })
+      expect(final?.actualFinish).toBe(final?.status === 'done' ? '2027-03-01' : null)
     })
   })
 

@@ -10,17 +10,11 @@ import { isUuid } from './system-admins.ts'
 import { type Task, taskColumns, type TaskRow, toTask } from './tasks.ts'
 
 /**
- * The moves of a task's status that the status transitions make (SC-003): a task not started is
- * started; one in progress is put on hold or finished; one on hold, or one finished, is set back
- * to in progress. No other move is made here: a task is cancelled by its cancellation (SC-038).
+ * The statuses the transitions set a task to (SC-003): in progress, on hold and done, from any
+ * status but cancelled. A task is cancelled by its cancellation (SC-038), not here, and is never
+ * set back to not started.
  */
-const MOVES: Record<TaskStatus, ReadonlySet<TaskStatus>> = {
-  'not-started': new Set(['in-progress']),
-  'in-progress': new Set(['on-hold', 'done']),
-  'on-hold': new Set(['in-progress']),
-  done: new Set(['in-progress']),
-  cancelled: new Set(),
-}
+const TARGETS: ReadonlySet<TaskStatus> = new Set(['in-progress', 'on-hold', 'done'])
 
 /** Answers today's date, `YYYY-MM-DD`: the date an actual start or finish is recorded with. */
 export type Today = () => string
@@ -42,12 +36,17 @@ type ActualDates = Pick<TaskRow, 'actualStart' | 'actualFinish'>
  * statuses, in progress, on hold, done and back to in progress, and record its actual start and
  * finish, whichever channel the change comes through.
  *
- * - Starting a task records today as its actual start (FR-022).
+ * - Starting a task, setting it in progress when it has no actual start yet, records today as its
+ *   actual start (FR-022). Setting it back to in progress later keeps the start it has.
  * - Finishing it records today as its actual finish (FR-023).
  * - Putting it on hold only marks it: its planned dates, its duration and so its load stay as they
- *   were (DD-007, FR-024). Setting it back to in progress from hold keeps its actual start.
- * - Setting a finished task back to in progress clears its actual finish, since it is not finished
+ *   were (DD-007, FR-024).
+ * - Moving a finished task to any other status clears its actual finish, since it is not finished
  *   any more, and keeps its actual start.
+ *
+ * No move between not started, in progress, on hold and done is refused here: GitHub may finish
+ * or hold a task whatever its status (FR-092, FR-093, FR-099). The constraint checks (SC-037)
+ * refuse the moves a task's relations forbid.
  *
  * Whoever may edit the project's plan may set any of these statuses; a contributor only marks a
  * task they are assigned to as in progress, on hold or finished, and cannot reopen a finished one
@@ -78,8 +77,8 @@ export class TaskStatusService {
    * and answers the task as it now is. Setting the status it already has changes nothing.
    *
    * Refused as not found if there is no such task, as not visible to someone with no role in its
-   * project, as invalid if `status` is not a status, and as forbidden if the caller's role does
-   * not allow the change; refused as invalid too if the move is not one the transitions make.
+   * project, as invalid if `status` is not in progress, on hold or done or the task is cancelled,
+   * and as forbidden if the caller's role does not allow the change.
    */
   async setStatus(caller: Caller, taskId: string, status: unknown): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -90,6 +89,9 @@ export class TaskStatusService {
       await this.#roles.permissions.require(caller, found.projectId, 'read', tx)
       const current = await this.#find(taskId, tx, true)
       const to = validStatus(status)
+      if (!TARGETS.has(to) || current.status === 'cancelled') {
+        throw invalid(refusal(current.status, to))
+      }
       // The assignees come with the eligibility and assignment module (SC-005); until then a task
       // has none, so a contributor can set the status of no task.
       await this.#roles.permissions.requireStatusChange(
@@ -131,36 +133,23 @@ export class TaskStatusService {
   }
 }
 
-/**
- * The actual start and finish the task has once it is moved to `to`; refused as invalid if the
- * transitions do not make that move.
- */
+/** The actual start and finish the task has once it is moved from its status to `to`. */
 function move(current: TaskRow, to: TaskStatus, today: Today): ActualDates {
-  const from = current.status
-  if (!MOVES[from].has(to)) throw invalid(refusal(from, to))
   const dates: ActualDates = {
     actualStart: current.actualStart,
     actualFinish: current.actualFinish,
   }
-  if (from === 'not-started') dates.actualStart = today()
+  if (to === 'in-progress' && dates.actualStart === null) dates.actualStart = today()
   if (to === 'done') dates.actualFinish = today()
-  if (from === 'done') dates.actualFinish = null
+  else if (current.status === 'done') dates.actualFinish = null
   return dates
 }
 
+/** Why the transitions do not set a task in status `from` to `to`. */
 function refusal(from: TaskStatus, to: TaskStatus): string {
   if (to === 'cancelled') return 'A task is cancelled by cancelling it, not by setting its status'
   if (from === 'cancelled') return 'The status of a cancelled task cannot be set'
-  if (to === 'not-started') return 'A task cannot be set back to not started'
-  return `A task ${LABEL[from]} cannot be set to ${LABEL[to]}`
-}
-
-const LABEL: Record<TaskStatus, string> = {
-  'not-started': 'not started',
-  'in-progress': 'in progress',
-  'on-hold': 'on hold',
-  done: 'done',
-  cancelled: 'cancelled',
+  return 'A task cannot be set back to not started'
 }
 
 function validStatus(value: unknown): TaskStatus {
