@@ -1,6 +1,6 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
-import { accounts, projectMembers, projects } from '../db/schema.ts'
+import { accounts, projects } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
@@ -102,17 +102,33 @@ export class ProjectService {
   }
 
   /**
-   * The projects the caller holds a role in directly, by name. Projects reached through groups
-   * join them once groups hold projects (SC-058).
+   * The projects the caller can read, by name: those they hold a role in, directly or through
+   * groups (FR-111), as the role store decides.
    */
   async listProjects(caller: Caller): Promise<Project[]> {
-    if (!isUuid(caller.accountId)) return []
-    return this.#db
-      .select(columns)
-      .from(projects)
-      .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
-      .where(eq(projectMembers.accountId, caller.accountId))
-      .orderBy(asc(projects.name), asc(projects.id))
+    const readable = await this.#roles.readableProjects(caller.accountId)
+    if (readable.size === 0) return []
+    return (
+      this.#db
+        .select(columns)
+        .from(projects)
+        // One array parameter rather than one parameter per project, so that someone who can read
+        // very many projects stays within what PostgreSQL takes. The ids come from the role store.
+        .where(sql`${projects.id} = any(${`{${[...readable].join(',')}}`}::uuid[])`)
+        .orderBy(asc(projects.name), asc(projects.id))
+    )
+  }
+
+  /**
+   * Project search (SC-116): the projects whose name contains `text`, whatever the case of either
+   * (FR-183), among only those the caller can read, directly or through groups (FR-184), by name.
+   * The text is trimmed first, so spaces around it do not stop a match; an empty text matches
+   * every name. A project the caller cannot read is never returned, however well its name matches.
+   */
+  async searchProjects(caller: Caller, text: string): Promise<Project[]> {
+    const wanted = folded(text.trim())
+    const readable = await this.listProjects(caller)
+    return readable.filter((project) => folded(project.name).includes(wanted))
   }
 
   async #hasAccount(accountId: string): Promise<boolean> {
@@ -123,4 +139,22 @@ export class ProjectService {
       .where(eq(accounts.id, accountId))
     return account !== undefined
   }
+}
+
+/**
+ * A text with case taken out, for matching regardless of case. Upper-casing then lower-casing
+ * covers letters whose cases differ in length, such as ß and SS. The letters lower-casing leaves
+ * apart are then made one: ß and ẞ become ss, the final ς becomes σ, and the dot that the Turkish
+ * İ leaves on its i is dropped. It is done here rather than in the database, so the match does not
+ * depend on the database's locale.
+ */
+function folded(text: string): string {
+  return text
+    .normalize('NFD')
+    .toUpperCase()
+    .toLowerCase()
+    .replaceAll('ß', 'ss')
+    .replaceAll('ς', 'σ')
+    .replaceAll('i\u0307', 'i')
+    .normalize('NFC')
 }
