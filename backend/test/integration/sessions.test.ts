@@ -232,21 +232,26 @@ describe('the session check on requests from the browser (SC-107)', () => {
   })
 
   it.each([
-    ['an id no session has', 'session=never-created'],
-    ['an empty session cookie', 'session='],
+    ['an id no session has', '__Host-session=never-created'],
+    ['an empty session cookie', '__Host-session='],
     ['only other cookies', 'theme=dark'],
   ])('refuses a request whose cookie holds %s', async (_, cookie) => {
     expect((await listTokens({ cookie })).statusCode).toBe(401)
   })
 
+  it('does not take a live session id under a cookie name without the __Host- prefix', async () => {
+    const id = (await signedInCookie()).slice('__Host-session='.length)
+    expect((await listTokens({ cookie: `session=${id}` })).statusCode).toBe(401)
+  })
+
   it('signs out: the session is deleted, the cookie cleared, and the cookie refused after', async () => {
     const cookie = await signedInCookie()
-    const id = cookie.slice('session='.length)
+    const id = cookie.slice('__Host-session='.length)
     expect((await listTokens({ cookie })).statusCode).toBe(200)
 
     const out = await signOut(cookie)
     expect(out.statusCode).toBe(204)
-    expect(String(out.headers['set-cookie'])).toMatch(/^session=; .*Max-Age=0/)
+    expect(String(out.headers['set-cookie'])).toMatch(/^__Host-session=; .*Max-Age=0/)
     expect(
       await x.db
         .select()
@@ -394,14 +399,14 @@ describe('TC-177: a person signs in with an account held in the tool', () => {
     const signedIn = await signIn('alice', 'C-correct-horse')
     expect(signedIn.statusCode).toBe(204)
     const cookie = String(signedIn.headers['set-cookie'])
-    const sessionId = /^session=([A-Za-z0-9_-]+);/.exec(cookie)?.[1]
+    const sessionId = /^__Host-session=([A-Za-z0-9_-]+);/.exec(cookie)?.[1]
     expect(sessionId).toBeDefined()
     const [session] = await x.db
       .select()
       .from(sessions)
       .where(eq(sessions.secretHash, hashSecret(sessionId!)))
     expect(session?.accountId).toBe(alice.id)
-    const cookieHeader = `session=${sessionId!}`
+    const cookieHeader = `__Host-session=${sessionId!}`
     const acting = await app.inject({
       method: 'GET',
       url: '/api/tokens',

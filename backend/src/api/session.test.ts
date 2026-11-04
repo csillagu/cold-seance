@@ -118,7 +118,7 @@ describe('DELETE /api/session', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: '/api/session',
-      headers: { 'x-caller': ALICE, cookie: 'theme=dark; session=the-session-id' },
+      headers: { 'x-caller': ALICE, cookie: 'theme=dark; __Host-session=the-session-id' },
     })
     expect(response.statusCode).toBe(204)
     expect(response.body).toBe('')
@@ -143,7 +143,7 @@ describe('DELETE /api/session', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: '/api/session',
-      headers: { cookie: 'session=the-session-id' },
+      headers: { cookie: '__Host-session=the-session-id' },
     })
     expect(response.statusCode).toBe(401)
     expect(response.headers['set-cookie']).toBeUndefined()
@@ -156,7 +156,7 @@ describe('DELETE /api/session', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: '/api/session',
-      headers: { 'x-caller': ALICE, cookie: 'session=bobs-session' },
+      headers: { 'x-caller': ALICE, cookie: '__Host-session=bobs-session' },
     })
     expect(response.statusCode).toBe(403)
     expect(response.json().message).toBe(SIGN_OUT_NOT_YOURS)
@@ -169,7 +169,7 @@ describe('DELETE /api/session', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: '/api/session',
-      headers: { 'x-caller': ALICE, cookie: 'session=the-session-id' },
+      headers: { 'x-caller': ALICE, cookie: '__Host-session=the-session-id' },
     })
     expect(response.statusCode).toBe(500)
     expect(response.json().message).toBe('Internal Server Error')

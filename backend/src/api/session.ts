@@ -2,8 +2,12 @@ import type { FastifyPluginAsync, FastifyReply } from 'fastify'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
 
-/** The cookie the browser keeps its session's id in (DD-054). */
-export const SESSION_COOKIE = 'session'
+/**
+ * The cookie the browser keeps its session's id in (DD-054). The `__Host-` prefix makes browsers
+ * accept it only from this host, over HTTPS, for the whole site and without a `Domain`, so another
+ * host under the same domain cannot plant a session cookie of its own in the browser.
+ */
+export const SESSION_COOKIE = '__Host-session'
 
 /**
  * The session cookie for `sessionId`: page scripts cannot read it (`HttpOnly`), it is sent only
@@ -22,8 +26,7 @@ export const CLEARED_SESSION_COOKIE = `${SESSION_COOKIE}=; Path=/; Max-Age=0; Ht
 
 /**
  * The session id in a request's `Cookie` header, or `undefined` if it carries no session cookie,
- * or an empty one. A header with several session cookies gives the first, as browsers send the
- * most specific first.
+ * or an empty one. A header with several session cookies gives the first.
  */
 export function sessionIdOf(cookieHeader: string | undefined): string | undefined {
   if (cookieHeader === undefined) return undefined

@@ -15,12 +15,12 @@ function withCookie(cookie: string | undefined) {
 
 describe('sessionIdOf', () => {
   it.each([
-    ['session=abc', 'abc'],
-    ['theme=dark; session=abc', 'abc'],
-    ['session=abc; theme=dark', 'abc'],
-    ['  session = abc  ', 'abc'],
-    ['session=first; session=second', 'first'],
-    ['session=a=b', 'a=b'],
+    ['__Host-session=abc', 'abc'],
+    ['theme=dark; __Host-session=abc', 'abc'],
+    ['__Host-session=abc; theme=dark', 'abc'],
+    ['  __Host-session = abc  ', 'abc'],
+    ['__Host-session=first; __Host-session=second', 'first'],
+    ['__Host-session=a=b', 'a=b'],
   ])('finds the session id in %j', (header, id) => {
     expect(sessionIdOf(header)).toBe(id)
   })
@@ -29,9 +29,9 @@ describe('sessionIdOf', () => {
     ['no Cookie header', undefined],
     ['an empty header', ''],
     ['other cookies only', 'theme=dark; lang=en'],
-    ['a cookie whose name only starts with session', 'sessions=abc; xsession=abc'],
-    ['a pair without a value', 'session'],
-    ['an empty session cookie, as signing out leaves', 'session='],
+    ['a cookie of another name, the unprefixed one included', 'session=abc; __Host-sessions=abc'],
+    ['a pair without a value', '__Host-session'],
+    ['an empty session cookie, as signing out leaves', '__Host-session='],
   ])('finds none in %s', (_, header) => {
     expect(sessionIdOf(header)).toBeUndefined()
   })
@@ -43,7 +43,7 @@ describe('sessionAuthenticator', () => {
       id === 'live' ? ALICE : undefined,
     )
     const authenticate = sessionAuthenticator({ resolve })
-    expect(await authenticate(withCookie('theme=dark; session=live'))).toEqual({
+    expect(await authenticate(withCookie('theme=dark; __Host-session=live'))).toEqual({
       accountId: ALICE,
       channel: 'ui',
     })
@@ -53,12 +53,12 @@ describe('sessionAuthenticator', () => {
   it('refuses outright a request whose session does not exist', async () => {
     const resolve = vi.fn<(id: string) => Promise<string | undefined>>(async () => undefined)
     const authenticate = sessionAuthenticator({ resolve })
-    await expect(authenticate(withCookie('session=signed-out'))).rejects.toThrow(
+    await expect(authenticate(withCookie('__Host-session=signed-out'))).rejects.toThrow(
       UnauthenticatedError,
     )
   })
 
-  it.each([undefined, '', 'theme=dark', 'session='])(
+  it.each([undefined, '', 'theme=dark', '__Host-session='])(
     'leaves a request with the Cookie header %j to the other authenticators',
     async (cookie) => {
       const resolve = vi.fn<(id: string) => Promise<string | undefined>>(async () => ALICE)
