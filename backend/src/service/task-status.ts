@@ -92,12 +92,12 @@ export class TaskStatusService {
       if (!TARGETS.has(to) || current.status === 'cancelled') {
         throw invalid(refusal(current.status, to))
       }
-      // The assignees come with the eligibility and assignment module (SC-005); until then a task
-      // has none, so a contributor can set the status of no task.
+      // The assignees are read with the task locked, so that a contributor is checked against
+      // who is assigned now (SC-005).
       await this.#roles.permissions.requireStatusChange(
         caller,
         current.projectId,
-        { assignees: [], from: current.status, to },
+        { assignees: current.assignees, from: current.status, to },
         tx,
       )
       if (to === current.status) return toTask(current)

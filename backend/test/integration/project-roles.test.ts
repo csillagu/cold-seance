@@ -593,9 +593,9 @@ describe('test cases through the REST API', () => {
   })
 
   // TC-154 to TC-159 (FR-106, FR-107, FR-108) check the roles on tasks, views, baselines and AI
-  // proposals, none of which exist yet. Pending: TC-154 (views SC-030, SC-031, SC-032, SC-033 and
-  // baselines SC-009), TC-155 to TC-158 (tasks SC-001, statuses SC-003, assignment SC-005),
-  // TC-159 (proposals SC-010, SC-048, MCP server SC-027). Each of those modules asks the role
+  // proposals. TC-155 to TC-158, on tasks, statuses and assignment, are in task-roles.test.ts.
+  // Pending: TC-154 (views SC-030, SC-031, SC-032, SC-033 and baselines SC-009), TC-159
+  // (proposals SC-010, SC-048, MCP server SC-027). Each of those modules asks the role
   // permission checks (SC-049) before it reads or changes anything; the checks themselves are
   // tested role by role in src/service/permissions.test.ts.
 
