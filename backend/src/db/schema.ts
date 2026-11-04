@@ -442,3 +442,51 @@ export const absences = pgTable(
     check('absences_end_not_before_start', sql`${table.endsOn} >= ${table.startsOn}`),
   ],
 )
+
+/**
+ * The GitHub repositories registered in the tool (FR-166, SC-019), each an item of its own,
+ * separate from the projects that use it. Anyone with an account registers one the tool can reach
+ * on GitHub (FR-167). It is known by GitHub's own id for it, unique so that a repository is
+ * registered once, under whatever name or case it is asked for; `owner` and `name` are as GitHub
+ * named it when it was registered. `registered_by` is who registered it.
+ */
+export const repositories = pgTable(
+  'repositories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    githubId: bigint('github_id', { mode: 'number' }).notNull(),
+    owner: text('owner').notNull(),
+    name: text('name').notNull(),
+    registeredBy: uuid('registered_by')
+      .notNull()
+      .references(() => accounts.id),
+    registeredAt: timestamp('registered_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('repositories_github_id_key').on(table.githubId),
+    // GitHub names ignore case; registration looks a repository up by name before asking GitHub.
+    index('repositories_full_name_idx').on(sql`lower(${table.owner})`, sql`lower(${table.name})`),
+  ],
+)
+
+/**
+ * The admins of each registered repository (FR-166): whoever registered it (FR-167), and those its
+ * admins (FR-174) or a system admin (FR-169) made admins since. A repository always has at least
+ * one (FR-175), which the repository registry keeps (SC-019).
+ */
+export const repositoryAdmins = pgTable(
+  'repository_admins',
+  {
+    repositoryId: uuid('repository_id')
+      .notNull()
+      .references(() => repositories.id),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+  },
+  (table) => [
+    // A unique index rather than a composite primary key, for the reason given at project_members.
+    uniqueIndex('repository_admins_key').on(table.repositoryId, table.accountId),
+    index('repository_admins_account_id_idx').on(table.accountId),
+  ],
+)
