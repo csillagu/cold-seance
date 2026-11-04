@@ -33,6 +33,9 @@ const GROUP_NAME_INDEX = 'groups_name_key'
 /** Why a change that would leave a group without an admin is refused (FR-160). */
 const LAST_ADMIN = 'A group must keep at least one admin'
 
+/** Why a change to a group's members is refused to a caller who has no account. */
+const CHANGE_REFUSAL = "Only people with an account can change a group's members"
+
 const memberColumns = {
   accountId: groupMembers.accountId,
   username: accounts.username,
@@ -157,7 +160,7 @@ export class GroupService {
     accountId: string,
     role: string,
   ): Promise<GroupMember> {
-    await this.#requireAccount(caller, 'Only people with an account can see the groups')
+    await this.#requireAccount(caller, CHANGE_REFUSAL)
     await this.#requireGroup(groupId)
     return this.#db.transaction(async (tx) => {
       // The caller is checked before the admins are locked, so that no one else can hold up a
@@ -203,7 +206,7 @@ export class GroupService {
    * group's last admin (FR-160).
    */
   async removeMember(caller: Caller, groupId: string, accountId: string): Promise<void> {
-    await this.#requireAccount(caller, 'Only people with an account can see the groups')
+    await this.#requireAccount(caller, CHANGE_REFUSAL)
     await this.#requireGroup(groupId)
     await this.#db.transaction(async (tx) => {
       await this.#requireAdmin(tx, caller, groupId)
@@ -234,12 +237,18 @@ export class GroupService {
    * found if they are not a member, and refused if they are the group's last admin (FR-160).
    */
   async leaveGroup(caller: Caller, groupId: string): Promise<void> {
-    await this.#requireAccount(caller, 'Only people with an account can see the groups')
+    await this.#requireAccount(caller, CHANGE_REFUSAL)
     await this.#requireGroup(groupId)
     await this.#db.transaction(async (tx) => {
+      // The caller is checked to be a member before the admins are locked, so that no one else
+      // can hold up a group's admins, and again once they are, so that the check still holds.
+      await this.#requireMember(tx, groupId, caller.accountId)
       const admins = await this.#lockAdmins(tx, groupId)
-      const role = await this.#roleIn(tx, groupId, caller.accountId)
-      if (!role) throw new ServiceError('not-found', 'You are not a member of this group')
+      const role = await this.#requireMember(tx, groupId, caller.accountId)
+      const [account] = await tx
+        .select({ username: accounts.username })
+        .from(accounts)
+        .where(eq(accounts.id, caller.accountId))
       if (role === 'admin' && admins.length === 1) {
         throw new ServiceError('conflict', "The group's last admin cannot leave it")
       }
@@ -247,9 +256,15 @@ export class GroupService {
       await this.#audit.record(tx, caller, {
         action: 'group.member-left',
         subject: { type: 'group', id: groupId },
-        details: { accountId: caller.accountId, previousRole: role },
+        details: { accountId: caller.accountId, username: account?.username, previousRole: role },
       })
     })
+  }
+
+  async #requireMember(tx: Executor, groupId: string, accountId: string): Promise<ProjectRole> {
+    const role = await this.#roleIn(tx, groupId, accountId)
+    if (!role) throw new ServiceError('not-found', 'You are not a member of this group')
+    return role
   }
 
   async #requireGroup(groupId: string): Promise<void> {

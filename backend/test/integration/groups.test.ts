@@ -391,7 +391,7 @@ describe('the group service', () => {
         ),
         'forbidden',
       )
-      expect(error.message).toBe('Only people with an account can see the groups')
+      expect(error.message).toBe("Only people with an account can change a group's members")
     })
 
     it('lets only one of two admins demote the other at once, so the group keeps an admin', async () => {
@@ -474,11 +474,25 @@ describe('the group service', () => {
 
     it('refuses a caller who has no account', async () => {
       const group = await service.createGroup(by(alice), { name: fresh('Ghost remover') })
-      await refused(
+      const error = await refused(
         service.removeMember({ accountId: 'nobody', channel: 'ui' }, group.id, alice.id),
         'forbidden',
       )
+      expect(error.message).toBe("Only people with an account can change a group's members")
       expect(await roleRows(group.id)).toEqual({ [alice.id]: 'admin' })
+    })
+  })
+
+  describe('removeMember, at once', () => {
+    it('lets only one of two admins remove the other at once, so the group keeps an admin', async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('Remove race') })
+      await service.setMemberRole(by(alice), group.id, bob.id, 'admin')
+      const results = await Promise.allSettled([
+        service.removeMember(by(alice), group.id, bob.id),
+        service.removeMember(by(bob), group.id, alice.id),
+      ])
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      expect((await membersOf(group.id)).filter((m) => m.role === 'admin')).toHaveLength(1)
     })
   })
 
@@ -498,7 +512,7 @@ describe('the group service', () => {
           actorAccountId: bob.id,
           channels: ['mcp'],
           projectId: null,
-          details: { accountId: bob.id, previousRole: role },
+          details: { accountId: bob.id, username: 'bob', previousRole: role },
         })
       },
     )
@@ -531,6 +545,16 @@ describe('the group service', () => {
       expect((await membersOf(group.id)).filter((m) => m.role === 'admin')).toHaveLength(1)
     })
 
+    it("refuses a non-member before locking the group's admins", async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('No hold-up') })
+      // Hold alice's admin row locked in another transaction; a non-member's leave must not wait.
+      await x.db.transaction(async (tx) => {
+        await tx.select().from(groupMembers).where(eq(groupMembers.groupId, group.id)).for('update')
+        const error = await refused(service.leaveGroup(by(bob), group.id), 'not-found')
+        expect(error.message).toBe('You are not a member of this group')
+      })
+    })
+
     it('answers someone who is not a member as not found', async () => {
       const group = await service.createGroup(by(alice), { name: fresh('Outsider') })
       const error = await refused(service.leaveGroup(by(bob), group.id), 'not-found')
@@ -546,10 +570,11 @@ describe('the group service', () => {
 
     it('refuses a caller who has no account', async () => {
       const group = await service.createGroup(by(alice), { name: fresh('Ghost leaver') })
-      await refused(
+      const error = await refused(
         service.leaveGroup({ accountId: randomUUID(), channel: 'ui' }, group.id),
         'forbidden',
       )
+      expect(error.message).toBe("Only people with an account can change a group's members")
       expect(await roleRows(group.id)).toEqual({ [alice.id]: 'admin' })
     })
   })
@@ -655,6 +680,8 @@ describe('test cases through the REST API', () => {
       const bob = await seedAccount(x.db, { username: 'bob' })
       const { id } = (await create(alice, 'Platform')).json<{ id: string }>()
       const aliceAdmin = { accountId: alice.id, username: 'alice', role: 'admin' }
+      // Before step 1, bob is not a member.
+      expect((await members(alice, id)).json()).toEqual([aliceAdmin])
 
       // Step 1: add bob with the read role; read the members.
       expect((await setRole(alice, id, bob, 'read-only')).statusCode).toBe(200)
