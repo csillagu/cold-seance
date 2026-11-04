@@ -24,3 +24,18 @@ export function groupTable(): GroupRoles & {
         .map((r) => ({ projectId: r.projectId, role: r.role })),
   }
 }
+
+/**
+ * Group project assignment for project services whose tests add no project to a group: adding
+ * one fails the test.
+ */
+export const noNewProjectGroups = {
+  addNewProject: async (
+    _tx: Executor,
+    _caller: unknown,
+    _project: unknown,
+    groupIds: readonly string[],
+  ) => {
+    if (groupIds.length > 0) throw new Error('This test adds no project to a group')
+  },
+}
