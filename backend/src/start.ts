@@ -5,6 +5,7 @@ import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
+import { tokenAuthenticator } from './api/token-auth.ts'
 import { createServices } from './service/services.ts'
 
 export interface Backend {
@@ -45,9 +46,11 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   }
   const frontendDir = options.frontendDir ?? defaultFrontendDir
   const servesFrontend = hasFrontend(frontendDir)
+  const services = createServices(db)
   const app = buildApp(
     options.server,
-    { services: createServices(db) },
+    // Each channel's own way of saying who makes a request: so far, the API tokens (SC-055).
+    { services, authenticators: [tokenAuthenticator(services.apiTokens)] },
     servesFrontend ? { frontendDir } : {},
   )
   // Running from the repository without building the frontend is normal in development, where

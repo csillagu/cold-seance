@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
-import { apiTokens } from '../db/schema.ts'
+import { accounts, apiTokens } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
@@ -129,5 +129,27 @@ export class ApiTokenService {
         subject: { type: 'api-token', id: revoked.id },
       })
     })
+  }
+
+  /**
+   * The account a request's token acts as (DD-048, SC-055): the owner of the token whose secret
+   * this is, if the token is not revoked (deleted), not expired, and its owner's account still
+   * exists. Answers nothing for any other secret, so a caller cannot tell a revoked token from one
+   * that never existed. The token carries no roles of its own: every check reads the owner's
+   * current roles, so a token can do in each project exactly what its owner can (FR-113).
+   */
+  async resolve(secret: string): Promise<string | undefined> {
+    if (!secret.startsWith(TOKEN_PREFIX)) return undefined
+    const [owner] = await this.#db
+      .select({ accountId: accounts.id })
+      .from(apiTokens)
+      .innerJoin(accounts, eq(accounts.id, apiTokens.accountId))
+      .where(
+        and(
+          eq(apiTokens.secretHash, hashSecret(secret)),
+          or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, sql`now()`)),
+        ),
+      )
+    return owner?.accountId
   }
 }
