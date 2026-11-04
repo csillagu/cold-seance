@@ -5,6 +5,7 @@ import { apiTokenRoutes } from './api-tokens.ts'
 import { auditLogRoutes } from './audit.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
+import { groupRoutes } from './groups.ts'
 import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRoutes } from './projects.ts'
@@ -40,6 +41,7 @@ export interface RouteGroupOptions {
 export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: accountRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
+  { prefix: '/groups', routes: groupRoutes },
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },

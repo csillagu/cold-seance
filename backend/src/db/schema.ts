@@ -126,6 +126,46 @@ export const projectMembers = pgTable(
 )
 
 /**
+ * The groups (SC-018): sets of people, each holding a role in the group (SRC-139). Anyone with an
+ * account can create one (FR-121) and becomes its admin (FR-159); `created_by` is who created it.
+ * Every group is shown to everyone (FR-122). Two groups may have the same name: nothing asks for
+ * group names to differ.
+ */
+export const groups = pgTable('groups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // Not indexed: a name of 200 characters can take more bytes than a btree entry can hold.
+  name: text('name').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * The members of each group, with the role each holds in it (SRC-139): read, contributor, write
+ * or admin, the same four roles a person can hold in a project directly, which a member then holds
+ * on every project in the group (FR-111, SC-058). At most one role for each person in each group.
+ * Group creation (SC-018) adds the creator as admin; group membership (SC-057) adds the others.
+ */
+export const groupMembers = pgTable(
+  'group_members',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    role: projectRole('role').notNull(),
+  },
+  (table) => [
+    // A unique index rather than a composite primary key, for the reason given at project_members.
+    uniqueIndex('group_members_key').on(table.groupId, table.accountId),
+    index('group_members_account_id_idx').on(table.accountId),
+  ],
+)
+
+/**
  * The personal access tokens people create for the REST API and the MCP server (DD-048, SC-016).
  * A token's secret is kept only as its hash, unique so that a request's secret finds its token; a
  * revoked token is deleted. A token with no expiry date never expires.

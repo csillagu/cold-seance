@@ -345,7 +345,7 @@ describe('the service layer', () => {
       expect(response.json()).toMatchObject({ message: 'Internal Server Error' })
     }
     expect(routeGroups.map((g) => g.prefix)).toEqual(
-      expect.arrayContaining(['/accounts', '/audit-log', '/projects', '/tokens']),
+      expect.arrayContaining(['/accounts', '/audit-log', '/groups', '/projects', '/tokens']),
     )
   })
 })
