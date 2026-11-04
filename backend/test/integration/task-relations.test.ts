@@ -395,6 +395,26 @@ describe('the task relation service', () => {
       },
     )
 
+    it('leaves out a blocker of a project the reader cannot read, but shows it to those who can (FR-059)', async () => {
+      const m = await inBorealis('M', { milestone: FIXED })
+      const own = await inApollo('Own blocker')
+      const task = await inApollo('T')
+      await relations.addBlocker(by(alice), task, m)
+      await relations.addBlocker(by(alice), task, own)
+      // The reader and the writer hold roles in Apollo only, none in Borealis.
+      expect((await relations.getRelations(by(reader), task)).blockedBy).toEqual([ref(own)])
+      expect((await relations.getRelations(by(alice), task)).blockedBy).toEqual([
+        ref(m, borealis),
+        ref(own),
+      ])
+      // The answer to a change is filtered the same way.
+      const other = await inApollo('Other')
+      const answer = await relations.addBlocker(by(writer), task, other)
+      expect(answer.blockedBy).toEqual([ref(own), ref(other)])
+      // The relation is still there, and still blocks the task.
+      expect((await blockersOf(task)).toSorted()).toEqual([m, own, other].toSorted())
+    })
+
     it("refuses another project's milestone to someone who cannot read that project (FR-016)", async () => {
       const m = await make(hidden, { title: 'M', milestone: FIXED }, bob)
       const task = await inApollo('T')

@@ -37,6 +37,7 @@ export function createServices(db: Database): Services {
   }
   const audit = new AuditLogService(db, roles)
   const projectRoles = new ProjectRoleService(db, audit)
+  const viewFilter = new ViewReadFilter(projectRoles)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -46,7 +47,7 @@ export function createServices(db: Database): Services {
     projects: new ProjectService(db, audit, projectRoles),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),
-    taskRelations: new TaskRelationService(db, audit, projectRoles),
-    viewFilter: new ViewReadFilter(projectRoles),
+    taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),
+    viewFilter,
   }
 }

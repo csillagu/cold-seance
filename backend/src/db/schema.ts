@@ -198,7 +198,9 @@ export const milestoneVariant = pgEnum('milestone_variant', MILESTONE_VARIANTS)
  *
  * `parent_id` makes a task a subtask of another task of its project (SC-002); a task has at most
  * one parent, and subtasks nest. The task relation module keeps the nesting free of cycles and
- * keeps milestones out of it (FR-193).
+ * keeps milestones out of it (FR-193); any other module that writes `parent_id` takes its
+ * `lockRelations` first. Nothing deletes a task yet, so the reference does not say what happens
+ * to a deleted parent's subtasks.
  */
 export const tasks = pgTable(
   'tasks',
@@ -243,7 +245,9 @@ export const tasks = pgTable(
  * The blocked-by relations (SC-002): `task_id` is blocked by `blocker_id`. The blocker is a task
  * of the same project, or a milestone of another project (FR-015). Either way the relation is the
  * blocked task's, so it is held in that task's project and never in the blocker's. The task
- * relation module keeps the relations free of cycles (FR-014).
+ * relation module keeps the relations free of cycles (FR-014); any other module that writes
+ * them, such as passing a cancelled task's blockers on (FR-128), takes its `lockRelations` first.
+ * Nothing deletes a task yet, so the references do not say what happens to its relations.
  */
 export const taskBlockedBy = pgTable(
   'task_blocked_by',

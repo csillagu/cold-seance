@@ -6,6 +6,7 @@ import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
+import type { ViewReadFilter } from './view-filter.ts'
 
 /** Whether `value` is a UUID: what a channel may hand over as a task's id is checked here. */
 function isTaskId(value: unknown): value is string {
@@ -22,7 +23,9 @@ export interface TaskRef {
  * A task's relations as the relation module hands them out (SC-002): the task it is a subtask of,
  * if any; its own subtasks; and the tasks it is blocked by, each of its own project or a milestone
  * of another project (FR-015). A blocked-by relation is the blocked task's, held in its project,
- * so a task's relations list only what it is blocked by, never what it blocks.
+ * so a task's relations list only what it is blocked by, never what it blocks. Like every view,
+ * they show only the tasks their reader can read (FR-059): a blocker of a project the reader
+ * cannot read is left out.
  */
 export interface TaskRelations {
   taskId: string
@@ -39,6 +42,14 @@ export interface TaskRelations {
  * blocked-by relations can run through several projects, so the lock is one for the whole tool.
  */
 const RELATIONS_LOCK = 0x5c_00_02
+
+/**
+ * Takes the relations lock for the rest of the transaction. Every module that writes a task's
+ * parent or its blocked-by relations takes it first, so that the checks made here still hold.
+ */
+export async function lockRelations(tx: Transaction): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(${RELATIONS_LOCK})`)
+}
 
 interface Found {
   id: string
@@ -70,7 +81,8 @@ const found = {
  *   can make it (FR-016); to anyone else the project is reported as not visible (FR-017). Of
  *   another project, only a milestone can block a task.
  *
- * Anyone with a role in a task's project may read its relations (FR-106); only its read-write
+ * Anyone with a role in a task's project may read its relations (FR-106), less the blockers of
+ * projects they cannot read (FR-059); only its read-write
  * members and admins may change them (FR-108). Each change is recorded in the audit log, in the
  * project of the task whose relation it is, in the transaction that makes it (FR-116).
  */
@@ -78,11 +90,18 @@ export class TaskRelationService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
+  readonly #filter: ViewReadFilter
 
-  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    roles: ProjectRoleService,
+    filter: ViewReadFilter,
+  ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
+    this.#filter = filter
   }
 
   /**
@@ -92,7 +111,7 @@ export class TaskRelationService {
   async getRelations(caller: Caller, taskId: string): Promise<TaskRelations> {
     const task = await this.#find(taskId, this.#db)
     await this.#roles.permissions.require(caller, task.projectId, 'read')
-    return relationsOf(this.#db, task)
+    return this.#relationsOf(caller, this.#db, task)
   }
 
   /**
@@ -206,10 +225,10 @@ export class TaskRelationService {
       const before = await this.#find(taskId, tx)
       // A task never changes project, so the check still holds after the lock.
       await this.#roles.permissions.require(caller, before.projectId, 'edit-plan', tx)
-      await tx.execute(sql`select pg_advisory_xact_lock(${RELATIONS_LOCK})`)
+      await lockRelations(tx)
       const task = await this.#find(taskId, tx)
       await apply(tx, task)
-      return relationsOf(tx, await this.#find(taskId, tx))
+      return this.#relationsOf(caller, tx, await this.#find(taskId, tx))
     })
   }
 
@@ -222,6 +241,15 @@ export class TaskRelationService {
       throw new ServiceError('not-found', 'There is no such task in this project')
     }
     return parent
+  }
+
+  /** The task's relations as the caller may see them: blockers they cannot read left out. */
+  async #relationsOf(caller: Caller, executor: Executor, task: Found): Promise<TaskRelations> {
+    const relations = await relationsOf(executor, task)
+    return {
+      ...relations,
+      blockedBy: await this.#filter.readable(caller, relations.blockedBy, executor),
+    }
   }
 
   async #find(taskId: unknown, executor: Executor): Promise<Found> {
