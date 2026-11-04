@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto'
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts, sessions } from '../db/schema.ts'
 import { hashSecret } from './api-tokens.ts'
+import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import { hashPassword, verifyPassword } from './passwords.ts'
 
@@ -20,12 +21,12 @@ export interface SignedIn {
 }
 
 /**
- * Sign-in, the part of the backend that signs a person in with their account held in the tool
- * (DD-027, FR-118) (SC-052): it checks the password against its Argon2id hash (DD-056) and
- * creates a session stored in PostgreSQL, whose random id the browser gets in a cookie and whose
- * hash alone the database keeps (DD-054). A wrong password, or a username with no account, creates
- * no session, and the two are refused alike, after the same work, so the answer and its time do
- * not tell whether the account exists.
+ * The browser's sign-in sessions (DD-054). Sign-in (SC-052) checks the password against its
+ * Argon2id hash (DD-056) and creates a session stored in PostgreSQL, whose random id the browser
+ * gets in a cookie and whose hash alone the database keeps. A wrong password, or a username with no
+ * account, creates no session, and the two are refused alike, after the same work, so the answer
+ * and its time do not tell whether the account exists. The session check (SC-107) looks a cookie's
+ * session up on each request from the browser, and signing out deletes the session at once.
  */
 export class SessionService {
   readonly #db: Database
@@ -57,5 +58,34 @@ export class SessionService {
       .insert(sessions)
       .values({ secretHash: hashSecret(sessionId), accountId: account.id })
     return { accountId: account.id, sessionId }
+  }
+
+  /**
+   * The account whose session the browser's cookie holds the id of, or nothing if no such session
+   * exists: it was never created, or its person signed out (SC-107). A session ends only by being
+   * deleted, so a session found here is live (DD-054).
+   */
+  async resolve(sessionId: string): Promise<string | undefined> {
+    const [session] = await this.#db
+      .select({ accountId: sessions.accountId })
+      .from(sessions)
+      .where(eq(sessions.secretHash, hashSecret(sessionId)))
+    return session?.accountId
+  }
+
+  /**
+   * Signs the caller out of the session with this id, deleting it at once, so the cookie that held
+   * its id no longer acts as anyone (SC-107, DD-054). Only the caller's own session is deleted: an
+   * id of someone else's session, or of none, deletes nothing.
+   */
+  async signOut(caller: Caller, sessionId: string): Promise<void> {
+    await this.#db
+      .delete(sessions)
+      .where(
+        and(
+          eq(sessions.secretHash, hashSecret(sessionId)),
+          eq(sessions.accountId, caller.accountId),
+        ),
+      )
   }
 }
