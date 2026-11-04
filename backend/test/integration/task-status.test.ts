@@ -287,8 +287,8 @@ describe('the task status service', () => {
     })
 
     it('forbids a contributor a task they are not assigned to', async () => {
-      // No task has assignees until the eligibility and assignment module (SC-005).
       const id = await seed({ status: 'in-progress', actualStart: '2027-02-01' })
+      await services.tasks.updateTask(by(alice), id, { assignees: [writer.id] })
       const error = await refused(set(id, 'done', by(contributor)), 'forbidden')
       expect(error.message).toMatch(/assigned to/)
       expect((await stored(id))?.status).toBe('in-progress')
@@ -454,13 +454,14 @@ describe('test cases through the REST API', () => {
   const given = (id: string, fields: Partial<Row>) =>
     x.db.update(tasks).set(fields).where(eq(tasks.id, id))
 
-  // Pending: each TC's "assigned to alice" comes with the eligibility and assignment module
-  // (SC-005). alice is Apollo's admin, so whether she is assigned does not decide the outcome.
+  // Each TC's "assigned to alice" is given as an assignee (SC-005). alice is Apollo's admin, so
+  // whether she is assigned does not decide the outcome.
 
   describe('TC-032: starting a task in the tool records its actual start', () => {
     it('sets T in progress with actual start D, no actual finish and its planned dates as they were', async () => {
       const t = await createTask({
         title: 'T',
+        assignees: [alice.id],
         plannedStart: '2027-03-01',
         plannedFinish: '2027-03-05',
       })
@@ -486,6 +487,7 @@ describe('test cases through the REST API', () => {
     it('sets T done with actual finish D, its actual start and planned dates as they were', async () => {
       const t = await createTask({
         title: 'T',
+        assignees: [alice.id],
         plannedStart: '2027-03-01',
         plannedFinish: '2027-03-05',
       })
@@ -511,6 +513,7 @@ describe('test cases through the REST API', () => {
     it('sets T on hold with its planned start, finish and duration unchanged, and no other task changed', async () => {
       const t = await createTask({
         title: 'T',
+        assignees: [alice.id],
         aiShare: 0,
         plannedStart: '2027-03-01',
         durationWorkingDays: 5,

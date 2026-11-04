@@ -268,6 +268,12 @@ export const tasks = pgTable(
     /** The date the task was finished, recorded by the status transitions (SC-003, FR-023). */
     actualFinish: date('actual_finish', { mode: 'string' }),
     parentId: uuid('parent_id').references((): AnyPgColumn => tasks.id),
+    /**
+     * Who can do the task (FR-028, SC-005): an AND/OR expression over people, at most two levels
+     * deep, stored as a tree (DD-038), such as `{"all": [A, {"any": [B, C, D]}]}`, each person
+     * by their account's id. Null when the task has none; a milestone never has one (FR-192).
+     */
+    eligibility: jsonb('eligibility').$type<Eligibility>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -283,9 +289,48 @@ export const tasks = pgTable(
       sql`(${table.milestoneVariant} is not distinct from 'fixed-date') = (${table.milestoneDate} is not null)`,
     ),
     check(
+      'tasks_milestone_has_no_eligibility',
+      sql`${table.milestoneVariant} is null or ${table.eligibility} is null`,
+    ),
+    check(
       'tasks_milestone_takes_no_time',
       sql`${table.milestoneVariant} is null or (${table.plannedStart} is null and ${table.plannedFinish} is null and ${table.durationWorkingDays} is null and ${table.effort} is null and ${table.aiShare} is null)`,
     ),
+  ],
+)
+
+/**
+ * An eligibility expression as it is stored (DD-038): a person, by their account's id, or an AND
+ * (`all`) or OR (`any`) of operands, each a person or, one level down, an AND or OR of people.
+ * The eligibility and assignment module (SC-005) checks every expression before it is stored.
+ */
+export type Eligibility = string | { all: EligibilityOperand[] } | { any: EligibilityOperand[] }
+
+/** An operand of an eligibility expression's top-level AND or OR. */
+export type EligibilityOperand = string | { all: string[] } | { any: string[] }
+
+/**
+ * Who will do each task (FR-029, SC-005): a concrete list of people, kept apart from the task's
+ * eligibility, in the order it was given (`position`). Anyone in it can read the task's project
+ * when they are added (FR-031), whether or not the eligibility expression names them (FR-030). A
+ * milestone has nobody in it (FR-192); the eligibility and assignment module keeps it so.
+ */
+export const taskAssignees = pgTable(
+  'task_assignees',
+  {
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    position: integer('position').notNull(),
+  },
+  (table) => [
+    // A unique index rather than a composite primary key, for the reason given at project_members.
+    uniqueIndex('task_assignees_key').on(table.taskId, table.accountId),
+    uniqueIndex('task_assignees_position_key').on(table.taskId, table.position),
+    index('task_assignees_account_id_idx').on(table.accountId),
   ],
 )
 

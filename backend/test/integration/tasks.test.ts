@@ -90,6 +90,9 @@ describe('the task service', () => {
         effort: 5,
         aiShare: 0,
         milestone: null,
+        eligibility: null,
+        assignees: [],
+        withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,
@@ -538,7 +541,6 @@ describe('test cases through the REST API', () => {
 
   describe('TC-001: a task is stored with every minimum field', () => {
     it('reads back every value given, the project, a status and an empty linked GitHub issue', async () => {
-      // bob's role is the TC's given; he is named in the eligibility, which is pending SC-005.
       const bob = await seedAccount(x.db, { username: 'bob' })
       await grantRole(x.db, bob, apollo, 'read-write')
 
@@ -549,6 +551,8 @@ describe('test cases through the REST API', () => {
         durationWorkingDays: 3,
         effort: 5,
         aiShare: 0,
+        eligibility: { any: [alice.id, bob.id] },
+        assignees: [alice.id],
       })
       expect(created.statusCode).toBe(201)
       const { id } = created.json<{ id: string }>()
@@ -572,6 +576,10 @@ describe('test cases through the REST API', () => {
         effort: 5,
         aiShare: 0,
         milestone: null,
+        // Eligibility `alice OR bob`; assigned people exactly [alice].
+        eligibility: { any: [alice.id, bob.id] },
+        assignees: [alice.id],
+        withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,
@@ -582,9 +590,8 @@ describe('test cases through the REST API', () => {
       expect(await tasksOfApollo()).toHaveLength(1)
     })
 
-    // Pending: TC-001's eligibility `alice OR bob` and assigned people exactly [alice] come with
-    // the eligibility and assignment module (SC-005), and its derived planned finish with the
-    // scheduler (FR-144, SC-004). This test grows to cover them when those land.
+    // Pending: TC-001's derived planned finish comes with the scheduler (FR-144, SC-004). This test
+    // grows to cover it when that lands.
   })
 
   describe("TC-002: a task's duration is held in whole working days", () => {
