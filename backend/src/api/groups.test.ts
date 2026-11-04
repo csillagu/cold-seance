@@ -12,6 +12,7 @@ import type { Authenticator } from './caller.ts'
 const ERIN = '6f1c2a5e-0000-4000-8000-000000000005'
 const GROUP = { id: '6f1c2a5e-0000-4000-8000-0000000000b1', name: "Erin's group" }
 const MEMBER = { accountId: ERIN, username: 'erin', role: 'admin' as const }
+const BOB = '6f1c2a5e-0000-4000-8000-000000000002'
 
 const asErin: Authenticator = async (request) =>
   request.headers.authorization === 'Bearer erin' ? { accountId: ERIN, channel: 'ui' } : undefined
@@ -31,6 +32,9 @@ function stubbed() {
     createGroup: vi.spyOn(services.groups, 'createGroup'),
     listGroups: vi.spyOn(services.groups, 'listGroups'),
     listMembers: vi.spyOn(services.groups, 'listMembers'),
+    setMemberRole: vi.spyOn(services.groups, 'setMemberRole'),
+    removeMember: vi.spyOn(services.groups, 'removeMember'),
+    leaveGroup: vi.spyOn(services.groups, 'leaveGroup'),
   }
   const app = buildApp({}, { authenticators: [asErin], services })
   closers.push(async () => {
@@ -186,5 +190,153 @@ describe('GET /api/groups/:groupId/members', () => {
     const response = await app.inject({ method: 'GET', url: `/api/groups/${GROUP.id}/members` })
     expect(response.statusCode).toBe(401)
     expect(groups.listMembers).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/groups/:groupId/members/:accountId', () => {
+  const url = `/api/groups/${GROUP.id}/members/${BOB}`
+  const BOB_MEMBER = { accountId: BOB, username: 'bob', role: 'contributor' as const }
+
+  it('hands the service the caller, the group, the person and the role and sends the member', async () => {
+    const { app, groups } = stubbed()
+    groups.setMemberRole.mockResolvedValue(BOB_MEMBER)
+    const response = await app.inject({
+      method: 'PUT',
+      url,
+      headers: erin,
+      payload: { role: 'contributor' },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(BOB_MEMBER)
+    expect(groups.setMemberRole).toHaveBeenCalledWith(caller, GROUP.id, BOB, 'contributor')
+  })
+
+  it.each([
+    ['no role', url, {}],
+    ['a role that is not one of the four', url, { role: 'owner' }],
+    ['a group id that is not a UUID', `/api/groups/platform/members/${BOB}`, { role: 'admin' }],
+    ['an account id that is not a UUID', `/api/groups/${GROUP.id}/members/bob`, { role: 'admin' }],
+  ])('refuses %s before the service is asked', async (_, target, payload) => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'PUT', url: target, headers: erin, payload })
+    expect(response.statusCode).toBe(400)
+    expect(groups.setMemberRole).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['forbidden', 403, "Only the group's admins can manage its members"],
+    ['not-found', 404, 'There is no such account'],
+    ['conflict', 409, 'A group must keep at least one admin'],
+  ] as const)('answers a %s refusal with %i and its message', async (kind, statusCode, message) => {
+    const { app, groups } = stubbed()
+    groups.setMemberRole.mockRejectedValue(new ServiceError(kind, message))
+    const response = await app.inject({
+      method: 'PUT',
+      url,
+      headers: erin,
+      payload: { role: 'read-only' },
+    })
+    expect(response.statusCode).toBe(statusCode)
+    expect(response.json().message).toBe(message)
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'PUT', url, payload: { role: 'read-only' } })
+    expect(response.statusCode).toBe(401)
+    expect(groups.setMemberRole).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/groups/:groupId/members/:accountId', () => {
+  const url = `/api/groups/${GROUP.id}/members/${BOB}`
+
+  it('hands the service the caller, the group and the person and answers 204', async () => {
+    const { app, groups } = stubbed()
+    groups.removeMember.mockResolvedValue(undefined)
+    const response = await app.inject({ method: 'DELETE', url, headers: erin })
+    expect(response.statusCode).toBe(204)
+    expect(response.body).toBe('')
+    expect(groups.removeMember).toHaveBeenCalledWith(caller, GROUP.id, BOB)
+  })
+
+  it('refuses an account id that is not a UUID before the service is asked', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/api/groups/${GROUP.id}/members/bob`,
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(groups.removeMember).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['forbidden', 403, "Only the group's admins can manage its members"],
+    ['not-found', 404, 'There is no such member'],
+    ['conflict', 409, 'A group must keep at least one admin'],
+  ] as const)('answers a %s refusal with %i and its message', async (kind, statusCode, message) => {
+    const { app, groups } = stubbed()
+    groups.removeMember.mockRejectedValue(new ServiceError(kind, message))
+    const response = await app.inject({ method: 'DELETE', url, headers: erin })
+    expect(response.statusCode).toBe(statusCode)
+    expect(response.json().message).toBe(message)
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'DELETE', url })
+    expect(response.statusCode).toBe(401)
+    expect(groups.removeMember).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/groups/:groupId/leave', () => {
+  const url = `/api/groups/${GROUP.id}/leave`
+
+  it('hands the service the caller and the group and answers 204', async () => {
+    const { app, groups } = stubbed()
+    groups.leaveGroup.mockResolvedValue(undefined)
+    const response = await app.inject({ method: 'POST', url, headers: erin })
+    expect(response.statusCode).toBe(204)
+    expect(response.body).toBe('')
+    expect(groups.leaveGroup).toHaveBeenCalledWith(caller, GROUP.id)
+  })
+
+  it('takes an empty object as its body too', async () => {
+    const { app, groups } = stubbed()
+    groups.leaveGroup.mockResolvedValue(undefined)
+    const response = await app.inject({ method: 'POST', url, headers: erin, payload: {} })
+    expect(response.statusCode).toBe(204)
+    expect(groups.leaveGroup).toHaveBeenCalledWith(caller, GROUP.id)
+  })
+
+  it('refuses a group id that is not a UUID before the service is asked', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/groups/platform/leave',
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(groups.leaveGroup).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['not-found', 404, 'You are not a member of this group'],
+    ['conflict', 409, "The group's last admin cannot leave it"],
+  ] as const)('answers a %s refusal with %i and its message', async (kind, statusCode, message) => {
+    const { app, groups } = stubbed()
+    groups.leaveGroup.mockRejectedValue(new ServiceError(kind, message))
+    const response = await app.inject({ method: 'POST', url, headers: erin })
+    expect(response.statusCode).toBe(statusCode)
+    expect(response.json().message).toBe(message)
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'POST', url })
+    expect(response.statusCode).toBe(401)
+    expect(groups.leaveGroup).not.toHaveBeenCalled()
   })
 })
