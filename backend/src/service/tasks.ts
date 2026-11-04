@@ -1,6 +1,13 @@
 import { asc, eq } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import { MILESTONE_VARIANTS, tasks } from '../db/schema.ts'
+import {
+  type Assignment,
+  type AssignmentInput,
+  assigneesColumn,
+  type Eligibility,
+  TaskAssignments,
+} from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
@@ -12,9 +19,9 @@ import { isUuid } from './system-admins.ts'
  * A task as the service layer hands it out (FR-001). A task with neither a planned start nor a
  * planned finish is unscheduled; it stays a task of its project like any other (FR-003).
  *
- * Its eligibility expression and its assigned people are added by the eligibility and assignment
- * module (SC-005), and the planned finish its start and duration give by the scheduler (FR-144,
- * SC-004). `githubIssue` is the GitHub issue linked to the task: none until the task is assigned
+ * Its eligibility expression and its assigned people are those of the eligibility and assignment
+ * module (SC-005); the planned finish its start and duration give comes with the scheduler
+ * (FR-144, SC-004). `githubIssue` is the GitHub issue linked to the task: none until the task is assigned
  * to a repository and its issue is created (SC-036, SC-060), so always `null` for now.
  *
  * `milestone` is `null` for a task that is not a milestone. A milestone (FR-190) takes no time, so
@@ -37,6 +44,16 @@ export interface Task {
   /** The share of the task done by AI, a percentage from 0 to 100, or `null` when not given. */
   aiShare: number | null
   milestone: Milestone | null
+  /**
+   * Who can do the task (FR-028): an AND (`all`) or OR (`any`) over people, by account id, at most
+   * two levels deep (DD-038), or `null` when it has none. Always `null` for a milestone (FR-192).
+   */
+  eligibility: Eligibility | null
+  /**
+   * Who will do the task (FR-029): their account ids, in the order given; empty while nobody is
+   * assigned. Always empty for a milestone (FR-192).
+   */
+  assignees: string[]
   /**
    * The date the task was started, `YYYY-MM-DD`, or `null` while it has not been (FR-022). Set by
    * the status transitions (SC-003), never by an edit.
@@ -92,7 +109,7 @@ export type TaskInput = {
    * created and cannot change after (FR-194); a fixed-date milestone's date can.
    */
   readonly milestone?: unknown
-}
+} & AssignmentInput
 
 /** The largest duration a task can have: the largest number its column holds. */
 export const MAX_DURATION_WORKING_DAYS = 2_147_483_647
@@ -125,6 +142,8 @@ export const taskColumns = {
   milestoneDate: tasks.milestoneDate,
   actualStart: tasks.actualStart,
   actualFinish: tasks.actualFinish,
+  eligibility: tasks.eligibility,
+  assignees: assigneesColumn,
 } as const
 
 const columns = taskColumns
@@ -149,23 +168,30 @@ export type TaskRow = Omit<Task, 'githubIssue' | 'milestone'> &
  * A milestone takes no time: it has no planned dates, duration, effort or AI share (FR-191). A
  * task's kind and a milestone's variant cannot change once it is created, though a fixed-date
  * milestone's date can (FR-194).
+ *
+ * Who can do a task and who will are given with its other fields, and checked and stored by the
+ * eligibility and assignment module (SC-005, `TaskAssignments`) in the same transaction.
  */
 export class TaskService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
+  readonly #assignments: TaskAssignments
 
   constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
+    this.#assignments = new TaskAssignments(roles)
   }
 
   /**
    * Creates a task in the project, not started. Refused as not visible to someone with no role in
    * the project, and as forbidden to someone whose role does not allow editing the plan; refused
    * as invalid if a field is not valid (see `validFields`), including a milestone given a planned
-   * date, duration, effort or AI share (FR-191).
+   * date, duration, effort or AI share (FR-191); and refused as invalid if its eligibility or
+   * assignees are not valid, are given to a milestone, or name someone who cannot read the
+   * project (`TaskAssignments.check`).
    */
   async createTask(caller: Caller, projectId: string, task: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -174,18 +200,26 @@ export class TaskService {
       await this.#roles.permissions.require(caller, projectId, 'edit-plan', tx)
       // A title must be given, so a missing one is checked as an empty one.
       const fields = validFields({ ...task, title: task.title ?? '' }, UNSET, 'create')
+      const assignment = await this.#assignments.check(
+        tx,
+        projectId,
+        fields.milestoneVariant !== null,
+        task,
+        NO_ASSIGNMENT,
+      )
       const [created] = await tx
         .insert(tasks)
-        .values({ projectId, ...fields })
+        .values({ projectId, ...fields, eligibility: assignment.eligibility })
         .returning(columns)
       if (!created) throw new Error('The new task was not returned')
+      await this.#assignments.store(tx, created.id, assignment.assignees)
       await this.#audit.record(tx, caller, {
         action: 'task.created',
         subject: { type: 'task', id: created.id },
         projectId,
-        details: { ...fields },
+        details: { ...fields, ...assignment },
       })
-      return toTask(created)
+      return toTask({ ...created, assignees: assignment.assignees })
     })
   }
 
@@ -195,7 +229,9 @@ export class TaskService {
    * forbidden to someone whose role there does not allow editing the plan; refused as invalid if
    * a field is not valid, or if the task's planned finish would come before its planned start;
    * refused as invalid too if the change would make the task a milestone or not one, or change a
-   * milestone's variant (FR-194).
+   * milestone's variant (FR-194). Refused as invalid, too, if the eligibility or assignees given
+   * are not valid, are given to a milestone, or add someone who cannot read the project
+   * (`TaskAssignments.check`).
    */
   async updateTask(caller: Caller, taskId: string, changes: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -206,21 +242,34 @@ export class TaskService {
       await this.#roles.permissions.require(caller, found.projectId, 'edit-plan', tx)
       const current = await this.#find(taskId, tx, true)
       const merged = validFields(changes, current, 'update')
-      const changed = FIELDS.filter((field) => merged[field] !== current[field])
+      const assignment = await this.#assignments.check(
+        tx,
+        current.projectId,
+        merged.milestoneVariant !== null,
+        changes,
+        current,
+      )
+      const next = { ...merged, ...assignment }
+      const changed = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
+        (field) => !same(next[field], current[field]),
+      )
       if (changed.length === 0) return toTask(current)
       const [updated] = await tx
         .update(tasks)
-        .set(merged)
+        .set({ ...merged, eligibility: assignment.eligibility })
         .where(eq(tasks.id, taskId))
         .returning(columns)
       if (!updated) throw new Error('The edited task was not returned')
+      if (changed.includes('assignees')) {
+        await this.#assignments.store(tx, taskId, assignment.assignees)
+      }
       await this.#audit.record(tx, caller, {
         action: 'task.updated',
         subject: { type: 'task', id: taskId },
         projectId: current.projectId,
-        details: { changes: only(merged, changed), previous: only(current, changed) },
+        details: { changes: only(next, changed), previous: only(current, changed) },
       })
-      return toTask(updated)
+      return toTask({ ...updated, assignees: assignment.assignees })
     })
   }
 
@@ -277,8 +326,24 @@ function milestoneOf(variant: MilestoneVariant | null, date: string | null): Mil
 }
 
 /** The given fields of a task, for the audit log. */
-function only(fields: TaskFields, keys: readonly (keyof TaskFields)[]): Record<string, unknown> {
+function only<F extends TaskFields & Assignment>(
+  fields: F,
+  keys: readonly (keyof F)[],
+): Record<string, unknown> {
   return Object.fromEntries(keys.map((key) => [key, fields[key]]))
+}
+
+const ASSIGNMENT_FIELDS = [
+  'eligibility',
+  'assignees',
+] as const satisfies readonly (keyof Assignment)[]
+
+/** No eligibility and nobody assigned: the assignment a new task's is checked against. */
+const NO_ASSIGNMENT: Assignment = { eligibility: null, assignees: [] }
+
+/** Whether two values of a task's field are the same: equal, or equal as JSON for a tree or list. */
+function same(a: unknown, b: unknown): boolean {
+  return a === b || (typeof a === 'object' && JSON.stringify(a) === JSON.stringify(b))
 }
 
 /**

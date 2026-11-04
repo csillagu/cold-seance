@@ -23,6 +23,8 @@ const TASK: Task = {
   effort: null,
   aiShare: 0,
   milestone: null,
+  eligibility: null,
+  assignees: [],
   actualStart: '2027-03-01',
   actualFinish: null,
   githubIssue: null,

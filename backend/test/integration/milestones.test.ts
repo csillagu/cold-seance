@@ -82,6 +82,8 @@ describe('milestones in the task service', () => {
         effort: null,
         aiShare: null,
         milestone: { variant: 'fixed-date', date: '2027-03-12' },
+        eligibility: null,
+        assignees: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,

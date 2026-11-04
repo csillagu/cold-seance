@@ -24,6 +24,8 @@ const TASK: Task = {
   effort: 5,
   aiShare: 0,
   milestone: null,
+  eligibility: null,
+  assignees: [],
   actualStart: null,
   actualFinish: null,
   githubIssue: null,
@@ -391,5 +393,104 @@ describe('the OpenAPI description', () => {
       paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
     expect(task.required).toContain('milestone')
     expect(task.properties.milestone.properties.variant.enum).toEqual(['fixed-date', 'floating'])
+  })
+})
+
+describe('eligibility and assignees through the task routes (SC-005)', () => {
+  const ALICE = '6f1c2a5e-0000-4000-8000-00000000000a'
+  const BOB = '6f1c2a5e-0000-4000-8000-00000000000b'
+  const CAROL = '6f1c2a5e-0000-4000-8000-00000000000c'
+  const ASSIGNED: Task = {
+    ...TASK,
+    eligibility: { all: [ALICE, { any: [BOB, CAROL] }] },
+    assignees: [CAROL, ALICE],
+  }
+
+  it('hands the service the eligibility tree and the assignees as given, and sends them back', async () => {
+    const { app, tasks } = stubbed()
+    tasks.createTask.mockResolvedValue(ASSIGNED)
+    const payload = {
+      title: 'Write install guide',
+      eligibility: { all: [ALICE, { any: [BOB, CAROL] }] },
+      assignees: [CAROL, ALICE],
+    }
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${PROJECT}/tasks`,
+      headers: erin,
+      payload,
+    })
+    expect(response.statusCode).toBe(201)
+    expect(response.json()).toEqual(ASSIGNED)
+    expect(tasks.createTask).toHaveBeenCalledWith(caller, PROJECT, payload)
+  })
+
+  it('sends every shape of expression the service holds: a person, an AND, an OR and none', async () => {
+    const { app, tasks } = stubbed()
+    for (const eligibility of [
+      ALICE,
+      { any: [ALICE, BOB] },
+      { any: [{ all: [ALICE, BOB] }, CAROL] },
+      null,
+    ]) {
+      tasks.getTask.mockResolvedValueOnce({ ...TASK, eligibility })
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${TASK.id}`,
+        headers: erin,
+      })
+      expect(response.statusCode).toBe(200)
+      expect(response.json().eligibility).toEqual(eligibility)
+    }
+  })
+
+  it('hands an edit of the assignees alone to the service, and null to clear the eligibility', async () => {
+    const { app, tasks } = stubbed()
+    tasks.updateTask.mockResolvedValue({ ...TASK, assignees: [ALICE] })
+    for (const payload of [{ assignees: [ALICE] }, { eligibility: null }]) {
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/tasks/${TASK.id}`,
+        headers: erin,
+        payload,
+      })
+      expect(response.statusCode).toBe(200)
+      expect(tasks.updateTask).toHaveBeenLastCalledWith(caller, TASK.id, payload)
+    }
+  })
+
+  it('hands an expression to the service whatever its shape, which decides on it, and sends its 400', async () => {
+    const { app, tasks } = stubbed()
+    tasks.updateTask.mockRejectedValue(
+      new ServiceError(
+        'invalid',
+        'An eligibility expression is at most two levels deep, such as A AND (B OR C)',
+      ),
+    )
+    const eligibility = { all: [ALICE, { any: [BOB, { all: [CAROL] }] }] }
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${TASK.id}`,
+      headers: erin,
+      payload: { eligibility },
+    })
+    expect(tasks.updateTask).toHaveBeenCalledWith(caller, TASK.id, { eligibility })
+    expect(response.statusCode).toBe(400)
+    expect(response.json().message).toMatch(/at most two levels deep/)
+  })
+
+  it('describes the eligibility and the assignees in the OpenAPI description', async () => {
+    const { app } = stubbed()
+    const paths = (
+      await app.inject({ method: 'GET', url: '/api/openapi.json', headers: erin })
+    ).json().paths
+    const body =
+      paths['/api/projects/{projectId}/tasks'].post.requestBody.content['application/json'].schema
+    expect(body.properties).toHaveProperty('eligibility')
+    expect(body.properties.assignees.type).toBe('array')
+    const task =
+      paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
+    expect(task.required).toEqual(expect.arrayContaining(['eligibility', 'assignees']))
+    expect(task.properties.eligibility.description).toMatch(/AND/)
   })
 })

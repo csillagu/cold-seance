@@ -7,6 +7,29 @@ import { callerOf } from './caller.ts'
 const nullable = (type: string, extra: Record<string, unknown> = {}) =>
   ({ type: [type, 'null'], ...extra }) as const
 
+const person = { type: 'string', format: 'uuid', description: "A person, by their account's id" }
+
+/** An AND (`all`) or OR (`any`) whose operands are `operand`. */
+const andOr = (operand: Record<string, unknown>) =>
+  (['all', 'any'] as const).map((operator) => ({
+    type: 'object',
+    required: [operator],
+    properties: { [operator]: { type: 'array', minItems: 1, items: operand } },
+    additionalProperties: false,
+  }))
+
+/**
+ * An eligibility expression as the routes send it (FR-028, DD-038): a person, or an AND or OR of
+ * people and of ANDs and ORs of people, at most two levels deep.
+ */
+const eligibility = {
+  description:
+    'Who can do the task: a person, or `{ "all": [...] }` (AND) or `{ "any": [...] }` (OR) of ' +
+    'people and, one level down, of ANDs and ORs of people. For example `A AND (B OR C)` is ' +
+    '`{ "all": ["A", { "any": ["B", "C"] }] }`. Null when the task has none.',
+  anyOf: [{ type: 'null' }, person, ...andOr({ anyOf: [person, ...andOr(person)] })],
+} as const
+
 /** A task as the routes send it (FR-001). */
 const task = {
   type: 'object',
@@ -22,6 +45,8 @@ const task = {
     'effort',
     'aiShare',
     'milestone',
+    'eligibility',
+    'assignees',
     'actualStart',
     'actualFinish',
     'githubIssue',
@@ -49,6 +74,12 @@ const task = {
         variant: { type: 'string', enum: [...MILESTONE_VARIANTS] },
         date: nullable('string', { format: 'date' }),
       },
+    },
+    eligibility,
+    assignees: {
+      type: 'array',
+      items: person,
+      description: 'Who will do the task, in order; empty while nobody is assigned',
     },
     actualStart: nullable('string', {
       format: 'date',
@@ -87,6 +118,21 @@ const fieldProperties = {
       'created, a task cannot become a milestone or stop being one, nor a milestone change ' +
       "variant; a fixed-date milestone's date can be changed.",
     properties: { variant: { type: 'string' }, date: nullable('string') },
+  },
+  eligibility: {
+    description:
+      'Who can do the task, as an AND/OR expression over people at most two levels deep: a ' +
+      'person\'s account id, or `{ "all": [...] }` (AND) or `{ "any": [...] }` (OR) of account ' +
+      'ids and of ANDs and ORs of account ids. Null for none. Everyone it adds must be able to ' +
+      'read the project. A milestone has none.',
+  },
+  assignees: {
+    type: 'array',
+    items: { type: 'string' },
+    description:
+      'Who will do the task: account ids, each once, in order; empty for nobody. They need not ' +
+      'be in the eligibility expression, but everyone added must be able to read the project. ' +
+      'Nobody can be assigned to a milestone.',
   },
 } as const
 
