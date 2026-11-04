@@ -257,6 +257,22 @@ describe('the calendar service', () => {
       ])
     })
 
+    it('adds and removes more holidays than one statement can take, in either calendar', async () => {
+      const many = daysFrom('1900-01-01', '2009-07-06')
+      expect(many.length).toBeGreaterThan(40_000)
+      const own = await service.changePersonalCalendar(by(alice), alice.id, { addHolidays: many })
+      expect(own.holidays).toEqual(many)
+      const company = await service.changeGlobalCalendar(by(root), { addHolidays: many })
+      expect(company.holidays).toEqual(many)
+      expect(
+        (await service.changePersonalCalendar(by(alice), alice.id, { removeHolidays: many }))
+          .holidays,
+      ).toEqual([])
+      expect(
+        (await service.changeGlobalCalendar(by(root), { removeHolidays: many })).holidays,
+      ).toEqual([])
+    })
+
     it("keeps each person's holidays apart from everyone else's and from the global calendar", async () => {
       await service.changePersonalCalendar(by(alice), alice.id, { addHolidays: ['2027-03-01'] })
       expect((await service.personalCalendarOf(by(bob), bob.id)).holidays).toEqual([])
@@ -545,6 +561,8 @@ describe('the test cases', () => {
     (await request(who, 'GET', '/api/calendar')).json()
 
   it('TC-049: a person records their own capacity', async () => {
+    // A witness whose capacity is not the default, so that a change to it would show.
+    await x.db.update(accounts).set({ capacity: 70 }).where(eq(accounts.id, bob.id))
     const change = await request(alice, 'PUT', `/api/accounts/${alice.id}/capacity`, {
       capacity: 80,
     })
@@ -556,7 +574,7 @@ describe('the test cases', () => {
 
     // No other person's capacity changes.
     expect((await request(root, 'GET', `/api/accounts/${bob.id}/capacity`)).json().capacity).toBe(
-      100,
+      70,
     )
     expect((await request(root, 'GET', `/api/accounts/${root.id}/capacity`)).json().capacity).toBe(
       100,
@@ -620,7 +638,11 @@ describe('the test cases', () => {
 
   it('TC-052: a person cannot set a weekend of their own', async () => {
     // Given: the global calendar's weekend is Saturday and Sunday.
-    await request(root, 'PATCH', '/api/calendar', { weekendDays: ['saturday', 'sunday'] })
+    const given = await request(root, 'PATCH', '/api/calendar', {
+      weekendDays: ['saturday', 'sunday'],
+    })
+    expect(given.statusCode).toBe(200)
+    expect(given.json().weekendDays).toEqual(['saturday', 'sunday'])
 
     // Step 1, in the browser, waits for the personal working calendar screen (SC-089). The REST
     // API offers no weekend setting for a person's own calendar either: the description lists
@@ -668,6 +690,10 @@ describe('the test cases', () => {
 
   it('TC-054: a system admin adds a company holiday', async () => {
     expect((await globalOf(root)).holidays).toEqual([])
+    // A witness with a holiday of their own, so that a change to a person's calendar would show.
+    await request(alice, 'PATCH', `/api/accounts/${alice.id}/calendar`, {
+      addHolidays: ['2027-03-03'],
+    })
 
     const add = await request(root, 'PATCH', '/api/calendar', { addHolidays: ['2027-03-03'] })
     expect(add.statusCode).toBe(200)
@@ -678,12 +704,15 @@ describe('the test cases', () => {
     expect((await globalOf(root)).holidays).toEqual([])
 
     // No person's own calendar changes.
-    expect(await x.db.select().from(personalHolidays)).toEqual([])
+    expect(await x.db.select().from(personalHolidays)).toEqual([
+      { accountId: alice.id, date: '2027-03-03' },
+    ])
   })
 
   it("TC-055: a non-admin's change to the company holidays is rejected", async () => {
     const created = await request(alice, 'POST', '/api/projects', { name: 'Apollo' })
     expect(created.statusCode).toBe(201)
+    expect((await globalOf(root)).holidays).toEqual([])
 
     const change = await request(alice, 'PATCH', '/api/calendar', { addHolidays: ['2027-03-03'] })
     expect(change.statusCode).toBe(403)

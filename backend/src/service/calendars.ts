@@ -129,23 +129,23 @@ export class CalendarService {
         await tx.update(globalCalendar).set({ weekendDays })
         details['weekendDays'] = { from: previous, to: weekendDays }
       }
-      const added = add.length
-        ? (
-            await tx
-              .insert(companyHolidays)
-              .values(add.map((date) => ({ date })))
-              .onConflictDoNothing()
-              .returning({ date: companyHolidays.date })
-          ).map((r) => r.date)
-        : []
-      const removed = remove.length
-        ? (
-            await tx
-              .delete(companyHolidays)
-              .where(inArray(companyHolidays.date, remove))
-              .returning({ date: companyHolidays.date })
-          ).map((r) => r.date)
-        : []
+      const added = await inChunks(add, async (dates) =>
+        (
+          await tx
+            .insert(companyHolidays)
+            .values(dates.map((date) => ({ date })))
+            .onConflictDoNothing()
+            .returning({ date: companyHolidays.date })
+        ).map((r) => r.date),
+      )
+      const removed = await inChunks(remove, async (dates) =>
+        (
+          await tx
+            .delete(companyHolidays)
+            .where(inArray(companyHolidays.date, dates))
+            .returning({ date: companyHolidays.date })
+        ).map((r) => r.date),
+      )
       if (added.length) details['addedHolidays'] = added.sort()
       if (removed.length) details['removedHolidays'] = removed.sort()
       if (Object.keys(details).length) {
@@ -189,28 +189,25 @@ export class CalendarService {
 
     return this.#db.transaction(async (tx) => {
       await this.#requireExisting(tx, accountId, true)
-      const added = add.length
-        ? (
-            await tx
-              .insert(personalHolidays)
-              .values(add.map((date) => ({ accountId, date })))
-              .onConflictDoNothing()
-              .returning({ date: personalHolidays.date })
-          ).map((r) => r.date)
-        : []
-      const removed = remove.length
-        ? (
-            await tx
-              .delete(personalHolidays)
-              .where(
-                and(
-                  eq(personalHolidays.accountId, accountId),
-                  inArray(personalHolidays.date, remove),
-                ),
-              )
-              .returning({ date: personalHolidays.date })
-          ).map((r) => r.date)
-        : []
+      const added = await inChunks(add, async (dates) =>
+        (
+          await tx
+            .insert(personalHolidays)
+            .values(dates.map((date) => ({ accountId, date })))
+            .onConflictDoNothing()
+            .returning({ date: personalHolidays.date })
+        ).map((r) => r.date),
+      )
+      const removed = await inChunks(remove, async (dates) =>
+        (
+          await tx
+            .delete(personalHolidays)
+            .where(
+              and(eq(personalHolidays.accountId, accountId), inArray(personalHolidays.date, dates)),
+            )
+            .returning({ date: personalHolidays.date })
+        ).map((r) => r.date),
+      )
       if (added.length || removed.length) {
         const details: Record<string, unknown> = {}
         if (added.length) details['addedHolidays'] = added.sort()
@@ -476,7 +473,8 @@ export function holidayChanges(fields: Record<string, unknown>): {
 } {
   const add = datesOf(fields['addHolidays'], 'The holidays to add')
   const remove = datesOf(fields['removeHolidays'], 'The holidays to remove')
-  const both = add.filter((date) => remove.includes(date))
+  const removing = new Set(remove)
+  const both = add.filter((date) => removing.has(date))
   if (both.length) {
     throw new ServiceError(
       'invalid',
@@ -492,6 +490,28 @@ function datesOf(value: unknown, what: string): string[] {
     throw new ServiceError('invalid', `${what} are a list of whole days, each a date, YYYY-MM-DD`)
   }
   return [...new Set(value)]
+}
+
+/**
+ * How many dates one statement takes at most, well below PostgreSQL's limit of 65,535 parameters
+ * a statement, so that a change of as many holidays as anyone wants (SRC-162) is never refused.
+ */
+export const DATES_PER_STATEMENT = 5000
+
+/**
+ * Runs `run` on `items` a chunk of at most `size` at a time, one after another, and answers what
+ * every run answered, in order. Exported for its unit tests.
+ */
+export async function inChunks<T, R>(
+  items: readonly T[],
+  run: (chunk: T[]) => Promise<R[]>,
+  size = DATES_PER_STATEMENT,
+): Promise<R[]> {
+  const results: R[] = []
+  for (let start = 0; start < items.length; start += size) {
+    results.push(...(await run(items.slice(start, start + size))))
+  }
+  return results
 }
 
 function inWeekOrder(days: readonly Weekday[]): Weekday[] {

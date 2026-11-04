@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeFields, holidayChanges, weekendDaysOf } from './calendars.ts'
+import { changeFields, holidayChanges, inChunks, weekendDaysOf } from './calendars.ts'
 import { ServiceError } from './errors.ts'
 
 // The calendar module's checks of what a change holds, which need no database. The module's rules
@@ -105,5 +105,27 @@ describe('holidayChanges', () => {
     expect(error.message).toBe(
       'A holiday cannot be both added and removed in one change: 2027-03-03',
     )
+  })
+})
+
+describe('inChunks', () => {
+  it('runs nothing for no items', async () => {
+    const chunks: number[][] = []
+    expect(await inChunks([], async (c: number[]) => (chunks.push(c), c))).toEqual([])
+    expect(chunks).toEqual([])
+  })
+
+  it('runs the items a chunk at a time, in order, and answers every result', async () => {
+    const chunks: number[][] = []
+    const results = await inChunks(
+      [1, 2, 3, 4, 5],
+      async (chunk) => {
+        chunks.push(chunk)
+        return chunk.map((n) => n * 10)
+      },
+      2,
+    )
+    expect(chunks).toEqual([[1, 2], [3, 4], [5]])
+    expect(results).toEqual([10, 20, 30, 40, 50])
   })
 })
