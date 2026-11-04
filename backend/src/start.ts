@@ -6,6 +6,8 @@ import { loadConfig, type Config, type LoadConfigOptions } from './config/config
 import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
+import { createGitHubClient } from './github/client.ts'
+import { gitHubRepositoryReach } from './github/repository-reach.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
 import { createServices } from './service/services.ts'
 
@@ -47,7 +49,10 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   }
   const frontendDir = options.frontendDir ?? defaultFrontendDir
   const servesFrontend = hasFrontend(frontendDir)
-  const services = createServices(db)
+  // The GitHub client is built when the tool first asks GitHub something (SC-106, SC-019).
+  const services = createServices(db, {
+    github: gitHubRepositoryReach(() => createGitHubClient(config.github)),
+  })
   const app = buildApp(
     options.server,
     // Each channel's own way of saying who makes a request: the API tokens (SC-055) and the

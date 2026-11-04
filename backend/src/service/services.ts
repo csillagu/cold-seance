@@ -1,4 +1,5 @@
 import type { Database } from '../db/client.ts'
+import type { RepositoryReach } from '../github/repository-reach.ts'
 import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
@@ -7,6 +8,7 @@ import { GitHubLinkService } from './github-links.ts'
 import { GroupService } from './groups.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
 import { TaskRelationService } from './task-relations.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
@@ -28,6 +30,8 @@ export interface Services {
   groups: GroupService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** The registered GitHub repositories and their admins (SC-019). */
+  repositories: RepositoryService
   sessions: SessionService
   tasks: TaskService
   taskRelations: TaskRelationService
@@ -40,6 +44,11 @@ export interface Services {
 export interface ServiceOptions {
   /** Today's date, `YYYY-MM-DD`; the deployment's local date when not given (SC-003). */
   today?: Today
+  /**
+   * Whether the tool reaches a repository on GitHub (SC-019); without it, the registry refuses
+   * every registration as GitHub being unavailable.
+   */
+  github?: RepositoryReach
 }
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -60,6 +69,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     groups: new GroupService(db, audit),
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles),
+    repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),

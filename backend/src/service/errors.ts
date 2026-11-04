@@ -4,10 +4,17 @@
  * refuses a change refuses it the same way through every channel (FR-115). `unauthenticated`
  * refuses to sign someone in whose credentials are not right; `not-visible` refuses a project the
  * caller cannot see at all (FR-017); `forbidden`, something their role there, or their account,
- * does not allow.
+ * does not allow; `unavailable`, a request that needs a service outside the tool, such as GitHub,
+ * which could not answer it.
  */
 export type ServiceErrorKind =
-  'unauthenticated' | 'invalid' | 'forbidden' | 'not-visible' | 'not-found' | 'conflict'
+  | 'unauthenticated'
+  | 'invalid'
+  | 'forbidden'
+  | 'not-visible'
+  | 'not-found'
+  | 'conflict'
+  | 'unavailable'
 
 export class ServiceError extends Error {
   readonly kind: ServiceErrorKind

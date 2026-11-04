@@ -11,6 +11,7 @@ const STATUS: Record<ServiceErrorKind, number> = {
   'not-visible': 403,
   'not-found': 404,
   conflict: 409,
+  unavailable: 503,
 }
 
 /** The `error` of the response to a request about a project the caller cannot see (SC-051). */

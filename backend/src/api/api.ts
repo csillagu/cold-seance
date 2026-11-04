@@ -10,6 +10,7 @@ import { groupRoutes } from './groups.ts'
 import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRoutes } from './projects.ts'
+import { repositoryRoutes } from './repositories.ts'
 import { sessionRoutes } from './session.ts'
 import { taskRelationRoutes } from './task-relations.ts'
 import { projectTaskRoutes, taskRoutes, taskStatusRoutes } from './tasks.ts'
@@ -48,6 +49,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
+  { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/tasks', routes: taskRoutes },
   { prefix: '/tasks', routes: taskRelationRoutes },
   { prefix: '/tasks', routes: taskStatusRoutes },
