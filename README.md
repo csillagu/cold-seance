@@ -29,6 +29,8 @@ Each GitHub function (reading issues, writing to issues, the Projects status fie
 
 The first system admin is given by `COLD_SEANCE_FIRST_ADMIN_USERNAME` and `COLD_SEANCE_FIRST_ADMIN_PASSWORD` (FR-165), together or not at all. At start, while no system admin exists, the backend creates that account as a system admin; sign in with it and create everyone else's account. Once a system admin exists, the two change nothing. The backend does not start if they name a username or password no account could have, or a username an account that is not a system admin already has.
 
+A task's actual start and finish are recorded as the date of the day it is started or finished, in the backend's local time zone. Set it with the standard `TZ` environment variable, such as `TZ=Europe/Budapest`; without it the Docker image uses UTC.
+
 The backend does not start if a required setting is missing, a value is not valid, a GitHub App's key file cannot be read, or a GitHub function is given both an App and a token, or neither; it prints each such setting or function and exits. To run `npm run dev -w backend`, copy the example to `backend/config.yaml` and fill it in. `config.yaml` is ignored by git, because it holds secrets.
 
 ### Checks

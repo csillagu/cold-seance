@@ -37,6 +37,16 @@ export interface Task {
   /** The share of the task done by AI, a percentage from 0 to 100, or `null` when not given. */
   aiShare: number | null
   milestone: Milestone | null
+  /**
+   * The date the task was started, `YYYY-MM-DD`, or `null` while it has not been (FR-022). Set by
+   * the status transitions (SC-003), never by an edit.
+   */
+  actualStart: string | null
+  /**
+   * The date the task was finished, `YYYY-MM-DD`, or `null` while it is not finished (FR-023). Set
+   * by the status transitions (SC-003), never by an edit.
+   */
+  actualFinish: string | null
   githubIssue: null
 }
 
@@ -99,7 +109,8 @@ const FIELDS = [
   'milestoneDate',
 ] as const satisfies readonly (keyof TaskFields)[]
 
-const columns = {
+/** The columns a task is read with: what `toTask` turns into a `Task`. */
+export const taskColumns = {
   id: tasks.id,
   projectId: tasks.projectId,
   title: tasks.title,
@@ -112,9 +123,14 @@ const columns = {
   aiShare: tasks.aiShare,
   milestoneVariant: tasks.milestoneVariant,
   milestoneDate: tasks.milestoneDate,
+  actualStart: tasks.actualStart,
+  actualFinish: tasks.actualFinish,
 } as const
 
-type Row = Omit<Task, 'githubIssue' | 'milestone'> &
+const columns = taskColumns
+
+/** A task as it is read with `taskColumns`. */
+export type TaskRow = Omit<Task, 'githubIssue' | 'milestone'> &
   Pick<TaskFields, 'milestoneVariant' | 'milestoneDate'>
 
 /**
@@ -126,7 +142,8 @@ type Row = Omit<Task, 'githubIssue' | 'milestone'> &
  * Anyone who holds a role in the project may read its tasks (FR-106); only its read-write members
  * and admins may create and edit them (FR-108). Someone with no role in the project is told it is
  * not visible to them (FR-017). Each creation and edit is recorded in the audit log (FR-116), in
- * the transaction that makes it. A task's status is set by the status transitions (SC-003).
+ * the transaction that makes it. A task's status, and its actual start and finish, are set by the
+ * status transitions (SC-003, `TaskStatusService`), never by an edit.
  *
  * A task can be made a milestone when it is created, pinned to a fixed date or floating (FR-190).
  * A milestone takes no time: it has no planned dates, duration, effort or AI share (FR-191). A
@@ -168,7 +185,7 @@ export class TaskService {
         projectId,
         details: { ...fields },
       })
-      return withIssue(created)
+      return toTask(created)
     })
   }
 
@@ -190,7 +207,7 @@ export class TaskService {
       const current = await this.#find(taskId, tx, true)
       const merged = validFields(changes, current, 'update')
       const changed = FIELDS.filter((field) => merged[field] !== current[field])
-      if (changed.length === 0) return withIssue(current)
+      if (changed.length === 0) return toTask(current)
       const [updated] = await tx
         .update(tasks)
         .set(merged)
@@ -203,7 +220,7 @@ export class TaskService {
         projectId: current.projectId,
         details: { changes: only(merged, changed), previous: only(current, changed) },
       })
-      return withIssue(updated)
+      return toTask(updated)
     })
   }
 
@@ -214,7 +231,7 @@ export class TaskService {
   async getTask(caller: Caller, taskId: string): Promise<Task> {
     const task = await this.#find(taskId, this.#db, false)
     await this.#roles.permissions.require(caller, task.projectId, 'read')
-    return withIssue(task)
+    return toTask(task)
   }
 
   /**
@@ -229,10 +246,10 @@ export class TaskService {
       .from(tasks)
       .where(eq(tasks.projectId, projectId))
       .orderBy(asc(tasks.createdAt), asc(tasks.id))
-    return rows.map(withIssue)
+    return rows.map(toTask)
   }
 
-  async #find(taskId: string, executor: Executor, lock: boolean): Promise<Row> {
+  async #find(taskId: string, executor: Executor, lock: boolean): Promise<TaskRow> {
     if (!isUuid(taskId)) throw noSuchTask()
     const query = executor.select(columns).from(tasks).where(eq(tasks.id, taskId))
     const [task] = lock ? await query.for('update') : await query
@@ -245,7 +262,8 @@ function noSuchTask(): ServiceError {
   return new ServiceError('not-found', 'There is no such task')
 }
 
-function withIssue({ milestoneVariant, milestoneDate, ...row }: Row): Task {
+/** The task a row read with `taskColumns` holds, as the service layer hands it out. */
+export function toTask({ milestoneVariant, milestoneDate, ...row }: TaskRow): Task {
   return { ...row, milestone: milestoneOf(milestoneVariant, milestoneDate), githubIssue: null }
 }
 
