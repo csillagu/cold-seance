@@ -9,6 +9,7 @@ import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRoutes } from './projects.ts'
 import { sessionRoutes } from './session.ts'
+import { projectTaskRoutes, taskRoutes } from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
 
 /** Where the REST API is served. */
@@ -40,6 +41,8 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/audit-log', routes: auditLogRoutes },
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
+  { prefix: '/projects', routes: projectTaskRoutes },
+  { prefix: '/tasks', routes: taskRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
   { prefix: '/session', routes: sessionRoutes },
 ]
