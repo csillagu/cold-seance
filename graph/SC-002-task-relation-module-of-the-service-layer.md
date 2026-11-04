@@ -12,5 +12,6 @@ It delivers:
 - [FR-014](FR-014-reject-a-blocked-by-relation-that-would-create-a-c.md): Reject a blocked-by relation that would create a cycle
 - [FR-015](FR-015-record-a-task-blocked-by-another-project-s-milesto.md): Record a task blocked by another project's milestone
 - [FR-016](FR-016-require-read-access-to-depend-on-another-project-s.md): Require read access to depend on another project's milestone
+- [FR-193](FR-193-reject-a-milestone-as-a-subtask-or-a-parent.md): Reject a milestone as a subtask or a parent
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect".
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect". FR-193 was added for issue #65, from the owner's description of milestones in the design session of 2026-11-04; putting it in this SC is Claude's choice and awaits the owner's confirmation.
