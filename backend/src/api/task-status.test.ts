@@ -3,6 +3,7 @@ import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
 import { notVisible, ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
+import { OPEN_SUBTASK_MESSAGE } from '../service/task-status-constraints.ts'
 import type { Task } from '../service/tasks.ts'
 import type { Authenticator } from './caller.ts'
 
@@ -89,6 +90,23 @@ describe('PUT /api/tasks/:taskId/status', () => {
     expect(response.json().message).toBe(
       'A task is cancelled by cancelling it, not by setting its status',
     )
+  })
+
+  it("sends the constraint checks' refusal as 409, with its message", async () => {
+    const { app, setStatus } = stubbed()
+    setStatus.mockRejectedValue(new ServiceError('conflict', OPEN_SUBTASK_MESSAGE))
+    const response = await app.inject({
+      method: 'PUT',
+      url,
+      headers: erin,
+      payload: { status: 'done' },
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toEqual({
+      statusCode: 409,
+      error: 'Conflict',
+      message: OPEN_SUBTASK_MESSAGE,
+    })
   })
 
   it.each([

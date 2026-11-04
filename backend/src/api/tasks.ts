@@ -245,7 +245,9 @@ export const taskStatusRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
                 'The status to set: `in-progress` to start the task or set it back to in progress, ' +
                 '`on-hold` to put it on hold, `done` to finish it. Starting records its actual ' +
                 'start, finishing its actual finish, and setting a finished task back to in ' +
-                'progress clears its actual finish; putting it on hold changes nothing else.',
+                'progress clears its actual finish; putting it on hold changes nothing else. ' +
+                'Refused with 409 when it would finish a task one of whose subtasks is open, or ' +
+                'start or finish a task before every task blocking it is done.',
             },
           },
           additionalProperties: false,

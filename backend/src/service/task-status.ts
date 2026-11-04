@@ -8,6 +8,8 @@ import type { TaskStatus } from './permissions.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
 import { TaskAssignments } from './assignment.ts'
+import { lockRelations } from './task-relations.ts'
+import { checkStatusConstraints, mayBeConstrained } from './task-status-constraints.ts'
 import { type Task, taskColumns, type TaskRow, toCompleteTask } from './tasks.ts'
 
 /**
@@ -45,9 +47,11 @@ type ActualDates = Pick<TaskRow, 'actualStart' | 'actualFinish'>
  * - Moving a finished task to any other status clears its actual finish, since it is not finished
  *   any more, and keeps its actual start.
  *
- * No move between not started, in progress, on hold and done is refused here: GitHub may finish
- * or hold a task whatever its status (FR-092, FR-093, FR-099). The constraint checks (SC-037)
- * refuse the moves a task's relations forbid.
+ * No move between not started, in progress, on hold and done is refused for the statuses alone:
+ * GitHub may finish or hold a task whatever its status (FR-092, FR-093, FR-099). The constraint
+ * checks (SC-037, `checkStatusConstraints`) refuse the moves a task's relations forbid: finishing a
+ * parent while a subtask is open (FR-025), and starting or finishing a task before its blockers
+ * have finished (FR-026).
  *
  * Whoever may edit the project's plan may set any of these statuses; a contributor only marks a
  * task they are assigned to as in progress, on hold or finished, and cannot reopen a finished one
@@ -79,7 +83,8 @@ export class TaskStatusService {
    *
    * Refused as not found if there is no such task, as not visible to someone with no role in its
    * project, as invalid if `status` is not in progress, on hold or done or the task is cancelled,
-   * and as forbidden if the caller's role does not allow the change.
+   * as forbidden if the caller's role does not allow the change, and as a conflict if the task's
+   * relations forbid it (SC-037).
    */
   async setStatus(caller: Caller, taskId: string, status: unknown): Promise<Task> {
     return this.#db.transaction(async (tx) => {
@@ -88,8 +93,23 @@ export class TaskStatusService {
       // above all, is what the change starts from. A task never changes project.
       const found = await this.#find(taskId, tx, false)
       await this.#roles.permissions.require(caller, found.projectId, 'read', tx)
-      const current = await this.#find(taskId, tx, true)
       const to = validStatus(status)
+      // A move the constraint checks may refuse takes the relations lock before the task's row,
+      // in the order every change of a relation takes them, so that the subtasks and blockers it
+      // is checked against cannot change under it, nor two such moves wait for each other. The
+      // lock is one for the whole tool, so whoever may not make the move at all is refused first,
+      // against the task as read so far, and cannot hold it up; the check is made again below,
+      // against the task as it is once locked.
+      if (mayBeConstrained(to)) {
+        await this.#roles.permissions.requireStatusChange(
+          caller,
+          found.projectId,
+          { assignees: found.assignees, from: found.status, to },
+          tx,
+        )
+        await lockRelations(tx)
+      }
+      const current = await this.#find(taskId, tx, true)
       if (!TARGETS.has(to) || current.status === 'cancelled') {
         throw invalid(refusal(current.status, to))
       }
@@ -102,6 +122,7 @@ export class TaskStatusService {
         tx,
       )
       if (to === current.status) return this.#out(tx, current)
+      await checkStatusConstraints(tx, current, to)
       const dates = move(current, to, this.#today)
       const [updated] = await tx
         .update(tasks)
