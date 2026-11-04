@@ -124,7 +124,6 @@ describe('the repository service', () => {
         owner: repo.owner,
         name: repo.name,
       })
-      const asked = github.requests.length
       const error = await refused(
         service.registerRepository(by(bob), {
           owner: repo.owner.toLowerCase(),
@@ -135,28 +134,66 @@ describe('the repository service', () => {
       expect(error.message).toBe(
         `${repo.owner.toLowerCase()}/${repo.name.toUpperCase()} is already registered`,
       )
-      // Refused without asking GitHub.
-      expect(github.requests.length).toBe(asked)
       expect(
         await x.db.select().from(repositories).where(eq(repositories.githubId, repo.id)),
       ).toHaveLength(1)
       expect(usernames(await service.getRepository(by(bob), first.id))).toEqual(['alice'])
     })
 
+    it('still refuses a registered repository as registered when the tool no longer reaches it', async () => {
+      const repo = onGitHub()
+      await service.registerRepository(by(alice), repo)
+      github.uninstall(`${repo.owner}/${repo.name}`)
+      const error = await refused(service.registerRepository(by(bob), repo), 'conflict')
+      expect(error.message).toBe(`${repo.owner}/${repo.name} is already registered`)
+    })
+
+    it('still refuses a registered repository as registered when GitHub cannot tell', async () => {
+      const repo = onGitHub()
+      await service.registerRepository(by(alice), repo)
+      const offline = new RepositoryService(x.db, new AuditLogService(x.db), {
+        reach: () => Promise.reject(new GitHubUnavailableError('GitHub answered 502')),
+      })
+      const error = await refused(offline.registerRepository(by(bob), repo), 'conflict')
+      expect(error.message).toBe(`${repo.owner}/${repo.name} is already registered`)
+    })
+
+    it('registers a new repository created under the old name of a registered one renamed since', async () => {
+      const repo = onGitHub()
+      const first = await service.registerRepository(by(alice), repo)
+      github.rename(`${repo.owner}/${repo.name}`, `${repo.owner}/${repo.name}-renamed`)
+      const reused = github.createRepository(`${repo.owner}/${repo.name}`)
+      const second = await service.registerRepository(by(bob), repo)
+      expect(second).toMatchObject({ githubId: reused.id, owner: repo.owner, name: repo.name })
+      expect(second.id).not.toBe(first.id)
+      expect(usernames(second)).toEqual(['bob'])
+    })
+
     it('refuses a repository renamed on GitHub since it was registered, by GitHub’s id', async () => {
       const repo = onGitHub()
       await service.registerRepository(by(alice), { owner: repo.owner, name: repo.name })
-      // The same repository on GitHub, now under a new name.
-      const renamed = github.createRepository(`${repo.owner}/${repo.name}-renamed`)
-      await x.db
-        .update(repositories)
-        .set({ githubId: renamed.id })
-        .where(eq(repositories.githubId, repo.id))
+      // The same repository on GitHub, now under a new name: GitHub gives the same id.
+      github.rename(`${repo.owner}/${repo.name}`, `${repo.owner}/${repo.name}-renamed`)
       const error = await refused(
-        service.registerRepository(by(bob), { owner: renamed.owner, name: renamed.name }),
+        service.registerRepository(by(bob), { owner: repo.owner, name: `${repo.name}-renamed` }),
         'conflict',
       )
-      expect(error.message).toBe(`${renamed.owner}/${renamed.name} is already registered`)
+      expect(error.message).toBe(`${repo.owner}/${repo.name}-renamed is already registered`)
+      expect(
+        await x.db.select().from(repositories).where(eq(repositories.githubId, repo.id)),
+      ).toHaveLength(1)
+    })
+
+    it('reaches repositories through a personal access token as through an App (DD-060)', async () => {
+      const viaToken = fakeGitHub({ via: 'token' })
+      const tokenService = new RepositoryService(x.db, new AuditLogService(x.db), viaToken.reach)
+      const reached = viaToken.createRepository(`Token-${++n}/Repo-${n}`)
+      const closed = viaToken.createRepository(`Token-${++n}/Repo-${n}`, { installed: false })
+      const created = await tokenService.registerRepository(by(alice), reached)
+      expect(created).toMatchObject({ githubId: reached.id, owner: reached.owner })
+      await refused(tokenService.registerRepository(by(alice), closed), 'invalid')
+      // Asked with the token alone: no App installation is looked up.
+      expect(viaToken.requests.every((r) => !r.includes('installation'))).toBe(true)
     })
 
     it('refuses a repository the App is not installed on, and one that does not exist', async () => {

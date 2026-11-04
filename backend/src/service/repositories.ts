@@ -1,4 +1,4 @@
-import { and, asc, count, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import { accounts, repositories, repositoryAdmins } from '../db/schema.ts'
 import { checkRepository } from '../github/app-tokens.ts'
@@ -55,8 +55,9 @@ const noReach: RepositoryReach = {
  * repository without an admin, whoever makes it (FR-175). Each change is recorded in the audit log
  * in the same transaction (FR-116).
  *
- * Who may read the registry is not stated; every registered repository and its admins are shown
- * to anyone with an account, as groups are.
+ * Who may read the registry is not stated. Every registered repository and its admins are shown
+ * to anyone with an account, since anyone with an account may register a repository and needs to
+ * see which are registered and whom to ask about one; this awaits the owner's confirmation.
  */
 export class RepositoryService {
   readonly #db: Database
@@ -87,10 +88,12 @@ export class RepositoryService {
     } catch {
       throw new ServiceError('invalid', `${owner}/${name} is not a GitHub repository name`)
     }
-    // Asked before GitHub, so a registered repository is refused as such even if the tool no
-    // longer reaches it; the unique index on GitHub's id decides in the end.
-    const [known] = await this.#db
-      .select({ id: repositories.id })
+    // The repositories registered under this name. GitHub is still asked, since a registered
+    // repository may have been renamed and another created under its old name; but if GitHub
+    // cannot say which repository the name is now, one registered under it is refused as
+    // registered. The unique index on GitHub's id decides in the end.
+    const known = await this.#db
+      .select({ githubId: repositories.githubId })
       .from(repositories)
       .where(
         and(
@@ -98,13 +101,13 @@ export class RepositoryService {
           eq(sql`lower(${repositories.name})`, name.toLowerCase()),
         ),
       )
-    if (known) throw alreadyRegistered(owner, name)
 
     let reached: ReachedRepository | undefined
     try {
       reached = await this.#github.reach({ owner, name })
     } catch (error) {
       if (error instanceof GitHubUnavailableError) {
+        if (known.length > 0) throw alreadyRegistered(owner, name)
         throw new ServiceError(
           'unavailable',
           `GitHub could not tell whether the tool can reach ${owner}/${name}; try again later`,
@@ -113,12 +116,14 @@ export class RepositoryService {
       throw error
     }
     if (reached === undefined) {
+      if (known.length > 0) throw alreadyRegistered(owner, name)
       throw new ServiceError(
         'invalid',
         `The tool cannot reach ${owner}/${name} on GitHub: its GitHub App is not installed on it, its token is not given it, or it does not exist`,
       )
     }
     const found = reached
+    if (known.some((row) => row.githubId === found.githubId)) throw alreadyRegistered(owner, name)
     try {
       return await this.#db.transaction(async (tx) => {
         const [created] = await tx
@@ -263,7 +268,7 @@ export class RepositoryService {
       : []
     if (!repository) throw new ServiceError('not-found', 'There is no such repository')
     const [own] = await tx
-      .select({ n: count() })
+      .select({ accountId: repositoryAdmins.accountId })
       .from(repositoryAdmins)
       .where(
         and(
@@ -271,7 +276,8 @@ export class RepositoryService {
           eq(repositoryAdmins.accountId, caller.accountId),
         ),
       )
-    if (own?.n === 0 && !(await isSystemAdmin(tx, caller.accountId))) {
+      .limit(1)
+    if (!own && !(await isSystemAdmin(tx, caller.accountId))) {
       throw new ServiceError(
         'forbidden',
         "Only the repository's admins and system admins can change its admins",

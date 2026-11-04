@@ -5,6 +5,9 @@ import { gitHubRepositoryReach, type RepositoryReach } from '../../src/github/re
 
 const API_URL = 'https://github.test'
 
+/** The personal access token the tool is given in token mode. */
+const PAT = 'github_pat_tc_0123456789'
+
 /** A repository on the fake GitHub. */
 interface FakeRepository {
   id: number
@@ -23,6 +26,8 @@ export interface FakeGitHub {
   /** Creates `owner/name` on GitHub, with the tool's App installed on it unless told otherwise. */
   createRepository(fullName: string, options?: { installed?: boolean }): FakeRepository
   uninstall(fullName: string): void
+  /** Renames a repository on GitHub; it keeps its id, and its old name then names nothing. */
+  rename(fullName: string, newFullName: string): void
   /** What the tool asks GitHub through the App, as the GitHub client would call it. */
   reach: RepositoryReach
   /** Requests made to it, as `METHOD /path`. */
@@ -31,7 +36,12 @@ export interface FakeGitHub {
 
 let nextId = 7_000_000
 
-export function fakeGitHub(): FakeGitHub {
+/**
+ * `app` (the default) gives the tool a GitHub App for every function; `token`, a personal access
+ * token for every function (DD-060), which reaches the repositories the App would be installed on.
+ */
+export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub {
+  const via = options.via ?? 'app'
   const repositories = new Map<string, FakeRepository>()
   const installed = new Set<string>()
   /** Installation id → repository key; token → repository key. */
@@ -73,7 +83,8 @@ export function fakeGitHub(): FakeGitHub {
     const repository = /^\/repos\/([^/]+)\/([^/]+)$/.exec(path)
     if (method === 'GET' && repository) {
       const key = `${repository[1]}/${repository[2]}`.toLowerCase()
-      const granted = tokens.get(auth.replace(/^Bearer /, ''))
+      const bearer = auth.replace(/^Bearer /, '')
+      const granted = bearer === PAT ? key : tokens.get(bearer)
       const repo = repositories.get(key)
       if (!repo || granted !== key || !installed.has(key)) {
         return json(404, { message: 'Not Found' })
@@ -95,24 +106,33 @@ export function fakeGitHub(): FakeGitHub {
     privateKey: privateKey.export({ type: 'pkcs1', format: 'pem' }),
     webhookSecret: undefined,
   }
-  const reach = gitHubRepositoryReach(() =>
-    createGitHubClient(
-      { apps: { readIssues: app, writeIssues: app, projectsStatus: app }, tokens: {} },
-      { apiUrl: API_URL, fetch },
-    ),
-  )
+  const github =
+    via === 'app'
+      ? { apps: { readIssues: app, writeIssues: app, projectsStatus: app }, tokens: {} }
+      : { apps: {}, tokens: { readIssues: PAT, writeIssues: PAT, projectsStatus: PAT } }
+  const reach = gitHubRepositoryReach(() => createGitHubClient(github, { apiUrl: API_URL, fetch }))
 
   return {
-    createRepository(fullName, options = {}) {
+    createRepository(fullName, created = {}) {
       const [owner = '', name = ''] = fullName.split('/')
       const repo = { id: nextId++, owner, name }
       const key = fullName.toLowerCase()
       repositories.set(key, repo)
-      if (options.installed !== false) installed.add(key)
+      if (created.installed !== false) installed.add(key)
       return repo
     },
     uninstall(fullName) {
       installed.delete(fullName.toLowerCase())
+    },
+    rename(fullName, newFullName) {
+      const key = fullName.toLowerCase()
+      const repo = repositories.get(key)
+      if (!repo) throw new Error(`no repository ${fullName} on the fake GitHub`)
+      const [owner = '', name = ''] = newFullName.split('/')
+      const newKey = newFullName.toLowerCase()
+      repositories.delete(key)
+      repositories.set(newKey, { ...repo, owner, name })
+      if (installed.delete(key)) installed.add(newKey)
     },
     reach,
     requests,
