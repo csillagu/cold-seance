@@ -263,6 +263,10 @@ export const tasks = pgTable(
     aiShare: doublePrecision('ai_share'),
     milestoneVariant: milestoneVariant('milestone_variant'),
     milestoneDate: date('milestone_date', { mode: 'string' }),
+    /** The date the task was started, recorded by the status transitions (SC-003, FR-022). */
+    actualStart: date('actual_start', { mode: 'string' }),
+    /** The date the task was finished, recorded by the status transitions (SC-003, FR-023). */
+    actualFinish: date('actual_finish', { mode: 'string' }),
     parentId: uuid('parent_id').references((): AnyPgColumn => tasks.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

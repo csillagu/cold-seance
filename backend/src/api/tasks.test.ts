@@ -24,6 +24,8 @@ const TASK: Task = {
   effort: 5,
   aiShare: 0,
   milestone: null,
+  actualStart: null,
+  actualFinish: null,
   githubIssue: null,
 }
 const LAUNCH: Task = {
