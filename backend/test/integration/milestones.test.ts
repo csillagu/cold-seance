@@ -294,16 +294,34 @@ describe('milestones in the task service', () => {
 
   describe('the table', () => {
     // The table holds the rules too, so that nothing written past the service breaks them.
+    const none = sql`null, null, null, null, null`
     it.each([
-      ['a fixed-date milestone with no date', sql`'fixed-date', null, null`],
-      ['a floating milestone with a date', sql`'floating', '2027-03-12', null`],
-      ['a task that is not a milestone with a date', sql`null, '2027-03-12', null`],
-      ['a milestone with an effort', sql`'floating', null, 3`],
-    ])('refuses %s', async (_, values) => {
+      ['a fixed-date milestone with no date', sql`'fixed-date', null`, none],
+      ['a floating milestone with a date', sql`'floating', '2027-03-12'`, none],
+      ['a task that is not a milestone with a date', sql`null, '2027-03-12'`, none],
+      [
+        'a milestone with a planned start',
+        sql`'floating', null`,
+        sql`'2027-03-12', null, null, null, null`,
+      ],
+      [
+        'a milestone with a planned finish',
+        sql`'floating', null`,
+        sql`null, '2027-03-12', null, null, null`,
+      ],
+      ['a milestone with a duration', sql`'floating', null`, sql`null, null, 2, null, null`],
+      [
+        'a milestone with an effort',
+        sql`'fixed-date', '2027-03-12'`,
+        sql`null, null, null, 3, null`,
+      ],
+      ['a milestone with an AI share', sql`'floating', null`, sql`null, null, null, null, 50`],
+    ])('refuses %s', async (_, milestone, takesTime) => {
       await expect(
         x.db.execute(
-          sql`insert into tasks (project_id, title, milestone_variant, milestone_date, effort)
-              values (${project}, 'Raw', ${values})`,
+          sql`insert into tasks (project_id, title, milestone_variant, milestone_date,
+                planned_start, planned_finish, duration_working_days, effort, ai_share)
+              values (${project}, 'Raw', ${milestone}, ${takesTime})`,
         ),
       ).rejects.toMatchObject({ cause: { constraint: expect.stringMatching(/^tasks_milestone_/) } })
     })
@@ -400,10 +418,12 @@ describe('test cases through the REST API', () => {
       for (const extra of takesTime) {
         const response = await createTask({ title: 'Later', milestone: april, ...extra })
         expect(response.statusCode).toBe(400)
+        expect(response.json().message).toBe(NO_TIME)
       }
       for (const extra of takesTime) {
         const response = await editTask(launch, extra)
         expect(response.statusCode).toBe(400)
+        expect(response.json().message).toBe(NO_TIME)
       }
 
       const listed = await app.inject({
@@ -438,13 +458,15 @@ describe('test cases through the REST API', () => {
       const docs = await made({ title: 'Docs ready', milestone: { variant: 'floating' } })
 
       const rejected = [
-        [build, { milestone: { variant: 'floating' } }],
-        [launch, { milestone: null }],
-        [launch, { milestone: { variant: 'floating' } }],
-        [docs, { milestone: { variant: 'fixed-date', date: '2027-04-01' } }],
+        [build, { milestone: { variant: 'floating' } }, 'cannot be made a milestone'],
+        [launch, { milestone: null }, 'cannot be made a task'],
+        [launch, { milestone: { variant: 'floating' } }, 'variant'],
+        [docs, { milestone: { variant: 'fixed-date', date: '2027-04-01' } }, 'variant'],
       ] as const
-      for (const [id, change] of rejected) {
-        expect((await editTask(id, change)).statusCode).toBe(400)
+      for (const [id, change, words] of rejected) {
+        const response = await editTask(id, change)
+        expect(response.statusCode).toBe(400)
+        expect(response.json().message).toContain(words)
       }
       const accepted = await editTask(launch, {
         milestone: { variant: 'fixed-date', date: '2027-03-19' },
