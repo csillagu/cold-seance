@@ -22,6 +22,8 @@ const task = {
     'effort',
     'aiShare',
     'milestone',
+    'actualStart',
+    'actualFinish',
     'githubIssue',
   ],
   properties: {
@@ -48,6 +50,14 @@ const task = {
         date: nullable('string', { format: 'date' }),
       },
     },
+    actualStart: nullable('string', {
+      format: 'date',
+      description: 'The date the task was started; null while it has not been',
+    }),
+    actualFinish: nullable('string', {
+      format: 'date',
+      description: 'The date the task was finished; null while it is not finished',
+    }),
     githubIssue: {
       type: 'null',
       description: 'The linked GitHub issue; none until the task is assigned to a repository',
@@ -154,5 +164,42 @@ export const taskRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, {
     },
     async (request) =>
       services.tasks.updateTask(callerOf(request), request.params.taskId, request.body),
+  )
+}
+
+/**
+ * The route of a task's status (SC-003, SC-026): start it, put it on hold, finish it, or set it
+ * back to in progress, which records its actual start or finish. It only translates the request;
+ * the status transitions decide what is allowed (DD-039).
+ */
+export const taskStatusRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
+  group,
+  { services },
+) => {
+  group.put<{ Params: { taskId: string }; Body: { status: unknown } }>(
+    '/:taskId/status',
+    {
+      schema: {
+        params: taskParams,
+        body: {
+          type: 'object',
+          required: ['status'],
+          properties: {
+            status: {
+              type: 'string',
+              description:
+                'The status to set: `in-progress` to start the task or set it back to in progress, ' +
+                '`on-hold` to put it on hold, `done` to finish it. Starting records its actual ' +
+                'start, finishing its actual finish, and setting a finished task back to in ' +
+                'progress clears its actual finish; putting it on hold changes nothing else.',
+            },
+          },
+          additionalProperties: false,
+        },
+        response: { 200: task },
+      },
+    },
+    async (request) =>
+      services.taskStatus.setStatus(callerOf(request), request.params.taskId, request.body.status),
   )
 }

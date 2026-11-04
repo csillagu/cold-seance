@@ -8,6 +8,7 @@ import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { SessionService } from './sessions.ts'
 import { TaskRelationService } from './task-relations.ts'
+import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
 import { ViewReadFilter } from './view-filter.ts'
 
@@ -27,11 +28,18 @@ export interface Services {
   sessions: SessionService
   tasks: TaskService
   taskRelations: TaskRelationService
+  taskStatus: TaskStatusService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
 }
 
-export function createServices(db: Database): Services {
+/** What the service layer can be given besides its database. */
+export interface ServiceOptions {
+  /** Today's date, `YYYY-MM-DD`; the deployment's local date when not given (SC-003). */
+  today?: Today
+}
+
+export function createServices(db: Database, options: ServiceOptions = {}): Services {
   // The audit log first: every module that changes something records the change in it (SC-013).
   // The audit log decides who may read it by project role, which the role store answers.
   const roles = {
@@ -51,6 +59,7 @@ export function createServices(db: Database): Services {
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),
+    taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     viewFilter,
   }
 }
