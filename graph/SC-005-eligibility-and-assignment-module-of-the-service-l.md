@@ -5,7 +5,7 @@ effort: 3
 
 # SC-005: Eligibility and assignment module of the service layer
 
-The module of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that stores who can do a task, as an eligibility tree ([DD-038](DD-038-eligibility-is-stored-as-a-tree.md)), and who will do it, as a list of people. It accepts assignees outside the eligibility expression ([DD-031](DD-031-assignment-may-include-people-outside-the-eligibil.md)) and rejects people who cannot read the project ([DD-013](DD-013-shared-people-can-be-made-eligible-or-assigned-onl.md)).
+The module of the service layer ([DD-039](DD-039-one-logic-layer-for-ui-rest-api-and-mcp-server.md)) that stores who can do a task, as an eligibility tree ([DD-038](DD-038-eligibility-is-stored-as-a-tree.md)), and who will do it, as a list of people. It accepts assignees outside the eligibility expression ([DD-031](DD-031-assignment-may-include-people-outside-the-eligibil.md)) and rejects people who cannot read the project ([DD-013](DD-013-shared-people-can-be-made-eligible-or-assigned-onl.md)). Someone who loses read access later stays where they were written and can be removed. For each person in a task's eligibility and assignment, it tells whether they can read the project, so that the editors ([SC-099](SC-099-eligibility-expression-editor.md), [SC-100](SC-100-assignment-editor.md)) can mark those who cannot.
 
 It delivers:
 
@@ -14,5 +14,9 @@ It delivers:
 - [FR-030](FR-030-accept-an-assignment-that-includes-people-outside.md): Accept an assignment that includes people outside the eligibility expression
 - [FR-031](FR-031-reject-eligibility-or-assignment-for-someone-witho.md): Reject eligibility or assignment for someone without read access to the project
 - [FR-192](FR-192-reject-assignees-and-an-eligibility-expression-on.md): Reject assignees and an eligibility expression on a milestone
+- [FR-197](FR-197-reject-an-eligibility-expression-nested-deeper-tha.md): Reject an eligibility expression nested deeper than two levels
+- [FR-198](FR-198-keep-people-who-lose-read-access-in-a-task-s-eligi.md): Keep people who lose read access in a task's eligibility and assignment
+- [FR-199](FR-199-mark-the-people-on-a-task-who-cannot-read-its-proj.md): Mark the people on a task who cannot read its project: telling, through the service layer, who cannot read the project
+- [FR-200](FR-200-reject-an-assignment-that-names-a-person-twice.md): Reject an assignment that names a person twice
 
-Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect". FR-192 was added for issue #65, from the owner's description of milestones in the design session of 2026-11-04; the owner confirmed putting it in this SC in the same session.
+Origin: derived by Claude from the linked FRs and DDs, at the owner's request ("Derive the solution components from the existing frs and dds", 2026-11-02), for issue #11. The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate, confirmed by the owner in the design session of 2026-11-02: "Your estimates are perfect". FR-192 was added for issue #65, from the owner's description of milestones in the design session of 2026-11-04; the owner confirmed putting it in this SC in the same session. FR-197 to FR-200 were added for issue #77, from the owner's answers in the design session of 2026-11-04; asked which component should carry the marking of FR-199, the owner answered "be creative", so the split between this SC, which tells who cannot read the project, and the editors, which mark them, is Claude's.
