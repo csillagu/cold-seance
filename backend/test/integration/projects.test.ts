@@ -146,6 +146,47 @@ describe('the project service', () => {
     })
   })
 
+  describe('the name uniqueness check (SC-056)', () => {
+    it('refuses a name another project already has, creating nothing', async () => {
+      const name = fresh('Taken')
+      await service.createProject(by(alice), { name })
+      const error = await refused(service.createProject(by(bob), { name }), 'conflict')
+      expect(error.message).toBe(`A project named ${name} already exists`)
+      expect(await x.db.select().from(projects).where(eq(projects.name, name))).toHaveLength(1)
+      expect(await service.listProjects(by(bob))).not.toContainEqual(
+        expect.objectContaining({ name }),
+      )
+    })
+
+    it('compares the name as it is kept: trimmed and in one Unicode form', async () => {
+      const name = `Caf\u00e9 ${randomUUID()}`
+      await service.createProject(by(alice), { name })
+      for (const typed of [`  ${name}  `, name.replace('\u00e9', 'e\u0301')]) {
+        const error = await refused(service.createProject(by(bob), { name: typed }), 'conflict')
+        expect(error.message).toBe(`A project named ${name} already exists`)
+      }
+    })
+
+    it('takes a name differing only in case, which the requirements leave open', async () => {
+      const name = fresh('cased')
+      await service.createProject(by(alice), { name })
+      const other = await service.createProject(by(bob), { name: name.toUpperCase() })
+      expect(other.name).toBe(name.toUpperCase())
+    })
+
+    it('lets only one of two creations of one name at once succeed', async () => {
+      const name = fresh('Raced')
+      const results = await Promise.allSettled([
+        service.createProject(by(alice), { name }),
+        service.createProject(by(bob), { name }),
+      ])
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      const [lost] = results.filter((r) => r.status === 'rejected')
+      expect(lost?.reason).toMatchObject({ kind: 'conflict' })
+      expect(await x.db.select().from(projects).where(eq(projects.name, name))).toHaveLength(1)
+    })
+  })
+
   describe('getProject', () => {
     it('answers the project to anyone holding a role in it, and not-visible to anyone else', async () => {
       const project = await service.createProject(by(alice), { name: fresh('Seen') })
@@ -219,6 +260,30 @@ describe('test cases through the REST API', () => {
 
       // Negative: no other project is created.
       expect(await x.db.select().from(projects)).toHaveLength(1)
+    })
+  })
+
+  describe('TC-179: creating a project with a name already used is rejected', () => {
+    it('refuses bob a second Apollo, leaving one Apollo, by alice, and bob admin of nothing', async () => {
+      const alice = await seedAccount(x.db, { username: 'alice' })
+      const bob = await seedAccount(x.db, { username: 'bob' })
+      expect((await create(alice, 'Apollo')).statusCode).toBe(201)
+
+      const second = await create(bob, 'Apollo')
+      expect(second.statusCode).toBe(409)
+      expect(second.json().message).toBe('A project named Apollo already exists')
+
+      // "As root, list all projects": no requirement gives system admins a list of every
+      // project, so the projects are read in the database (an open question for the owner).
+      const all = await x.db.select().from(projects)
+      expect(all.filter((p) => p.name === 'Apollo').map((p) => p.createdBy)).toEqual([alice.id])
+      // Negative: bob is admin of no project.
+      expect(
+        await x.db.select().from(projectMembers).where(eq(projectMembers.accountId, bob.id)),
+      ).toEqual([])
+      expect(
+        (await app.inject({ method: 'GET', url: '/api/projects', headers: as(bob) })).json(),
+      ).toEqual([])
     })
   })
 

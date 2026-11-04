@@ -3,6 +3,7 @@ import type { Database } from '../db/client.ts'
 import { accounts, projectMembers, projects } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { violates } from './db-errors.ts'
 import { notVisible, ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { characters } from './text.ts'
@@ -18,6 +19,9 @@ export interface Project {
 export const PROJECT_NAME_MAX_LENGTH = 200
 
 const columns = { id: projects.id, name: projects.name } as const
+
+/** The unique index that keeps project names apart (see the schema). */
+const PROJECT_NAME_INDEX = 'projects_name_key'
 
 /**
  * Project creation, the part of the service layer through which anyone with an account creates a
@@ -38,7 +42,8 @@ export class ProjectService {
 
   /**
    * Creates a project with the given name, and makes the caller its admin. Refused unless the
-   * caller has an account; refused if the name is empty or too long.
+   * caller has an account; refused if the name is empty or too long, or if another project already
+   * has it (FR-120).
    */
   async createProject(caller: Caller, project: { name: string }): Promise<Project> {
     if (!(await this.#hasAccount(caller.accountId))) {
@@ -53,6 +58,19 @@ export class ProjectService {
         `A project name can have at most ${PROJECT_NAME_MAX_LENGTH} characters`,
       )
     }
+    // The unique index on names decides (SC-056), so two concurrent creations of one name cannot
+    // both succeed.
+    try {
+      return await this.#createInTransaction(caller, name)
+    } catch (error) {
+      if (violates(error, PROJECT_NAME_INDEX)) {
+        throw new ServiceError('conflict', `A project named ${name} already exists`)
+      }
+      throw error
+    }
+  }
+
+  async #createInTransaction(caller: Caller, name: string): Promise<Project> {
     return this.#db.transaction(async (tx) => {
       const [created] = await tx
         .insert(projects)

@@ -43,16 +43,21 @@ export const accounts = pgTable(
 
 /**
  * The projects (SC-017). Anyone with an account can create one (FR-119) and becomes its admin
- * (FR-158); `created_by` is who created it.
+ * (FR-158); `created_by` is who created it. Each has a name no other project has (FR-120).
  */
-export const projects = pgTable('projects', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: text('name').notNull(),
-  createdBy: uuid('created_by')
-    .notNull()
-    .references(() => accounts.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+export const projects = pgTable(
+  'projects',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // No two projects have the same name (FR-120, SC-056).
+  (table) => [uniqueIndex('projects_name_key').on(table.name)],
+)
 
 /** The channels a change can come through (FR-116): the UI, the REST API, the MCP server, GitHub. */
 export const CHANNELS = ['ui', 'rest-api', 'mcp', 'github'] as const
