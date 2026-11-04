@@ -44,8 +44,12 @@ export const assigneesColumn = sql<string[]>`coalesce((
  * - Anyone may be assigned whom the expression does not name: that is accepted, with no warning
  *   (DD-031, FR-030).
  * - No one can be made eligible for, or assigned to, a task in a project they cannot read
- *   (DD-013, FR-031). Only the people a change adds are checked: someone already eligible or
- *   assigned stays so when the rest of the expression or list changes.
+ *   (DD-013, FR-031). Only the people a change adds are checked: someone who loses read access
+ *   after being written in stays, and can be removed, but cannot be added again (FR-198).
+ * - It tells who in a task's eligibility and assignment cannot read the project, so that the
+ *   editors can mark them (FR-199, `withoutReadAccess`).
+ * - An expression deeper than two levels (FR-197), and a person assigned twice (FR-200), are
+ *   refused.
  * - A milestone has neither an expression nor assignees (FR-192).
  *
  * The task record module (SC-001) calls it inside the transaction that creates or edits a task,
@@ -101,6 +105,24 @@ export class TaskAssignments {
       .values(assignees.map((accountId, position) => ({ taskId, accountId, position })))
   }
 
+  /**
+   * Those of `people` who cannot read the project: who hold no role in it, directly or through a
+   * group, that lets them read it (FR-199).
+   */
+  async withoutReadAccess(
+    executor: Executor,
+    projectId: string,
+    people: Iterable<string>,
+  ): Promise<Set<string>> {
+    const without = new Set<string>()
+    for (const person of new Set(people)) {
+      if (!allows(await this.#roles.roleOf(person, projectId, executor), 'read')) {
+        without.add(person)
+      }
+    }
+    return without
+  }
+
   /** Refuses any of `people` who has no account, or no role in the project that lets them read it. */
   async #requireReaders(
     executor: Executor,
@@ -115,13 +137,11 @@ export class TaskAssignments {
       .from(accounts)
       .where(inArray(accounts.id, unique))
     const ids = new Set(known.map((row) => row.id))
+    const without = await this.withoutReadAccess(executor, projectId, unique)
     for (const person of unique) {
       // Someone with no account is refused as someone who cannot read the project, so that the
       // refusal does not tell which ids are accounts.
-      if (
-        !ids.has(person) ||
-        !allows(await this.#roles.roleOf(person, projectId, executor), 'read')
-      ) {
+      if (!ids.has(person) || without.has(person)) {
         throw invalid(
           `The person ${person} cannot read this project, so cannot be ${what} its tasks`,
         )

@@ -92,6 +92,7 @@ describe('the task service', () => {
         milestone: null,
         eligibility: null,
         assignees: [],
+        withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,
@@ -578,6 +579,7 @@ describe('test cases through the REST API', () => {
         // Eligibility `alice OR bob`; assigned people exactly [alice].
         eligibility: { any: [alice.id, bob.id] },
         assignees: [alice.id],
+        withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,

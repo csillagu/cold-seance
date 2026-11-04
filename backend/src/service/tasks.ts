@@ -6,6 +6,7 @@ import {
   type AssignmentInput,
   assigneesColumn,
   type Eligibility,
+  peopleOf,
   TaskAssignments,
 } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
@@ -54,6 +55,12 @@ export interface Task {
    * assigned. Always empty for a milestone (FR-192).
    */
   assignees: string[]
+  /**
+   * The people in its eligibility or its assignment who cannot read its project, each once,
+   * eligibility first, so that the UI can mark them (FR-199). Such a person was written in when
+   * they could read it and has lost access since; they stay until removed (FR-198).
+   */
+  withoutReadAccess: string[]
   /**
    * The date the task was started, `YYYY-MM-DD`, or `null` while it has not been (FR-022). Set by
    * the status transitions (SC-003), never by an edit.
@@ -149,7 +156,7 @@ export const taskColumns = {
 const columns = taskColumns
 
 /** A task as it is read with `taskColumns`. */
-export type TaskRow = Omit<Task, 'githubIssue' | 'milestone'> &
+export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAccess'> &
   Pick<TaskFields, 'milestoneVariant' | 'milestoneDate'>
 
 /**
@@ -219,7 +226,7 @@ export class TaskService {
         projectId,
         details: { ...fields, ...assignment },
       })
-      return toTask({ ...created, assignees: assignment.assignees })
+      return this.#out(tx, { ...created, assignees: assignment.assignees })
     })
   }
 
@@ -253,7 +260,7 @@ export class TaskService {
       const changed = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
         (field) => !same(next[field], current[field]),
       )
-      if (changed.length === 0) return toTask(current)
+      if (changed.length === 0) return this.#out(tx, current)
       const [updated] = await tx
         .update(tasks)
         .set({ ...merged, eligibility: assignment.eligibility })
@@ -269,7 +276,7 @@ export class TaskService {
         projectId: current.projectId,
         details: { changes: only(next, changed), previous: only(current, changed) },
       })
-      return toTask({ ...updated, assignees: assignment.assignees })
+      return this.#out(tx, { ...updated, assignees: assignment.assignees })
     })
   }
 
@@ -280,7 +287,7 @@ export class TaskService {
   async getTask(caller: Caller, taskId: string): Promise<Task> {
     const task = await this.#find(taskId, this.#db, false)
     await this.#roles.permissions.require(caller, task.projectId, 'read')
-    return toTask(task)
+    return this.#out(this.#db, task)
   }
 
   /**
@@ -295,7 +302,11 @@ export class TaskService {
       .from(tasks)
       .where(eq(tasks.projectId, projectId))
       .orderBy(asc(tasks.createdAt), asc(tasks.id))
-    return rows.map(toTask)
+    return toTasks(this.#assignments, this.#db, projectId, rows)
+  }
+
+  #out(executor: Executor, row: TaskRow): Promise<Task> {
+    return toCompleteTask(this.#assignments, executor, row)
   }
 
   async #find(taskId: string, executor: Executor, lock: boolean): Promise<TaskRow> {
@@ -311,9 +322,45 @@ function noSuchTask(): ServiceError {
   return new ServiceError('not-found', 'There is no such task')
 }
 
-/** The task a row read with `taskColumns` holds, as the service layer hands it out. */
-export function toTask({ milestoneVariant, milestoneDate, ...row }: TaskRow): Task {
-  return { ...row, milestone: milestoneOf(milestoneVariant, milestoneDate), githubIssue: null }
+/**
+ * The tasks of one project that rows read with `taskColumns` hold, as the service layer hands them
+ * out, each with the people in it who cannot read the project (FR-199), read with `executor`.
+ */
+export async function toTasks(
+  assignments: TaskAssignments,
+  executor: Executor,
+  projectId: string,
+  rows: readonly TaskRow[],
+): Promise<Task[]> {
+  const people = rows.flatMap(namedIn)
+  const without = await assignments.withoutReadAccess(executor, projectId, people)
+  return rows.map((row) => toTask(row, without))
+}
+
+/** The task a row read with `taskColumns` holds, as `toTasks` hands it out. */
+export async function toCompleteTask(
+  assignments: TaskAssignments,
+  executor: Executor,
+  row: TaskRow,
+): Promise<Task> {
+  return toTask(row, await assignments.withoutReadAccess(executor, row.projectId, namedIn(row)))
+}
+
+/** Everyone a task's eligibility and assignment name, each once, eligibility first. */
+function namedIn(row: Pick<TaskRow, 'eligibility' | 'assignees'>): string[] {
+  return [...new Set([...peopleOf(row.eligibility), ...row.assignees])]
+}
+
+function toTask(
+  { milestoneVariant, milestoneDate, ...row }: TaskRow,
+  without: ReadonlySet<string>,
+): Task {
+  return {
+    ...row,
+    milestone: milestoneOf(milestoneVariant, milestoneDate),
+    withoutReadAccess: namedIn(row).filter((person) => without.has(person)),
+    githubIssue: null,
+  }
 }
 
 function milestoneOf(variant: MilestoneVariant | null, date: string | null): Milestone | null {

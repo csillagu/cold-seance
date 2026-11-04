@@ -84,6 +84,7 @@ describe('milestones in the task service', () => {
         milestone: { variant: 'fixed-date', date: '2027-03-12' },
         eligibility: null,
         assignees: [],
+        withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
         githubIssue: null,

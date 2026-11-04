@@ -25,6 +25,7 @@ const TASK: Task = {
   milestone: null,
   eligibility: null,
   assignees: [],
+  withoutReadAccess: [],
   actualStart: '2027-03-01',
   actualFinish: null,
   githubIssue: null,

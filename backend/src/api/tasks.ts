@@ -47,6 +47,7 @@ const task = {
     'milestone',
     'eligibility',
     'assignees',
+    'withoutReadAccess',
     'actualStart',
     'actualFinish',
     'githubIssue',
@@ -80,6 +81,13 @@ const task = {
       type: 'array',
       items: person,
       description: 'Who will do the task, in order; empty while nobody is assigned',
+    },
+    withoutReadAccess: {
+      type: 'array',
+      items: person,
+      description:
+        'The people in its eligibility or assignment who cannot read its project, for the UI to ' +
+        'mark. They lost access after being added; they stay until removed, and cannot be added again.',
     },
     actualStart: nullable('string', {
       format: 'date',

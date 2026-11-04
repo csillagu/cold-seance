@@ -7,7 +7,8 @@ import { ServiceError } from './errors.ts'
 import type { TaskStatus } from './permissions.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
-import { type Task, taskColumns, type TaskRow, toTask } from './tasks.ts'
+import { TaskAssignments } from './assignment.ts'
+import { type Task, taskColumns, type TaskRow, toCompleteTask } from './tasks.ts'
 
 /**
  * The statuses the transitions set a task to (SC-003): in progress, on hold and done, from any
@@ -100,7 +101,7 @@ export class TaskStatusService {
         { assignees: current.assignees, from: current.status, to },
         tx,
       )
-      if (to === current.status) return toTask(current)
+      if (to === current.status) return this.#out(tx, current)
       const dates = move(current, to, this.#today)
       const [updated] = await tx
         .update(tasks)
@@ -120,8 +121,12 @@ export class TaskStatusService {
           previous: { status: current.status, ...pick(current, changed) },
         },
       })
-      return toTask(updated)
+      return this.#out(tx, updated)
     })
+  }
+
+  #out(executor: Executor, row: TaskRow): Promise<Task> {
+    return toCompleteTask(new TaskAssignments(this.#roles), executor, row)
   }
 
   async #find(taskId: string, executor: Executor, lock: boolean): Promise<TaskRow> {

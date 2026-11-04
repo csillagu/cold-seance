@@ -271,7 +271,7 @@ describe('the eligibility and assignment module', () => {
       await refused(create({ eligibility: { any: [alice.id, ghost] } }), 'invalid')
     })
 
-    it('checks only the people a change adds: someone who has since lost their role stays', async () => {
+    it('checks only the people a change adds: someone who has since lost their role stays (FR-198)', async () => {
       const leaver = await seedAccount(x.db, { username: 'leaver' })
       await grantRole(x.db, leaver, project, 'read-only')
       const task = await create({ eligibility: { any: [leaver.id] }, assignees: [leaver.id] })
@@ -286,12 +286,60 @@ describe('the eligibility and assignment module', () => {
       expect(edited).toMatchObject({
         eligibility: { any: [leaver.id, writer.id] },
         assignees: [leaver.id, writer.id],
+        withoutReadAccess: [leaver.id],
       })
       // Once dropped, they are added again by the next change, so checked again.
       await update(task.id, { assignees: [writer.id] })
       await refused(update(task.id, { assignees: [writer.id, leaver.id] }), 'invalid')
       await update(task.id, { eligibility: writer.id })
       await refused(update(task.id, { eligibility: { any: [writer.id, leaver.id] } }), 'invalid')
+    })
+
+    it('marks, on every read, who in the eligibility and assignment cannot read the project (FR-199)', async () => {
+      const leaver = await seedAccount(x.db, { username: 'marked' })
+      const stayer = await seedAccount(x.db, { username: 'stayer' })
+      await grantRole(x.db, leaver, project, 'read-only')
+      await grantRole(x.db, stayer, project, 'contributor')
+      const eligibleOnly = await create({ eligibility: { all: [stayer.id, { any: [leaver.id] }] } })
+      const assignedOnly = await create({ assignees: [stayer.id, leaver.id] })
+      const both = await create({ eligibility: leaver.id, assignees: [leaver.id] })
+      expect(eligibleOnly.withoutReadAccess).toEqual([])
+      expect(
+        (await services.tasks.listTasks(by(alice), project)).every(
+          (t) => t.withoutReadAccess.length === 0,
+        ),
+      ).toBe(true)
+
+      await x.db
+        .delete(projectMembers)
+        .where(and(eq(projectMembers.projectId, project), eq(projectMembers.accountId, leaver.id)))
+
+      for (const id of [eligibleOnly.id, assignedOnly.id, both.id]) {
+        // Each person once, whether named in the eligibility, the assignment or both.
+        expect((await services.tasks.getTask(by(reader), id)).withoutReadAccess).toEqual([
+          leaver.id,
+        ])
+      }
+      const listed = await services.tasks.listTasks(by(reader), project)
+      expect(listed.find((t) => t.id === both.id)?.withoutReadAccess).toEqual([leaver.id])
+      // Through every way a task is handed out: an edit that changes nothing, one that does, and
+      // a status change.
+      expect((await update(both.id, {})).withoutReadAccess).toEqual([leaver.id])
+      expect((await update(assignedOnly.id, { title: 'Renamed' })).withoutReadAccess).toEqual([
+        leaver.id,
+      ])
+      const started = await services.taskStatus.setStatus(by(alice), both.id, 'in-progress')
+      expect(started.withoutReadAccess).toEqual([leaver.id])
+      const again = await services.taskStatus.setStatus(by(alice), both.id, 'in-progress')
+      expect(again.withoutReadAccess).toEqual([leaver.id])
+      // Removed, they are no longer marked; a person who can read it never is.
+      const removed = await update(both.id, { eligibility: null, assignees: [] })
+      expect(removed.withoutReadAccess).toEqual([])
+      // Given their role back, they are no longer marked either.
+      await grantRole(x.db, leaver, project, 'read-only')
+      expect((await services.tasks.getTask(by(alice), assignedOnly.id)).withoutReadAccess).toEqual(
+        [],
+      )
     })
 
     it('does not let a role in another project count for this one', async () => {
@@ -476,7 +524,7 @@ describe('test cases through the REST API', () => {
       headers: as(alice, 'rest-api'),
     })
     expect(read.statusCode).toBe(200)
-    return read.json<{ eligibility: unknown; assignees: string[] }>()
+    return read.json<{ eligibility: unknown; assignees: string[]; withoutReadAccess: string[] }>()
   }
   const created = async (payload: Record<string, unknown>) => {
     const response = await createTask(payload)
@@ -636,6 +684,114 @@ describe('test cases through the REST API', () => {
       ).toEqual([])
       const [row] = await x.db.select().from(tasks).where(eq(tasks.id, launch))
       expect(row?.eligibility).toBeNull()
+    })
+  })
+
+  describe('TC-272: an eligibility expression three levels deep is rejected', () => {
+    it('rejects alice AND (bob OR (carol AND dave)), keeping alice OR bob', async () => {
+      const [bob, carol, dave] = await Promise.all([
+        account('bob'),
+        account('carol'),
+        account('dave'),
+      ])
+      for (const person of [bob, carol, dave]) await grantRole(x.db, person, apollo, 'read-only')
+      const t = await created({ title: 'T', eligibility: { any: [alice.id, bob.id] } })
+
+      const response = await change(t, {
+        eligibility: { all: [alice.id, { any: [bob.id, { all: [carol.id, dave.id] }] }] },
+      })
+      expect(response.statusCode).toBe(400)
+
+      // Negative: nothing of it is stored, flattened or cut down to two levels.
+      expect((await readTask(t)).eligibility).toEqual({ any: [alice.id, bob.id] })
+      const [row] = await x.db.select().from(tasks).where(eq(tasks.id, t))
+      expect(row?.eligibility).toEqual({ any: [alice.id, bob.id] })
+    })
+  })
+
+  describe('TC-273: a person who loses read access stays on the task and can be removed', () => {
+    it('keeps bob on T and U when his role goes, lets him be removed, and not added back', async () => {
+      const bob = await account('bob')
+      await grantRole(x.db, bob, apollo, 'read-only')
+      const given = { eligibility: { any: [alice.id, bob.id] }, assignees: [bob.id] }
+      const t = await created({ title: 'T', ...given })
+      const u = await created({ title: 'U', ...given })
+
+      // Step 1: alice removes bob's role in Apollo.
+      const removal = await app.inject({
+        method: 'DELETE',
+        url: `/api/projects/${apollo}/members/${bob.id}`,
+        headers: as(alice, 'rest-api'),
+      })
+      expect(removal.statusCode).toBe(204)
+
+      // Step 2.
+      expect(await readTask(t)).toMatchObject(given)
+      expect(await readTask(u)).toMatchObject(given)
+
+      // Step 3.
+      expect((await change(t, { title: 'Renamed' })).statusCode).toBe(200)
+      expect(await readTask(t)).toMatchObject({ title: 'Renamed', ...given })
+
+      // Step 4.
+      expect((await change(u, { assignees: [], eligibility: alice.id })).statusCode).toBe(200)
+      expect(await readTask(u)).toMatchObject({ eligibility: alice.id, assignees: [] })
+
+      // Step 5.
+      expect((await change(u, { assignees: [bob.id] })).statusCode).toBe(400)
+      expect((await change(u, { eligibility: { any: [alice.id, bob.id] } })).statusCode).toBe(400)
+      expect(await readTask(u)).toMatchObject({ eligibility: alice.id, assignees: [] })
+
+      // Negative: bob gains no access to Apollo.
+      const asBob = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${t}`,
+        headers: as(bob, 'rest-api'),
+      })
+      expect(asBob.statusCode).toBe(403)
+    })
+  })
+
+  describe('TC-274: people on a task who cannot read its project are marked', () => {
+    it('reports bob, and only bob, once his role in Apollo is removed', async () => {
+      const [bob, carol] = await Promise.all([account('bob'), account('carol')])
+      await grantRole(x.db, bob, apollo, 'read-only')
+      await grantRole(x.db, carol, apollo, 'read-only')
+      const t = await created({
+        title: 'T',
+        eligibility: { any: [alice.id, bob.id, carol.id] },
+        assignees: [bob.id, carol.id],
+      })
+
+      // The TC's steps are in the browser, with the eligibility and assignment editors (SC-099,
+      // SC-100), which are pending. What they mark is what the task read here reports.
+      expect((await readTask(t)).withoutReadAccess).toEqual([])
+
+      await x.db
+        .delete(projectMembers)
+        .where(and(eq(projectMembers.projectId, apollo), eq(projectMembers.accountId, bob.id)))
+
+      const read = await readTask(t)
+      expect(read.withoutReadAccess).toEqual([bob.id])
+      // Negative: bob is not removed from T's eligibility or assignment.
+      expect(read).toMatchObject({
+        eligibility: { any: [alice.id, bob.id, carol.id] },
+        assignees: [bob.id, carol.id],
+      })
+    })
+  })
+
+  describe('TC-275: an assignment naming a person twice is rejected', () => {
+    it('rejects [bob, alice, bob], keeping [alice]', async () => {
+      const bob = await account('bob')
+      await grantRole(x.db, bob, apollo, 'read-only')
+      const t = await created({ title: 'T', assignees: [alice.id] })
+
+      const response = await change(t, { assignees: [bob.id, alice.id, bob.id] })
+      expect(response.statusCode).toBe(400)
+
+      // Negative: not saved with the repeat dropped.
+      expect((await readTask(t)).assignees).toEqual([alice.id])
     })
   })
 })

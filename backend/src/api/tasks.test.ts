@@ -26,6 +26,7 @@ const TASK: Task = {
   milestone: null,
   eligibility: null,
   assignees: [],
+  withoutReadAccess: [],
   actualStart: null,
   actualFinish: null,
   githubIssue: null,
@@ -444,6 +445,18 @@ describe('eligibility and assignees through the task routes (SC-005)', () => {
     }
   })
 
+  it('sends who on the task cannot read its project, for the UI to mark', async () => {
+    const { app, tasks } = stubbed()
+    tasks.getTask.mockResolvedValue({ ...ASSIGNED, withoutReadAccess: [BOB] })
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${TASK.id}`,
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json().withoutReadAccess).toEqual([BOB])
+  })
+
   it('hands an edit of the assignees alone to the service, and null to clear the eligibility', async () => {
     const { app, tasks } = stubbed()
     tasks.updateTask.mockResolvedValue({ ...TASK, assignees: [ALICE] })
@@ -490,7 +503,10 @@ describe('eligibility and assignees through the task routes (SC-005)', () => {
     expect(body.properties.assignees.description).toMatch(/list of account ids/)
     const task =
       paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
-    expect(task.required).toEqual(expect.arrayContaining(['eligibility', 'assignees']))
+    expect(task.required).toEqual(
+      expect.arrayContaining(['eligibility', 'assignees', 'withoutReadAccess']),
+    )
+    expect(task.properties.withoutReadAccess.description).toMatch(/cannot read its project/)
     expect(task.properties.eligibility.description).toMatch(/AND/)
   })
 })
