@@ -30,6 +30,7 @@ function stubbed() {
     createProject: vi.spyOn(services.projects, 'createProject'),
     listProjects: vi.spyOn(services.projects, 'listProjects'),
     getProject: vi.spyOn(services.projects, 'getProject'),
+    searchProjects: vi.spyOn(services.projects, 'searchProjects'),
   }
   const app = buildApp({}, { authenticators: [asErin], services })
   closers.push(async () => {
@@ -122,6 +123,52 @@ describe('GET /api/projects', () => {
   })
 })
 
+describe('GET /api/projects/search', () => {
+  it('hands the service the caller and the search text and sends what it finds', async () => {
+    const { app, projects } = stubbed()
+    projects.searchProjects.mockResolvedValue([PROJECT])
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/projects/search?text=ERIN%27s%20pro',
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual([PROJECT])
+    expect(projects.searchProjects).toHaveBeenCalledWith(caller, "ERIN's pro")
+    expect(projects.getProject).not.toHaveBeenCalled()
+  })
+
+  it('sends an empty list when nothing matches', async () => {
+    const { app, projects } = stubbed()
+    projects.searchProjects.mockResolvedValue([])
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/projects/search?text=zzz',
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual([])
+  })
+
+  it('refuses a search without search text before the service is asked', async () => {
+    const { app, projects } = stubbed()
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/projects/search',
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(projects.searchProjects).not.toHaveBeenCalled()
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, projects } = stubbed()
+    const response = await app.inject({ method: 'GET', url: '/api/projects/search?text=a' })
+    expect(response.statusCode).toBe(401)
+    expect(projects.searchProjects).not.toHaveBeenCalled()
+  })
+})
+
 describe('GET /api/projects/:projectId', () => {
   it('hands the service the caller and the project and sends the project', async () => {
     const { app, projects } = stubbed()
@@ -169,5 +216,8 @@ describe('the OpenAPI description', () => {
     expect(Object.keys(paths['/api/projects/']).sort()).toEqual(['get', 'post'])
     expect(paths['/api/projects/{projectId}/members']).toBeDefined()
     expect(Object.keys(paths['/api/projects/{projectId}'])).toEqual(['get'])
+    expect(paths['/api/projects/search'].get.parameters).toEqual([
+      expect.objectContaining({ in: 'query', name: 'text', required: true }),
+    ])
   })
 })

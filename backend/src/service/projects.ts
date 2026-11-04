@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { accounts, projectMembers, projects } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
@@ -115,6 +115,23 @@ export class ProjectService {
       .orderBy(asc(projects.name), asc(projects.id))
   }
 
+  /**
+   * Project search (SC-116): the projects whose name contains `text`, whatever the case of either
+   * (FR-183), among only those the caller can read, directly or through groups (FR-184), by name.
+   * A project the caller cannot read is never returned, however well its name matches.
+   */
+  async searchProjects(caller: Caller, text: string): Promise<Project[]> {
+    const readable = await this.#roles.readableProjects(caller.accountId)
+    if (readable.size === 0) return []
+    const wanted = folded(text)
+    const candidates = await this.#db
+      .select(columns)
+      .from(projects)
+      .where(inArray(projects.id, [...readable]))
+      .orderBy(asc(projects.name), asc(projects.id))
+    return candidates.filter((project) => folded(project.name).includes(wanted))
+  }
+
   async #hasAccount(accountId: string): Promise<boolean> {
     if (!isUuid(accountId)) return false
     const [account] = await this.#db
@@ -123,4 +140,14 @@ export class ProjectService {
       .where(eq(accounts.id, accountId))
     return account !== undefined
   }
+}
+
+/**
+ * A text with case taken out, for matching regardless of case: in the Unicode form names are kept
+ * in, upper-cased and then lower-cased, so that letters whose cases differ in length, such as ß and
+ * SS, also match. It is done here rather than in the database, so the match does not depend on the
+ * database's locale.
+ */
+function folded(text: string): string {
+  return text.normalize('NFC').toUpperCase().toLowerCase().normalize('NFC')
 }
