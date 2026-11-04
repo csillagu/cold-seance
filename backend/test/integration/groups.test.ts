@@ -715,6 +715,9 @@ describe('group project assignment', () => {
       await refused(service.addProject(by(bob), platform.id, apollo.id), 'not-visible')
       // A system admin holds no role in it either (FR-017).
       await refused(service.addProject(by(root), platform.id, apollo.id), 'not-visible')
+      // Nor does a caller whose id is not an account's.
+      const nobody = { accountId: 'nobody', channel: 'ui' } as const
+      await refused(service.addProject(nobody, platform.id, apollo.id), 'not-visible')
       expect(await projectsIn(platform.id)).toEqual([])
     })
 
@@ -735,6 +738,37 @@ describe('group project assignment', () => {
         const error = await refused(service.addProject(by(alice), groupId, apollo.id), 'not-found')
         expect(error.message).toBe('There is no such group')
       }
+    })
+
+    it("waits for a demotion of the project's admin in progress, then refuses them", async () => {
+      const platform = await group(bob)
+      const apollo = await project(alice)
+      let demoted!: () => void
+      const held = new Promise<void>((resolve) => (demoted = resolve))
+      let started!: () => void
+      const demoting = new Promise<void>((resolve) => (started = resolve))
+      // A demotion of alice, not yet committed while she tries to add Apollo.
+      const demotion = x.db.transaction(async (tx) => {
+        await tx
+          .update(projectMembers)
+          .set({ role: 'read-write' })
+          .where(
+            and(eq(projectMembers.projectId, apollo.id), eq(projectMembers.accountId, alice.id)),
+          )
+        started()
+        await held
+      })
+      await demoting
+      const attempt = service.addProject(by(alice), platform.id, apollo.id)
+      // Long enough for the attempt to reach its lock, which the demotion holds.
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      demoted()
+      await demotion
+      const error = await refused(attempt, 'forbidden')
+      expect(error.message).toBe(
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      )
+      expect(await projectsIn(platform.id)).toEqual([])
     })
 
     it('adds nothing when the audit log cannot be written', async () => {

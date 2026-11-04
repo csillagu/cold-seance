@@ -1,6 +1,13 @@
 import { and, asc, eq } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
-import { accounts, groupMembers, groupProjects, groups, projects } from '../db/schema.ts'
+import {
+  accounts,
+  groupMembers,
+  groupProjects,
+  groups,
+  projectMembers,
+  projects,
+} from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
@@ -298,7 +305,10 @@ export class GroupService {
         : []
       // Whether or not it exists, as for any project the caller cannot see (FR-017).
       if (!project) throw notVisible()
-      // Checked in the transaction, so that the caller is still the project's admin at the change.
+      // The rows that give the caller their role on the project are locked first, then the role is
+      // checked, so that a change to that role waits for this one: the caller is still the
+      // project's admin at the change.
+      await this.#lockRolesOn(tx, caller.accountId, projectId)
       await this.#roles.permissions.require(caller, projectId, 'manage-project', tx)
       await this.#insertProject(tx, caller, groupId, project)
       return project
@@ -344,6 +354,27 @@ export class GroupService {
       .where(eq(groupProjects.groupId, groupId))
       .orderBy(asc(projects.name), asc(projects.id))
     return rows.filter((project) => readable.has(project.id))
+  }
+
+  /**
+   * Locks, until the transaction ends, the rows that give the person a role on the project: their
+   * direct role and their roles in the groups that hold it (FR-111). A change that would take one
+   * of these away updates or deletes its row, so it waits until this transaction ends.
+   */
+  async #lockRolesOn(tx: Executor, accountId: string, projectId: string): Promise<void> {
+    if (!isUuid(accountId)) return
+    await tx
+      .select({ accountId: projectMembers.accountId })
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.accountId, accountId)))
+      .for('share')
+    await tx
+      .select({ groupId: groupMembers.groupId })
+      .from(groupMembers)
+      .innerJoin(groupProjects, eq(groupProjects.groupId, groupMembers.groupId))
+      .where(and(eq(groupMembers.accountId, accountId), eq(groupProjects.projectId, projectId)))
+      .orderBy(asc(groupMembers.groupId))
+      .for('share', { of: groupMembers })
   }
 
   async #insertProject(
