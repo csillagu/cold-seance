@@ -259,3 +259,33 @@ export const taskStatusRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
       services.taskStatus.setStatus(callerOf(request), request.params.taskId, request.body.status),
   )
 }
+
+/**
+ * The route that cancels a task (SC-038, SC-026). Cancelling passes the task's blockers on to the
+ * tasks it blocked. It only translates the request; the task cancellation decides what is allowed
+ * (DD-039).
+ */
+export const taskCancellationRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
+  group,
+  { services },
+) => {
+  group.post<{ Params: { taskId: string } }>(
+    '/:taskId/cancel',
+    {
+      schema: {
+        description:
+          'Cancels the task. It stays in its project, cancelled. Each task it blocked is then ' +
+          'blocked by whatever it was blocked by instead. Cancelling a cancelled task changes ' +
+          'nothing. Refused with 409 when the task is a milestone that blocks a task of another ' +
+          'project and is itself blocked by a task that is not a milestone, since only a ' +
+          "milestone of another project may block a task. Only the project's read-write members " +
+          'and admins can cancel a task.',
+        params: taskParams,
+        // Nothing to send: the body may be left out, or be an empty object.
+        body: { type: ['object', 'null'], properties: {}, additionalProperties: false },
+        response: { 200: task },
+      },
+    },
+    async (request) => services.taskCancellation.cancel(callerOf(request), request.params.taskId),
+  )
+}

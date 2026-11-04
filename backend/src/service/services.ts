@@ -10,6 +10,7 @@ import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
+import { TaskCancellationService } from './task-cancellation.ts'
 import { TaskRelationService } from './task-relations.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
@@ -34,6 +35,8 @@ export interface Services {
   repositories: RepositoryService
   sessions: SessionService
   tasks: TaskService
+  /** Cancelling a task, which passes its blockers on to the tasks it blocked (SC-038). */
+  taskCancellation: TaskCancellationService
   taskRelations: TaskRelationService
   taskStatus: TaskStatusService
   /** The filter every view passes the tasks it would show through (SC-050). */
@@ -72,6 +75,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),
+    taskCancellation: new TaskCancellationService(db, audit, projectRoles),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     viewFilter,
