@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import {
@@ -9,15 +9,15 @@ import {
   companyHolidays,
   globalCalendar,
   personalHolidays,
+  projectMembers,
 } from '../../src/db/schema.ts'
-import { AuditLogService } from '../../src/service/audit.ts'
-import { CalendarService, DEFAULT_WEEKEND_DAYS } from '../../src/service/calendars.ts'
+import { type CalendarService, DEFAULT_WEEKEND_DAYS } from '../../src/service/calendars.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
-import { seedProject } from '../helpers/projects.ts'
+import { grantRole, insertProject, seedProject } from '../helpers/projects.ts'
 
 // The calendar and availability module (SC-008) against a real PostgreSQL: its rules, then the
 // test cases of FR-037 to FR-041, FR-131 and FR-150 through the REST API.
@@ -60,7 +60,7 @@ describe('the calendar service', () => {
 
   beforeAll(async () => {
     x = await createTestDatabase()
-    service = new CalendarService(x.db, new AuditLogService(x.db))
+    service = createServices(x.db).calendars
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
   })
 
@@ -317,7 +317,7 @@ describe('the calendar service', () => {
     it('refuses anyone else, reading or changing, before looking at what they sent', async () => {
       const read = await refused(service.personalCalendarOf(by(bob), alice.id), 'forbidden')
       expect(read.message).toBe(
-        "Only the person themselves and system admins can see a person's capacity, absences and calendar",
+        "Only the person themselves and system admins can see a person's absences and calendar",
       )
       const change = await refused(
         service.changePersonalCalendar(by(bob), alice.id, 'junk'),
@@ -386,10 +386,61 @@ describe('the calendar service', () => {
     it("lets a system admin read and set anyone's; refuses everyone else", async () => {
       await service.setCapacity(by(root), alice.id, 60)
       expect((await service.capacityOf(by(root), alice.id)).capacity).toBe(60)
-      await refused(service.capacityOf(by(bob), alice.id), 'forbidden')
+      const error = await refused(service.capacityOf(by(bob), alice.id), 'forbidden')
+      expect(error.message).toBe(
+        "Only the person themselves, system admins and people who can read a project the person can read can see a person's capacity",
+      )
       await refused(service.setCapacity(by(bob), alice.id, 50), 'forbidden')
       expect((await service.capacityOf(by(alice), alice.id)).capacity).toBe(60)
       expect((await service.capacityOf(by(bob), bob.id)).capacity).toBe(100)
+    })
+
+    describe('read by the people of a project', () => {
+      it.each(['read-only', 'contributor', 'read-write', 'admin'] as const)(
+        'lets someone with a %s role read the capacity of everyone who can read the project',
+        async (role) => {
+          const project = await insertProject(x.db, root)
+          await grantRole(x.db, alice, project, 'read-only')
+          await grantRole(x.db, bob, project, role)
+          await service.setCapacity(by(alice), alice.id, 80)
+          expect(await service.capacityOf(by(bob), alice.id)).toEqual({
+            accountId: alice.id,
+            capacity: 80,
+          })
+          expect((await service.capacityOf(by(alice), bob.id)).capacity).toBe(100)
+        },
+      )
+
+      it('refuses someone whose projects the person cannot read, and a stranger', async () => {
+        await grantRole(x.db, alice, await insertProject(x.db, root), 'admin')
+        await grantRole(x.db, bob, await insertProject(x.db, root), 'admin')
+        const error = await refused(service.capacityOf(by(bob), alice.id), 'forbidden')
+        expect(error.message).toContain('people who can read a project the person can read')
+        await refused(service.capacityOf(by(alice), bob.id), 'forbidden')
+        await refused(service.capacityOf(by({ id: randomUUID() }), alice.id), 'forbidden')
+        await refused(service.capacityOf(by({ id: 'not-a-uuid' }), alice.id), 'forbidden')
+      })
+
+      it('stops when one of them loses their role in the shared project', async () => {
+        const project = await insertProject(x.db, root)
+        await grantRole(x.db, alice, project, 'read-only')
+        await grantRole(x.db, bob, project, 'read-only')
+        expect((await service.capacityOf(by(bob), alice.id)).capacity).toBe(100)
+        await x.db
+          .delete(projectMembers)
+          .where(and(eq(projectMembers.projectId, project), eq(projectMembers.accountId, alice.id)))
+        await refused(service.capacityOf(by(bob), alice.id), 'forbidden')
+      })
+
+      it('gives them neither the absences, nor the calendar, nor a change of the capacity', async () => {
+        const project = await insertProject(x.db, root)
+        await grantRole(x.db, alice, project, 'read-only')
+        await grantRole(x.db, bob, project, 'admin')
+        await refused(service.absencesOf(by(bob), alice.id), 'forbidden')
+        await refused(service.personalCalendarOf(by(bob), alice.id), 'forbidden')
+        await refused(service.setCapacity(by(bob), alice.id, 50), 'forbidden')
+        expect((await service.capacityOf(by(alice), alice.id)).capacity).toBe(100)
+      })
     })
 
     it('answers not found for an account that does not exist', async () => {

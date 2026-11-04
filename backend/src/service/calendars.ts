@@ -75,18 +75,26 @@ const ABSENCE_FIELDS = new Set(['from', 'to'])
  *   (FR-039);
  * - each person's capacity (FR-037) and their absences in whole days (FR-038, DD-011).
  *
- * A person's calendar, capacity and absences are read and changed by the person and by system
- * admins (FR-150). Who else may read them is not stated, so everyone else is refused. Every change
+ * A person's calendar, capacity and absences are changed by the person and by system admins
+ * (FR-150). Their capacity can also be read by everyone who can read a project the person can read,
+ * as the owner decided in the review of SC-008 (2026-11-04). Who else may read their calendar and
+ * absences is not stated, so only the person and system admins may. Every change
  * is recorded in the audit log (FR-116), in the same transaction; a change that changes nothing
  * records nothing.
  */
 export class CalendarService {
   readonly #db: Database
   readonly #audit: AuditLogService
+  readonly #projects: ReadableProjects
 
-  constructor(db: Database, audit: AuditLogService) {
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    projects: ReadableProjects = noReadableProjects,
+  ) {
     this.#db = db
     this.#audit = audit
+    this.#projects = projects
   }
 
   /** The global calendar, the same for everyone with an account (FR-040). */
@@ -222,9 +230,14 @@ export class CalendarService {
     })
   }
 
-  /** A person's capacity (FR-037), for the person and system admins. */
+  /**
+   * A person's capacity (FR-037), for the person, system admins, and everyone who can read a
+   * project the person can read (the owner's decision in the review of SC-008, 2026-11-04).
+   */
   async capacityOf(caller: Caller, accountId: string): Promise<Capacity> {
-    await this.#requireSelfOrSystemAdmin(caller, accountId, 'read')
+    if (!(await this.#sharesReadableProject(caller.accountId, accountId))) {
+      await this.#requireSelfOrSystemAdmin(caller, accountId, 'read', CAPACITY_READ_REFUSAL)
+    }
     const [row] = await this.#db
       .select({ capacity: accounts.capacity })
       .from(accounts)
@@ -351,17 +364,29 @@ export class CalendarService {
     caller: Caller,
     accountId: string,
     doing: 'read' | 'change',
+    refusal?: string,
   ): Promise<void> {
     if (caller.accountId === accountId && isUuid(accountId)) return
     if (!(await isSystemAdmin(this.#db, caller.accountId))) {
       throw new ServiceError(
         'forbidden',
-        doing === 'change'
-          ? "Only the person themselves and system admins can change a person's capacity, absences and calendar"
-          : "Only the person themselves and system admins can see a person's capacity, absences and calendar",
+        refusal ??
+          (doing === 'change'
+            ? "Only the person themselves and system admins can change a person's capacity, absences and calendar"
+            : "Only the person themselves and system admins can see a person's absences and calendar"),
       )
     }
     if (!isUuid(accountId)) throw noSuchAccount()
+  }
+
+  /** Whether the two people can both read at least one project, as the role checks decide. */
+  async #sharesReadableProject(viewerId: string, accountId: string): Promise<boolean> {
+    if (viewerId === accountId || !isUuid(viewerId) || !isUuid(accountId)) return false
+    const [viewer, person] = await Promise.all([
+      this.#projects.readableProjects(viewerId),
+      this.#projects.readableProjects(accountId),
+    ])
+    return [...viewer].some((projectId) => person.has(projectId))
   }
 
   /** Refuses an account that does not exist; with `lock`, holds it until the transaction ends. */
@@ -374,6 +399,20 @@ export class CalendarService {
     if (!account) throw noSuchAccount()
   }
 }
+
+/**
+ * Answers the projects a person can read, as the role permission checks decide (SC-049). The
+ * project role store answers it.
+ */
+export interface ReadableProjects {
+  readableProjects(accountId: string): Promise<Set<string>>
+}
+
+/** Until a role store is given: nobody can read any project. */
+const noReadableProjects: ReadableProjects = { readableProjects: async () => new Set() }
+
+const CAPACITY_READ_REFUSAL =
+  "Only the person themselves, system admins and people who can read a project the person can read can see a person's capacity"
 
 const absenceColumns = {
   id: absences.id,

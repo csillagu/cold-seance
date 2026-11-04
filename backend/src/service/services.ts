@@ -55,7 +55,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
-    calendars: new CalendarService(db, audit),
+    calendars: new CalendarService(db, audit, projectRoles),
     githubLinks: new GitHubLinkService(db, audit),
     groups: new GroupService(db, audit),
     projectRoles,
