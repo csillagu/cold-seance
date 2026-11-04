@@ -41,8 +41,7 @@ export function mayBeConstrained(to: TaskStatus): boolean {
  *   done or cancelled (FR-025, SRC-020);
  * - starts a task, setting it in progress for the first time (it has no actual start), or
  *   finishes it, before every task blocking it has finished: is done (FR-026, SRC-021). A
- *   cancelled blocker has not finished; its cancellation hands its own blockers on to the tasks it
- *   blocked (FR-128). Setting a task that has started before back to in progress, from on hold or
+ *   cancelled blocker has not finished. Setting a task that has started before back to in progress, from on hold or
  *   done, is not starting it, and is not checked.
  *
  * They are called by the status transitions (SC-003) for every move, whichever channel it comes

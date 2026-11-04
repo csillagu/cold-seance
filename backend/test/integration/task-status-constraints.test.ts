@@ -231,6 +231,13 @@ describe('the task status constraint checks', () => {
       })
     })
 
+    it('refuses to reopen a finished task that never started, as that starts it', async () => {
+      const blocker = await seed({ status: 'in-progress' })
+      const finished = await seed({ status: 'done', actualFinish: '2027-02-10' })
+      await block(finished, blocker)
+      expect(await rejected(finished, 'in-progress')).toBe(UNFINISHED_BLOCKER_MESSAGE)
+    })
+
     it('lets a blocked task be put on hold', async () => {
       const blocker = await seed({ status: 'in-progress' })
       const blocked = await seed()
@@ -276,6 +283,17 @@ describe('the task status constraint checks', () => {
       await block(blocked, await seed())
       await expect(set(blocked, 'in-progress', by(reader))).rejects.toMatchObject({
         kind: 'forbidden',
+      })
+    })
+
+    it('refuses a read-only member without waiting for the relations lock', async () => {
+      const blocked = await seed()
+      await x.db.transaction(async (tx) => {
+        await lockRelations(tx)
+        // Another connection: the refusal comes while this transaction still holds the lock.
+        await expect(set(blocked, 'in-progress', by(reader))).rejects.toMatchObject({
+          kind: 'forbidden',
+        })
       })
     })
 

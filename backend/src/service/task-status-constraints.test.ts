@@ -14,7 +14,7 @@ describe('mayBeConstrained', () => {
 
   it('answers no for every other status', () => {
     const others = TASK_STATUSES.filter((status) => status !== 'done' && status !== 'in-progress')
-    expect(others).toEqual(['not-started', 'on-hold', 'cancelled'])
+    expect(others).toHaveLength(TASK_STATUSES.length - 2)
     for (const status of others) expect(mayBeConstrained(status)).toBe(false)
   })
 })

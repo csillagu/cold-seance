@@ -96,8 +96,19 @@ export class TaskStatusService {
       const to = validStatus(status)
       // A move the constraint checks may refuse takes the relations lock before the task's row,
       // in the order every change of a relation takes them, so that the subtasks and blockers it
-      // is checked against cannot change under it, nor two such moves wait for each other.
-      if (mayBeConstrained(to)) await lockRelations(tx)
+      // is checked against cannot change under it, nor two such moves wait for each other. The
+      // lock is one for the whole tool, so whoever may not make the move at all is refused first,
+      // against the task as read so far, and cannot hold it up; the check is made again below,
+      // against the task as it is once locked.
+      if (mayBeConstrained(to)) {
+        await this.#roles.permissions.requireStatusChange(
+          caller,
+          found.projectId,
+          { assignees: found.assignees, from: found.status, to },
+          tx,
+        )
+        await lockRelations(tx)
+      }
       const current = await this.#find(taskId, tx, true)
       if (!TARGETS.has(to) || current.status === 'cancelled') {
         throw invalid(refusal(current.status, to))
