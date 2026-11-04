@@ -23,9 +23,11 @@ const TASK: Task = {
   durationWorkingDays: 3,
   effort: 5,
   aiShare: 0,
+  personLoad: 100,
   milestone: null,
   eligibility: null,
   assignees: [],
+  loadOverrides: {},
   withoutReadAccess: [],
   actualStart: null,
   actualFinish: null,
@@ -40,6 +42,7 @@ const LAUNCH: Task = {
   durationWorkingDays: null,
   effort: null,
   aiShare: null,
+  personLoad: null,
   milestone: { variant: 'fixed-date', date: '2027-03-12' },
 }
 const DOCS_READY: Task = {
@@ -508,5 +511,80 @@ describe('eligibility and assignees through the task routes (SC-005)', () => {
     )
     expect(task.properties.withoutReadAccess.description).toMatch(/cannot read its project/)
     expect(task.properties.eligibility.description).toMatch(/AND/)
+  })
+})
+
+describe('person load through the task routes (SC-039)', () => {
+  const ALICE = '6f1c2a5e-0000-4000-8000-00000000000a'
+  const AI_ONLY: Task = {
+    ...TASK,
+    aiShare: 100,
+    personLoad: 0.5,
+    assignees: [ALICE],
+    loadOverrides: { [ALICE]: 150 },
+  }
+
+  it('hands the service the person load and the overrides as given, and sends them back', async () => {
+    const { app, tasks } = stubbed()
+    tasks.createTask.mockResolvedValue(AI_ONLY)
+    const payload = {
+      title: 'Write install guide',
+      aiShare: 100,
+      personLoad: 0.5,
+      assignees: [ALICE],
+      loadOverrides: { [ALICE]: 150 },
+    }
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${PROJECT}/tasks`,
+      headers: erin,
+      payload,
+    })
+    expect(response.statusCode).toBe(201)
+    expect(response.json()).toEqual(AI_ONLY)
+    expect(tasks.createTask).toHaveBeenCalledWith(caller, PROJECT, payload)
+  })
+
+  it('sends a null person load, for a milestone, and an empty set of overrides', async () => {
+    const { app, tasks } = stubbed()
+    tasks.getTask.mockResolvedValue(LAUNCH)
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${LAUNCH.id}`,
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({ personLoad: null, loadOverrides: {} })
+  })
+
+  it('hands overrides to the service whatever their values, which decides on them, and sends its 400', async () => {
+    const { app, tasks } = stubbed()
+    tasks.updateTask.mockRejectedValue(
+      new ServiceError('invalid', 'A person-load override is a percentage of zero or more'),
+    )
+    const payload = { loadOverrides: { [ALICE]: '30' }, personLoad: null }
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${TASK.id}`,
+      headers: erin,
+      payload,
+    })
+    // Not coerced to a number on the way: the service alone decides what a valid override is.
+    expect(tasks.updateTask).toHaveBeenCalledWith(caller, TASK.id, payload)
+    expect(response.statusCode).toBe(400)
+  })
+
+  it('describes the person load and the overrides in the OpenAPI description', async () => {
+    const { app } = stubbed()
+    const paths = (
+      await app.inject({ method: 'GET', url: '/api/openapi.json', headers: erin })
+    ).json().paths
+    const body = paths['/api/tasks/{taskId}'].patch.requestBody.content['application/json'].schema
+    expect(body.properties.personLoad.description).toMatch(/only for an AI-only task/)
+    expect(body.properties.loadOverrides.description).toMatch(/assignee/)
+    const task =
+      paths['/api/tasks/{taskId}'].get.responses['200'].content['application/json'].schema
+    expect(task.required).toEqual(expect.arrayContaining(['personLoad', 'loadOverrides']))
+    expect(task.properties.personLoad.description).toMatch(/100 minus its AI share/)
   })
 })
