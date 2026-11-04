@@ -448,7 +448,7 @@ describe('test cases through the REST API', () => {
     }
   })
 
-  const api = async (method: 'GET' | 'POST', url: string, payload?: object) =>
+  const api = async (method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
     app.inject({ method, url, headers: as(alice, 'rest-api'), ...(payload && { payload }) })
   const createTask = async (title: string) => {
     const created = await api('POST', `/api/projects/${apollo}/tasks`, { title })
@@ -513,6 +513,83 @@ describe('test cases through the REST API', () => {
       ).toEqual([])
       for (const other of [a1, a2]) expect(await blockedBy(other)).toEqual([])
       expect(await blockedBy(b)).toEqual([a1, a2])
+    })
+  })
+
+  /** Makes a request as `account` through the REST API. */
+  const apiAs = (account: Seeded, method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
+    app.inject({ method, url, headers: as(account, 'rest-api'), ...(payload && { payload }) })
+  const createIn = async (account: Seeded, projectId: string, body: object) => {
+    const created = await apiAs(account, 'POST', `/api/projects/${projectId}/tasks`, body)
+    expect(created.statusCode).toBe(201)
+    return created.json<{ id: string }>().id
+  }
+  const blockedByAs = async (account: Seeded, id: string) => {
+    const read = await apiAs(account, 'GET', `/api/tasks/${id}/relations`)
+    expect(read.statusCode).toBe(200)
+    return read.json<{ blockedBy: { id: string }[] }>().blockedBy.map((ref) => ref.id)
+  }
+
+  describe('TC-276: cancelling a milestone another project depends on is rejected', () => {
+    it('rejects cancelling M; M stays not started and X stays blocked by M', async () => {
+      const bob = await seedAccount(x.db, { username: 'bob' })
+      await grantRole(x.db, bob, apollo, 'read-only')
+      const hermes = await seedProject(x.db, bob, 'Hermes')
+      const m = await createIn(alice, apollo, { title: 'M', milestone: { variant: 'floating' } })
+      const task = await createIn(bob, hermes, { title: 'X' })
+      expect(
+        (await apiAs(bob, 'POST', `/api/tasks/${task}/blocked-by`, { blockerId: m })).statusCode,
+      ).toBe(200)
+
+      const response = await api('POST', `/api/tasks/${m}/cancel`)
+      expect(response.statusCode).toBe(409)
+
+      const read = await api('GET', `/api/tasks/${m}`)
+      expect(read.json()).toMatchObject({ id: m, status: 'not-started' })
+      // Negative: M is not cancelled, and X loses no relation.
+      expect(await blockedByAs(bob, task)).toEqual([m])
+    })
+  })
+
+  describe('TC-277: cancelling a finished task is rejected', () => {
+    it('rejects cancelling T; T stays done with the same actual start and finish', async () => {
+      const t = await createTask('T')
+      for (const status of ['in-progress', 'done']) {
+        expect((await api('PUT', `/api/tasks/${t}/status`, { status })).statusCode).toBe(200)
+      }
+      const before = (await api('GET', `/api/tasks/${t}`)).json<Record<string, unknown>>()
+      expect(before).toMatchObject({ status: 'done' })
+
+      const response = await api('POST', `/api/tasks/${t}/cancel`)
+      expect(response.statusCode).toBe(400)
+
+      const read = (await api('GET', `/api/tasks/${t}`)).json<Record<string, unknown>>()
+      // Negative: T is not cancelled.
+      expect(read).toMatchObject({
+        status: 'done',
+        actualStart: before['actualStart'],
+        actualFinish: before['actualFinish'],
+      })
+    })
+  })
+
+  describe('TC-278: a cancelled task passes on a milestone its canceller cannot read', () => {
+    it('lets bob cancel B; C is then blocked by N, and no longer by B', async () => {
+      const bob = await seedAccount(x.db, { username: 'bob' })
+      await grantRole(x.db, bob, apollo, 'read-write')
+      const hermes = await seedProject(x.db, alice, 'Hermes')
+      const n = await createIn(alice, hermes, { title: 'N', milestone: { variant: 'floating' } })
+      const b = await createTask('B')
+      const c = await createTask('C')
+      await addBlocker(b, n)
+      await addBlocker(c, b)
+
+      expect((await apiAs(bob, 'POST', `/api/tasks/${b}/cancel`)).statusCode).toBe(200)
+
+      const after = await blockedBy(c)
+      expect(after).toEqual([n])
+      // Negative: C is no longer blocked by B.
+      expect(after).not.toContain(b)
     })
   })
 })
