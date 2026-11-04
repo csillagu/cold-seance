@@ -9,6 +9,7 @@ import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRoutes } from './projects.ts'
 import { sessionRoutes } from './session.ts'
+import { taskRelationRoutes } from './task-relations.ts'
 import { projectTaskRoutes, taskRoutes } from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
 
@@ -43,6 +44,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
   { prefix: '/tasks', routes: taskRoutes },
+  { prefix: '/tasks', routes: taskRelationRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
   { prefix: '/session', routes: sessionRoutes },
 ]

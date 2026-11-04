@@ -2,6 +2,7 @@
 // migration with `npm run db:generate` (SC-073).
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -194,6 +195,12 @@ export const milestoneVariant = pgEnum('milestone_variant', MILESTONE_VARIANTS)
  * is pinned to a fixed date, `milestone_date`, or floating, and is null for a task that is not a
  * milestone. A milestone takes no time, so it has no planned dates, duration, effort or AI share
  * (FR-191); a fixed-date milestone's only date is the one it is pinned to.
+ *
+ * `parent_id` makes a task a subtask of another task of its project (SC-002); a task has at most
+ * one parent, and subtasks nest. The task relation module keeps the nesting free of cycles and
+ * keeps milestones out of it (FR-193); any other module that writes `parent_id` takes its
+ * `lockRelations` first. Nothing deletes a task yet, so the reference does not say what happens
+ * to a deleted parent's subtasks.
  */
 export const tasks = pgTable(
   'tasks',
@@ -212,10 +219,13 @@ export const tasks = pgTable(
     aiShare: doublePrecision('ai_share'),
     milestoneVariant: milestoneVariant('milestone_variant'),
     milestoneDate: date('milestone_date', { mode: 'string' }),
+    parentId: uuid('parent_id').references((): AnyPgColumn => tasks.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('tasks_project_id_idx').on(table.projectId, table.createdAt),
+    index('tasks_parent_id_idx').on(table.parentId),
+    check('tasks_not_own_parent', sql`${table.parentId} <> ${table.id}`),
     check('tasks_duration_whole_days', sql`${table.durationWorkingDays} >= 1`),
     check('tasks_finish_not_before_start', sql`${table.plannedFinish} >= ${table.plannedStart}`),
     check('tasks_effort_not_negative', sql`${table.effort} >= 0`),
@@ -228,5 +238,31 @@ export const tasks = pgTable(
       'tasks_milestone_takes_no_time',
       sql`${table.milestoneVariant} is null or (${table.plannedStart} is null and ${table.plannedFinish} is null and ${table.durationWorkingDays} is null and ${table.effort} is null and ${table.aiShare} is null)`,
     ),
+  ],
+)
+
+/**
+ * The blocked-by relations (SC-002): `task_id` is blocked by `blocker_id`. The blocker is a task
+ * of the same project, or a milestone of another project (FR-015). Either way the relation is the
+ * blocked task's, so it is held in that task's project and never in the blocker's. The task
+ * relation module keeps the relations free of cycles (FR-014); any other module that writes
+ * them, such as passing a cancelled task's blockers on (FR-128), takes its `lockRelations` first.
+ * Nothing deletes a task yet, so the references do not say what happens to its relations.
+ */
+export const taskBlockedBy = pgTable(
+  'task_blocked_by',
+  {
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id),
+    blockerId: uuid('blocker_id')
+      .notNull()
+      .references(() => tasks.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('task_blocked_by_key').on(table.taskId, table.blockerId),
+    index('task_blocked_by_blocker_id_idx').on(table.blockerId),
+    check('task_blocked_by_not_self', sql`${table.taskId} <> ${table.blockerId}`),
   ],
 )
