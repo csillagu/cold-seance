@@ -71,6 +71,13 @@
       "when": 1793786349358,
       "tag": "0009_milestones",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793790144701,
+      "tag": "0010_task_relations",
+      "breakpoints": true
     }
   ]
 }
