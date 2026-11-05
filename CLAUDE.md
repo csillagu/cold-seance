@@ -75,6 +75,8 @@ gh pr create --draft --base main --title "<title>" --body "Closes #<issue-number
 
 The `Closes #<issue-number>` line links the PR to the issue and closes the issue when the PR merges.
 
+Keep a **Decisions** section in the PR body, added to as the work goes: every choice the issue and the graph items did not make for you (a table or route shape, a reading of an item that could be read two ways, an edge case, a dependency, a deviation from the plan), each with why, what it rests on and what else was considered, or "None". [`plan/agent-prompt.md`](plan/agent-prompt.md) §7 gives the format. A choice about what the system must do is the owner's: ask it, do not record it as yours.
+
 Keep pushing commits to the branch as work continues. When the work is done, mark the PR ready for review:
 
 ```sh

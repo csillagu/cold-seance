@@ -33,7 +33,7 @@ Of the ready issues, take the one with the lowest **Rank** in its body. Rank 1 s
 Other agents may be choosing at the same moment, so claim it in this order:
 
 1. Add the label `claimed`, and comment on the issue: `Claimed by <a link to this session, or its name>.`
-2. Read the issue's comments again. If a `Claimed by` comment from another session is older than yours, you lost the race. Delete your comment, leave the label as it is, and go back to step 2 for another issue.
+2. Read the issue's comments again. If a `Claimed by` comment from another session is older than yours, you lost the race. Delete your comment, leave the label as it is, and go back to section 2 for another issue.
 3. If yours is the oldest claim, the issue is yours.
 
 A claim older than 24 hours, with no pull request linked to the issue and no commit since the claim, is stale. You may take it over: comment `Taking over the stale claim of <the other session>.` and carry on.
@@ -56,13 +56,36 @@ Keep your change apart from the others' work, as `CLAUDE.md`'s "Keeping parallel
 
 Before each commit, run `npm run check`, and `npm run test:integration` too if the backend changed (see the README). If you changed anything in `graph/`, follow `CLAUDE.md`'s reqlite rules: run `reqlite check --changed`, then the quality review.
 
-## 7. When the owner must decide
+## 7. Record every decision in the pull request
 
-If the work needs a decision that the SC, its FRs, DDs and TCs do not settle, do not guess. Commit and push what you have, then comment on the issue with the question and the options you see. Add the label `needs-owner`, remove `claimed`, and stop. The owner answers there, removes `needs-owner`, and the next agent picks the issue up again.
+You merge without a reviewer, so the pull request is the only record of what you chose. Keep a **Decisions** section in its body, and add to it as you go, not at the end. A decision is any choice the issue, its SCs, FRs, DDs and TCs did not make for you. For example:
 
-## 8. Merge
+- **Shape:** a table, column, constraint or index; a route's path, method, request or response; an error code or message.
+- **Reading:** how you read an SC, FR or TC that could be read more than one way.
+- **Edges:** behaviour at an edge the items do not mention, such as an empty list, a duplicate, or two changes at once.
+- **Structure and tools:** where code lives, which module it reuses, a dependency you added, a pattern you followed or broke.
+- **Tests:** what a TC part covers here, and what you left pending and why.
+- **Deviations:** anything you did differently from the issue or the work graph, such as a part moved to another node or a blocker you found missing.
 
-You merge your own pull request; the owner allows it for work-graph issues (see `CLAUDE.md`). Merge only a head that is rebased onto the latest `main` and has passed CI:
+Write each as one bullet:
+
+```markdown
+## Decisions
+
+- **<what was decided>.** Why: <the reason>. Rests on: <SC/FR/DD/TC ids, or "my choice">. Considered: <the options you did not take, if any>.
+```
+
+Write "None" if there were none, so that a reader knows the section was not forgotten. Also list under **Open points** anything left for later, with the issue or node it belongs to.
+
+These are decisions you may take yourself. A decision about what the system must do, for whom, or when, is the owner's (section 8): ask it, do not record it as yours.
+
+## 8. When the owner must decide
+
+If the work needs a decision that the SC, its FRs, DDs and TCs do not settle, and that is about what the system must do rather than how it is built, do not guess. Commit and push what you have, then comment on the issue with the question and the options you see. Add the label `needs-owner`, remove `claimed`, and stop. The owner answers there, removes `needs-owner`, and the next agent picks the issue up again.
+
+## 9. Merge
+
+You merge your own pull request; the owner allows it for work-graph issues (see `CLAUDE.md`). Merge only a head that is rebased onto the latest `main` and has passed CI, and whose pull request body has its **Decisions** section complete for everything in that head:
 
 1. **Rebase.** Run `npm run db:rebase`. If it stops on a conflict outside the migrations, resolve it, run `git rebase --continue`, then run `npm run db:rebase` again. Rows of the status table in `docs/implementation-plan.md` merge on their own; if one does conflict, keep both sides' rows.
 2. **Check.** Run `npm run check` and, if the backend changed, `npm run test:integration`. Fix what fails.
@@ -73,6 +96,6 @@ You merge your own pull request; the owner allows it for work-graph issues (see 
 7. **Merge** with a merge commit, not squash or rebase-merge. If GitHub refuses (a review the rules require, a conflict that appeared meanwhile), go back to step 1 for a conflict. For anything else, comment on the issue with what GitHub said, add `needs-owner`, and stop.
 8. **Check `main`** after the merge: wait for CI's run on `main` for your merge commit. If it fails, fix `main` at once with a new pull request that references the same issue, merged the same way. A red `main` blocks every other agent.
 
-## 9. Finish
+## 10. Finish
 
-Comment on the issue with a summary: what was built, which TCs pass in full, and which parts are pending and on what. The merge closes the issue through `Closes #<issue-number>`; if it is still open, close it. Then stop. Do not take a second issue in the same session.
+Comment on the issue with a summary: what was built, which TCs pass in full, which parts are pending and on what, and a link to the pull request's Decisions section. The merge closes the issue through `Closes #<issue-number>`; if it is still open, close it. Then stop. Do not take a second issue in the same session.
