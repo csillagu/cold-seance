@@ -52,6 +52,7 @@ const task = {
     'withoutReadAccess',
     'actualStart',
     'actualFinish',
+    'repositoryId',
     'githubIssue',
   ],
   properties: {
@@ -111,6 +112,12 @@ const task = {
     actualFinish: nullable('string', {
       format: 'date',
       description: 'The date the task was finished; null while it is not finished',
+    }),
+    repositoryId: nullable('string', {
+      format: 'uuid',
+      description:
+        'The registered repository the task is assigned to, by its id; null while it is ' +
+        'assigned to none',
     }),
     githubIssue: {
       type: 'null',
@@ -319,5 +326,44 @@ export const taskCancellationRoutes: FastifyPluginAsync<RouteGroupOptions> = asy
       },
     },
     async (request) => services.taskCancellation.cancel(callerOf(request), request.params.taskId),
+  )
+}
+
+/**
+ * The route that assigns a task to a repository (SC-036, SC-026). It only translates the request;
+ * the task repository assignment decides what is allowed (DD-039).
+ */
+export const taskRepositoryRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
+  group,
+  { services },
+) => {
+  group.put<{ Params: { taskId: string }; Body: { repositoryId: unknown } }>(
+    '/:taskId/repository',
+    {
+      schema: {
+        description:
+          'Assigns the task to a repository: one of the repositories its project pulls issues ' +
+          'from, by its id in the tool. Refused with 400 for any other repository. Only the ' +
+          "project's read-write members and admins can assign a task.",
+        params: taskParams,
+        body: {
+          type: 'object',
+          required: ['repositoryId'],
+          // No type, so that Fastify does not coerce a value: the service alone decides which
+          // repositories a task can be assigned to, the same for every channel (DD-039).
+          properties: {
+            repositoryId: { description: 'The id of the repository, as the tool registered it' },
+          },
+          additionalProperties: false,
+        },
+        response: { 200: task },
+      },
+    },
+    async (request) =>
+      services.taskRepository.assignRepository(
+        callerOf(request),
+        request.params.taskId,
+        request.body.repositoryId,
+      ),
   )
 }

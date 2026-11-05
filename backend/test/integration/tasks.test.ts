@@ -97,6 +97,7 @@ describe('the task service', () => {
         withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
+        repositoryId: null,
         githubIssue: null,
       })
       expect(await stored(task.id)).toMatchObject({ projectId: project, title: task.title })
@@ -586,6 +587,7 @@ describe('test cases through the REST API', () => {
         withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
+        repositoryId: null,
         githubIssue: null,
       })
       // The linked GitHub issue field is present and empty.

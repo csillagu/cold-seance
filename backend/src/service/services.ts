@@ -13,6 +13,7 @@ import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
 import { TaskRelationService } from './task-relations.ts'
+import { TaskRepositoryService } from './task-repository.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
 import { ViewReadFilter } from './view-filter.ts'
@@ -41,6 +42,8 @@ export interface Services {
   /** Cancelling a task, which passes its blockers on to the tasks it blocked (SC-038). */
   taskCancellation: TaskCancellationService
   taskRelations: TaskRelationService
+  /** Which repository a task is assigned to (SC-036). */
+  taskRepository: TaskRepositoryService
   taskStatus: TaskStatusService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
@@ -68,6 +71,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const projectRoles = new ProjectRoleService(db, audit, groupRoles)
   const viewFilter = new ViewReadFilter(projectRoles)
   const groups = new GroupService(db, audit, projectRoles)
+  const projectRepositories = new ProjectRepositoryService(db, audit, projectRoles)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -75,7 +79,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     calendars: new CalendarService(db, audit, projectRoles),
     githubLinks: new GitHubLinkService(db, audit),
     groups,
-    projectRepositories: new ProjectRepositoryService(db, audit, projectRoles),
+    projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
     repositories: new RepositoryService(db, audit, options.github),
@@ -83,6 +87,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     tasks: new TaskService(db, audit, projectRoles),
     taskCancellation: new TaskCancellationService(db, audit, projectRoles),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),
+    taskRepository: new TaskRepositoryService(db, audit, projectRoles, projectRepositories),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     viewFilter,
   }

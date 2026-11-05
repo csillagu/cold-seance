@@ -29,8 +29,10 @@ import { isUuid } from './system-admins.ts'
  *
  * Its eligibility expression and its assigned people are those of the eligibility and assignment
  * module (SC-005); the planned finish its start and duration give comes with the scheduler
- * (FR-144, SC-004). `githubIssue` is the GitHub issue linked to the task: none until the task is assigned
- * to a repository and its issue is created (SC-036, SC-060), so always `null` for now.
+ * (FR-144, SC-004). `repositoryId` is the registered repository the task is assigned to, set by the
+ * task repository assignment (SC-036, `TaskRepositoryService`). `githubIssue` is the GitHub issue
+ * linked to the task: none until the task is assigned to a repository and its issue is created
+ * (SRC-168, SC-060), so always `null` for now.
  *
  * `milestone` is `null` for a task that is not a milestone. A milestone (FR-190) takes no time, so
  * its planned dates, duration, effort and AI share are always `null` (FR-191).
@@ -90,6 +92,12 @@ export interface Task {
    * by the status transitions (SC-003), never by an edit.
    */
   actualFinish: string | null
+  /**
+   * The registered repository the task is assigned to, by its id in the tool, or `null` while it
+   * is assigned to none (FR-141). Set by the task repository assignment (SC-036), never by an
+   * edit.
+   */
+  repositoryId: string | null
   githubIssue: null
 }
 
@@ -182,6 +190,7 @@ export const taskColumns = {
   milestoneDate: tasks.milestoneDate,
   actualStart: tasks.actualStart,
   actualFinish: tasks.actualFinish,
+  repositoryId: tasks.repositoryId,
   eligibility: tasks.eligibility,
   assignees: assigneesColumn,
   loadOverrides: loadOverridesColumn,
