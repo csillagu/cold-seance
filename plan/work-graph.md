@@ -1,9 +1,11 @@
-# Work graph
+# Parallel work graph
 
 The solution components still to build, cut into nodes for parallel work. Each node becomes one GitHub issue, and each arrow becomes a "blocked by" relation. The data is in [`work-graph.yaml`](work-graph.yaml); this page is generated from it.
 
-- Drafted by Claude on 2026-11-05 from [`docs/implementation-plan.md`](../docs/implementation-plan.md), the SC and TC files in [`graph/`](../graph/), and the "Pending" notes in `backend/test/integration/`. It awaits the owner's confirmation.
-- A node is one SC, or a few small SCs that belong together. Every one of the 76 SCs not yet implemented is in exactly one node; that includes the five open tracks, which close in Z01.
+**This is not the implementation plan.** [`docs/implementation-plan.md`](../docs/implementation-plan.md) orders all the SCs in waves and keeps the status of each; it stays the record of what is done. This graph takes the SCs not yet implemented, as of 2026-11-05, and cuts them into issue-sized nodes with blocked-by relations, so that several people or agents can work at once. Where the two differ in order, the section below says so.
+
+- Drafted by Claude on 2026-11-05 from the implementation plan, the SC and TC files in [`graph/`](../graph/), and the "Pending" notes in `backend/test/integration/`. It awaits the owner's confirmation.
+- A node is one SC, or a few small SCs that belong together. Every one of the 77 SCs not yet implemented is in exactly one node; that includes the five open tracks, which close in Z01. Three nodes hold no SC: B01 (tests left pending), D01 (the frontend design) and P01 (the Playwright tests).
 - A TC verifies FRs, not SCs. So a TC goes to every node whose SC delivers one of its FRs, and each node takes a **part**: usually the backend node tests the service and REST side, and the node with the screen tests the browser steps. `full` marks the node that makes the TC pass in full.
 - Effort is the sum of the SCs' `effort` fields. It is a size, not a schedule.
 
@@ -13,7 +15,7 @@ Thick boxes are on the longest chains. Every node with no successor also blocks 
 
 ```mermaid
 flowchart LR
-  B01["B01 Finish the TC parts left pending on SCs that are now done<br/>SC tests · effort 0"]
+  B01["B01 Finish the TC parts left pending on SCs that are now done<br/>no SC"]
   B02["B02 Overloads and red flags (overload detector, availability flags, red flag register)<br/>SC 040, 042, 043 · effort 7"]
   B03["B03 Unassigned task load rating<br/>SC 041 · effort 3"]
   B04["B04 Variance calculator<br/>SC 044 · effort 2"]
@@ -29,9 +31,12 @@ flowchart LR
   B14["B14 Proposal approval<br/>SC 048 · effort 5"]
   B15["B15 Notifications<br/>SC 012 · effort 5"]
   B16["B16 GitHub change handler<br/>SC 023 · effort 13"]
+  B20["B20 Project repository removal<br/>SC 117 · effort 2"]
   B17["B17 GitHub webhook endpoint and re-check timer<br/>SC 105, 024 · effort 5"]
   B18["B18 GitHub revert commenter and revert notifications<br/>SC 062 · effort 1"]
   B19["B19 MCP server endpoint<br/>SC 027 · effort 5"]
+  D01["D01 Frontend design<br/>no SC"]
+  P01["P01 Playwright browser tests<br/>no SC"]
   F01["F01 Frontend layout and sign-in page<br/>SC 113, 075 · effort 4"]
   F02["F02 Project search bar and signed-in person menu<br/>SC 114, 115 · effort 3"]
   F03["F03 Account administration, GitHub link and personal access token pages<br/>SC 076, 077, 078 · effort 5"]
@@ -72,11 +77,14 @@ flowchart LR
   B02 --> B15
   B10 --> B15
   B07 --> B16
+  B20 --> B16
   B16 --> B17
   B16 --> B18
   B15 --> B18
   B14 --> B19
   B15 --> B19
+  D01 --> F01
+  P01 --> F01
   F01 --> F02
   F01 --> F03
   F01 --> F04
@@ -123,7 +131,7 @@ flowchart LR
   classDef crit stroke-width:4px
   classDef back fill:#e8f0fe
   classDef front fill:#fef3e8
-  class B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,B12,B13,B14,B15,B16,B17,B18,B19 back
+  class B01,B02,B03,B04,B05,B06,B07,B08,B09,B10,B11,B12,B13,B14,B15,B16,B17,B18,B19,B20 back
   class F01,F02,F03,F04,F05,F06,F07,F08,F09,F10,F11,F12,F13,F14,F15,F16,F17,F18,F19,F20,F21,F22,F23,F24,F25,F26,F27,F28 front
   class B02,B07,B13,B14,B16,B17,B19,F16,F23,F24 crit
 ```
@@ -142,7 +150,7 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 
 | Node | Title                                                                              | SCs                                    | Effort | Blocked by    | Earliest start | TCs (full / part) |
 | ---- | ---------------------------------------------------------------------------------- | -------------------------------------- | ------ | ------------- | -------------- | ----------------- |
-| B01  | Finish the TC parts left pending on SCs that are now done                          | —                                      | 0      |               | 0              | 7 / 7             |
+| B01  | Finish the TC parts left pending on SCs that are now done                          | —                                      | 0      |               | 0              | 7 / 8             |
 | B02  | Overloads and red flags (overload detector, availability flags, red flag register) | SC-040, SC-042, SC-043                 | 7      |               | 0              | 0 / 7             |
 | B03  | Unassigned task load rating                                                        | SC-041                                 | 3      |               | 0              | 0 / 3             |
 | B04  | Variance calculator                                                                | SC-044                                 | 2      |               | 0              | 2 / 0             |
@@ -157,11 +165,14 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 | B13  | Proposal preview                                                                   | SC-011                                 | 5      | B10, B02      | 7              | 0 / 4             |
 | B14  | Proposal approval                                                                  | SC-048                                 | 5      | B11, B12, B13 | 12             | 5 / 7             |
 | B15  | Notifications                                                                      | SC-012                                 | 5      | B02, B10      | 7              | 5 / 6             |
-| B16  | GitHub change handler                                                              | SC-023                                 | 13     | B07           | 5              | 1 / 20            |
+| B16  | GitHub change handler                                                              | SC-023                                 | 13     | B07, B20      | 5              | 1 / 20            |
+| B20  | Project repository removal                                                         | SC-117                                 | 2      |               | 0              | 0 / 1             |
 | B17  | GitHub webhook endpoint and re-check timer                                         | SC-105, SC-024                         | 5      | B16           | 18             | 1 / 1             |
 | B18  | GitHub revert commenter and revert notifications                                   | SC-062                                 | 1      | B16, B15      | 18             | 4 / 0             |
 | B19  | MCP server endpoint                                                                | SC-027                                 | 5      | B14, B15      | 17             | 9 / 2             |
-| F01  | Frontend layout and sign-in page                                                   | SC-113, SC-075                         | 4      |               | 0              | 2 / 1             |
+| D01  | Frontend design                                                                    | —                                      | 0      |               | 0              | 0 / 0             |
+| P01  | Playwright browser tests                                                           | —                                      | 0      |               | 0              | 0 / 0             |
+| F01  | Frontend layout and sign-in page                                                   | SC-113, SC-075                         | 4      | D01, P01      | 0              | 2 / 1             |
 | F02  | Project search bar and signed-in person menu                                       | SC-114, SC-115                         | 3      | F01           | 4              | 0 / 0             |
 | F03  | Account administration, GitHub link and personal access token pages                | SC-076, SC-077, SC-078                 | 5      | F01           | 4              | 1 / 5             |
 | F04  | Audit log viewer                                                                   | SC-094                                 | 3      | F01           | 4              | 0 / 7             |
@@ -169,7 +180,7 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 | F06  | Group screens (list, members, projects)                                            | SC-082, SC-083, SC-084                 | 5      | F01, B06      | 6              | 0 / 10            |
 | F07  | Repository registration and admins screens                                         | SC-085, SC-086                         | 4      | F01           | 4              | 0 / 9             |
 | F08  | Repository request inbox                                                           | SC-087                                 | 3      | F01           | 4              | 0 / 6             |
-| F09  | Project repository settings and receiving project control                          | SC-081, SC-112                         | 3      | F01           | 4              | 0 / 4             |
+| F09  | Project repository settings and receiving project control                          | SC-081, SC-112                         | 3      | F01           | 4              | 0 / 3             |
 | F10  | Capacity, absences and personal working calendar screens                           | SC-088, SC-089                         | 4      | F01           | 4              | 0 / 5             |
 | F11  | Company calendar screen                                                            | SC-090                                 | 3      | F01           | 4              | 0 / 4             |
 | F12  | Task details editor and cancel action                                              | SC-098, SC-102                         | 4      | F01           | 4              | 0 / 7             |
@@ -195,7 +206,7 @@ _Earliest start_ is the effort along the longest chain before the node: the earl
 
 ## Ready now
 
-B01, B02, B03, B04, B05, B06, B07, B09, B10, F01.
+B01, B02, B03, B04, B05, B06, B07, B09, B10, B20, D01, P01.
 
 ## Where this differs from the implementation plan
 
@@ -204,12 +215,14 @@ B01, B02, B03, B04, B05, B06, B07, B09, B10, F01.
 - **SC-012 (B15) waits for B10 as well as B02.** The plan connects the "proposal waiting for review" notification later. Waiting for B10, which is small and can start now, puts TC-120 in the same node. The revert notifications (TC-121, TC-234, TC-235) go with B18.
 - **The Gantt (F16) waits for B02**, so red flags show on it from the start. The plan lets F6 start before SC-043.
 - **B01 is new.** It finishes the parts of TCs that the tests left pending on SCs that are now implemented.
+- **D01 and P01 are new, and every frontend node waits for them.** The owner, in the design session of 2026-11-05: "we will need to create a design first thats needed for all frontend stuff, not done yet", and, on how the browser steps of the TCs are checked, "yeah we need playwright tests."
+- **B20 (SC-117, project repository removal) is new.** The owner asked for it in the same session ([SRC-243](../graph/SRC-243-a-project-s-admin-removes-a-repository-from-the-pr.md)). B16 waits for it, because TC-212 removes the repository before its steps 2 and 3.
 
 ## Open questions for the owner
 
-1. **Browser tests.** The frontend has no browser test harness yet; its tests run in jsdom. How should the TCs' browser steps be checked: jsdom component tests, or end-to-end tests in a real browser? Every F node depends on the answer, so it is best settled in F01.
-2. **TC-155** asks a read-only member to delete a task, but no SC deletes tasks (they are cancelled).
-3. **TC-212**, step 1, has a project admin remove a repository from the project, which no SC offers.
+1. **D01, the frontend design**: what it covers, in what form it is made, and whether it should be an SC.
+2. **SC-117**: what becomes of the tasks the project already has from a removed repository (TC-212 expects them to stay), and whether the project's repository settings screen (SC-081) offers the removal.
+3. **TC-107** has a task deleted, and DD-022 counts a deleted task as a conflict, but no SC deletes a task; tasks are cancelled.
 4. **TC-173** does not say how a GitHub user with no account in the tool is named in the audit log.
 
 ## Working in parallel

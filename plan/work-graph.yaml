@@ -1,4 +1,9 @@
-# Work graph of the solution components still to build, for parallel work.
+# Parallel work graph: the solution components still to build, cut into GitHub issues.
+#
+# This is not the implementation plan. docs/implementation-plan.md orders all the SCs in waves
+# and keeps the status of each; it stays the record of what is done. This graph takes the SCs
+# not yet implemented, as of 2026-11-05, and cuts them into issue-sized nodes with blocked-by
+# relations, for several people or agents to work on at once.
 #
 # Drafted by Claude on 2026-11-05 from docs/implementation-plan.md, the SC and TC files in graph/
 # and the "Pending" notes in backend/test/integration/. It awaits the owner's confirmation.
@@ -41,8 +46,7 @@ nodes:
       - { tc: TC-034, part: "alice's daily load is unchanged by the hold (SC-006 is done)" }
       - { tc: TC-044, part: "alice's load per day reads 100% (SC-006 is done)" }
       - { tc: TC-045, part: "alice's and bob's load on 2027-03-01 (SC-006 is done)" }
-    notes:
-      - "Open question for the owner: TC-155's 'delete T' has no SC that deletes a task (tasks are cancelled)."
+      - { tc: TC-155, part: "the 'cancel T' edit, which replaced 'delete T' (SC-038 is done)" }
 
   B02:
     title: Overloads and red flags (overload detector, availability flags, red flag register)
@@ -181,6 +185,8 @@ nodes:
       - { tc: TC-106, part: 'service and REST; not the conflict panel' }
       - { tc: TC-107, part: 'service and REST; not the conflict panel' }
       - { tc: TC-108, part: 'service and REST; not the conflict panel' }
+    notes:
+      - 'Open question for the owner: TC-107 has bob delete task A, and DD-022 counts a deleted task as a conflict, but no SC deletes a task (tasks are cancelled).'
 
   B13:
     title: Proposal preview
@@ -239,7 +245,7 @@ nodes:
     title: GitHub change handler
     scs: [SC-023]
     effort: 13
-    blocked_by: [B07]
+    blocked_by: [B07, B20]
     tcs:
       - { tc: TC-131, part: 'handler, fed the change directly' }
       - { tc: TC-132, part: 'handler, fed the change directly' }
@@ -265,6 +271,14 @@ nodes:
     notes:
       - 'The largest node (effort 13). It is off the critical path, but could be split by kind of change if one person cannot take it.'
       - 'TC-173 carries an open question for the owner: how a GitHub user with no account in the tool is named in the log.'
+
+  B20:
+    title: Project repository removal
+    scs: [SC-117]
+    effort: 2
+    blocked_by: []
+    tcs:
+      - { tc: TC-212, part: 'step 1: alice removes tc-repo from Apollo' }
 
   B17:
     title: GitHub webhook endpoint and re-check timer
@@ -311,17 +325,35 @@ nodes:
 
   # ---------------------------------------------------------------- frontend
 
+  D01:
+    title: Frontend design
+    scs: []
+    effort: 0 # no SC holds it yet; not estimated
+    blocked_by: []
+    tcs: []
+    notes:
+      - 'The owner, design session 2026-11-05: "we will need to create a design first thats needed for all frontend stuff, not done yet."'
+      - 'Not stated: what the design covers or in what form it is made. No SC holds it yet.'
+
+  P01:
+    title: Playwright browser tests
+    scs: []
+    effort: 0 # test setup; no SC
+    blocked_by: []
+    tcs: []
+    notes:
+      - 'Sets up the Playwright tests that check the browser steps of the TCs, and the command that runs them. Every F node writes its browser TC parts as Playwright tests.'
+      - 'The owner, design session 2026-11-05, asked how the browser steps should be checked: "yeah we need playwright tests."'
+
   F01:
     title: Frontend layout and sign-in page
     scs: [SC-113, SC-075]
     effort: 4
-    blocked_by: []
+    blocked_by: [D01, P01]
     tcs:
       - { tc: TC-177, part: full }
       - { tc: TC-176, part: 'the sign-in page offers no registration' }
       - { tc: TC-025, part: full }
-    notes:
-      - "Open question for the owner: no browser test harness exists yet (the frontend tests run in jsdom). How should the TCs' browser steps be checked: jsdom component tests, or end-to-end tests in a real browser? It matters for every F node."
 
   F02:
     title: Project search bar and signed-in person menu
@@ -426,9 +458,8 @@ nodes:
       - { tc: TC-210, part: browser }
       - { tc: TC-249, part: browser }
       - { tc: TC-211, part: browser }
-      - { tc: TC-212, part: 'step 1, browser' }
     notes:
-      - "Open question for the owner (from the receiving-projects test): TC-212's step 1 has a project admin remove a repository from the project, which no SC offers."
+      - "TC-212's step 1, removing a repository from the project, is in B20 (SC-117). Whether this screen offers it is not stated."
 
   F10:
     title: Capacity, absences and personal working calendar screens
