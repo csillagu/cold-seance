@@ -8,6 +8,7 @@ import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { groupRoutes } from './groups.ts'
 import { openApiDescription } from './openapi.ts'
+import { personLoadRoutes } from './person-load.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRepositoryRoutes, repositoryRequestRoutes } from './project-repositories.ts'
 import { projectRoutes } from './projects.ts'
@@ -51,6 +52,7 @@ export interface RouteGroupOptions {
 export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: accountRoutes },
   { prefix: '/accounts', routes: availabilityRoutes },
+  { prefix: '/accounts', routes: personLoadRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
