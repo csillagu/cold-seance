@@ -176,6 +176,29 @@ export const groupMembers = pgTable(
 )
 
 /**
+ * The projects in each group (SRC-139): a project can be in several groups and a group can hold
+ * several projects. Each member of a group holds their group role on every project in it (FR-111).
+ * Anyone adds a new project to a group, and only a project's admin an existing one (FR-123,
+ * SC-058). At most one row for each project in each group.
+ */
+export const groupProjects = pgTable(
+  'group_projects',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => groups.id),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+  },
+  (table) => [
+    // A unique index rather than a composite primary key, for the reason given at project_members.
+    uniqueIndex('group_projects_key').on(table.groupId, table.projectId),
+    index('group_projects_project_id_idx').on(table.projectId),
+  ],
+)
+
+/**
  * The personal access tokens people create for the REST API and the MCP server (DD-048, SC-016).
  * A token's secret is kept only as its hash, unique so that a request's secret finds its token; a
  * revoked token is deleted. A token with no expiry date never expires.

@@ -10,7 +10,7 @@ import { ProjectService } from '../../src/service/projects.ts'
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
-import { groupTable } from '../helpers/group-roles.ts'
+import { groupTable, noNewProjectGroups } from '../helpers/group-roles.ts'
 import { grantRole, insertProject, seedProject } from '../helpers/projects.ts'
 
 // Project search (SC-116) against a real PostgreSQL: a project matches when the search text is
@@ -39,7 +39,12 @@ describe('the project search', () => {
     x = await createTestDatabase()
     groups = groupTable()
     const audit = new AuditLogService(x.db)
-    service = new ProjectService(x.db, audit, new ProjectRoleService(x.db, audit, groups))
+    service = new ProjectService(
+      x.db,
+      audit,
+      new ProjectRoleService(x.db, audit, groups),
+      noNewProjectGroups,
+    )
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
   })
 

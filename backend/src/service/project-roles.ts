@@ -23,7 +23,7 @@ export interface ProjectRoles {
 
 /**
  * The roles a person holds in a project through the groups the project is in (FR-111). The
- * groups (SC-057, SC-058) hold them; the role store asks them through this.
+ * groups (SC-057, SC-058) hold them, as `groupRoles` answers; the role store asks them through this.
  */
 export interface GroupRoles {
   rolesThroughGroups(
@@ -41,7 +41,7 @@ export interface GroupRoles {
   ): Promise<{ projectId: string; role: ProjectRole }[]>
 }
 
-/** The group roles until groups hold members and projects (SC-057, SC-058): none. */
+/** No group roles, for a role store given none, as some tests of other modules need. */
 export const noGroupRoles: GroupRoles = {
   rolesThroughGroups: async () => [],
   allRolesThroughGroups: async () => [],

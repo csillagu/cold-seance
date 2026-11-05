@@ -5,6 +5,7 @@ import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
 import { notVisible, ServiceError } from './errors.ts'
+import type { GroupService } from './groups.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { characters } from './text.ts'
 import { isUuid } from './system-admins.ts'
@@ -27,25 +28,37 @@ const PROJECT_NAME_INDEX = 'projects_name_key'
  * Project creation, the part of the service layer through which anyone with an account creates a
  * project and becomes its admin (DD-035, FR-119, FR-158) (SC-017). The creation and its creator's
  * admin role are made in one transaction, with its entry in the audit log (FR-116), so a project
- * never exists without its admin.
+ * never exists without its admin. Its creator may add it to groups in the same transaction, which
+ * anyone may do with a new project (FR-123, SC-058).
  */
 export class ProjectService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
+  readonly #groups: Pick<GroupService, 'addNewProject'>
 
-  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    roles: ProjectRoleService,
+    groups: Pick<GroupService, 'addNewProject'>,
+  ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
+    this.#groups = groups
   }
 
   /**
-   * Creates a project with the given name, and makes the caller its admin. Refused unless the
-   * caller has an account; refused if the name is empty or too long, or if another project already
-   * has it (FR-120).
+   * Creates a project with the given name, makes the caller its admin, and adds it to each of the
+   * groups `groupIds`, if any, any group at all (FR-123). Refused unless the caller has an account;
+   * refused if the name is empty or too long, or if another project already has it (FR-120); and
+   * refused as not found, with nothing created, if any of the groups does not exist.
    */
-  async createProject(caller: Caller, project: { name: string }): Promise<Project> {
+  async createProject(
+    caller: Caller,
+    project: { name: string; groupIds?: readonly string[] },
+  ): Promise<Project> {
     if (!(await this.#hasAccount(caller.accountId))) {
       throw new ServiceError('forbidden', 'Only people with an account can create a project')
     }
@@ -61,7 +74,7 @@ export class ProjectService {
     // The unique index on names decides (SC-056), so two concurrent creations of one name cannot
     // both succeed.
     try {
-      return await this.#createInTransaction(caller, name)
+      return await this.#createInTransaction(caller, name, project.groupIds ?? [])
     } catch (error) {
       if (violates(error, PROJECT_NAME_INDEX)) {
         throw new ServiceError('conflict', `A project named ${name} already exists`)
@@ -70,7 +83,11 @@ export class ProjectService {
     }
   }
 
-  async #createInTransaction(caller: Caller, name: string): Promise<Project> {
+  async #createInTransaction(
+    caller: Caller,
+    name: string,
+    groupIds: readonly string[],
+  ): Promise<Project> {
     return this.#db.transaction(async (tx) => {
       const [created] = await tx
         .insert(projects)
@@ -84,6 +101,7 @@ export class ProjectService {
         projectId: created.id,
         details: { name: created.name },
       })
+      await this.#groups.addNewProject(tx, caller, created, groupIds)
       return created
     })
   }

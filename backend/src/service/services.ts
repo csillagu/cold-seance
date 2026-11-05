@@ -5,7 +5,7 @@ import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { CalendarService } from './calendars.ts'
 import { GitHubLinkService } from './github-links.ts'
-import { GroupService } from './groups.ts'
+import { GroupService, groupRoles } from './groups.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { RepositoryService } from './repositories.ts'
@@ -61,17 +61,19 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     roleOf: (accountId: string, projectId: string) => projectRoles.roleOf(accountId, projectId),
   }
   const audit = new AuditLogService(db, roles)
-  const projectRoles = new ProjectRoleService(db, audit)
+  // The roles people hold through groups count wherever a project role decides (FR-111).
+  const projectRoles = new ProjectRoleService(db, audit, groupRoles)
   const viewFilter = new ViewReadFilter(projectRoles)
+  const groups = new GroupService(db, audit, projectRoles)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
     calendars: new CalendarService(db, audit, projectRoles),
     githubLinks: new GitHubLinkService(db, audit),
-    groups: new GroupService(db, audit),
+    groups,
     projectRoles,
-    projects: new ProjectService(db, audit, projectRoles),
+    projects: new ProjectService(db, audit, projectRoles, groups),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),

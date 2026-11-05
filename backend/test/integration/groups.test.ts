@@ -2,19 +2,28 @@ import { randomUUID } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
-import { auditLog, groupMembers, groups, projectMembers, projects } from '../../src/db/schema.ts'
+import {
+  auditLog,
+  groupMembers,
+  groupProjects,
+  groups,
+  projectMembers,
+  projects,
+} from '../../src/db/schema.ts'
 import { AuditLogService } from '../../src/service/audit.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
-import { GROUP_NAME_MAX_LENGTH, GroupService } from '../../src/service/groups.ts'
+import { GROUP_NAME_MAX_LENGTH, GroupService, groupRoles } from '../../src/service/groups.ts'
+import { ProjectRoleService } from '../../src/service/project-roles.ts'
+import { ProjectService } from '../../src/service/projects.ts'
 import { createServices } from '../../src/service/services.ts'
 import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
-import { seedProject } from '../helpers/projects.ts'
+import { grantRole, seedProject } from '../helpers/projects.ts'
 
-// Group creation and listing (SC-018) and group membership (SC-057) against a real PostgreSQL:
-// their rules, then the test cases of FR-121, FR-122, FR-159, FR-124, FR-125 and FR-160 through
-// the REST API.
+// Group creation and listing (SC-018), group membership (SC-057) and group project assignment
+// (SC-058) against a real PostgreSQL: their rules, then the test cases of FR-121, FR-122, FR-159,
+// FR-124, FR-125, FR-160 and FR-123 through the REST API.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -35,6 +44,7 @@ async function refused(promise: Promise<unknown>, kind: ServiceError['kind']) {
 describe('the group service', () => {
   let x: TestDatabase
   let service: GroupService
+  let roles: ProjectRoleService
   let root: Seeded
   let alice: Seeded
   let bob: Seeded
@@ -42,7 +52,9 @@ describe('the group service', () => {
 
   beforeAll(async () => {
     x = await createTestDatabase()
-    service = new GroupService(x.db, new AuditLogService(x.db))
+    const audit = new AuditLogService(x.db)
+    roles = new ProjectRoleService(x.db, audit, groupRoles)
+    service = new GroupService(x.db, audit, roles)
     root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
     bob = await seedAccount(x.db, { username: 'bob' })
@@ -130,7 +142,7 @@ describe('the group service', () => {
           throw new Error('audit log unavailable')
         }
       }
-      const broken = new GroupService(x.db, new BrokenAuditLog(x.db))
+      const broken = new GroupService(x.db, new BrokenAuditLog(x.db), roles)
       const name = fresh('Broken')
       await expect(broken.createGroup(by(alice), { name })).rejects.toThrow('audit log unavailable')
       // The transaction is rolled back: no group without its entry in the audit log.
@@ -580,6 +592,343 @@ describe('the group service', () => {
   })
 })
 
+describe('group project assignment', () => {
+  let x: TestDatabase
+  let audit: AuditLogService
+  let roles: ProjectRoleService
+  let service: GroupService
+  let projectService: ProjectService
+  let root: Seeded
+  let alice: Seeded
+  let bob: Seeded
+  let carol: Seeded
+  const fresh = (base: string) => `${base}-${randomUUID()}`
+
+  beforeAll(async () => {
+    x = await createTestDatabase()
+    audit = new AuditLogService(x.db)
+    roles = new ProjectRoleService(x.db, audit, groupRoles)
+    service = new GroupService(x.db, audit, roles)
+    projectService = new ProjectService(x.db, audit, roles, service)
+    root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
+    alice = await seedAccount(x.db, { username: 'alice' })
+    bob = await seedAccount(x.db, { username: 'bob' })
+    carol = await seedAccount(x.db, { username: 'carol' })
+  })
+
+  afterAll(async () => {
+    await x?.drop()
+  })
+
+  /** A new group named after `base`, of which `admin` is the admin. */
+  const group = (admin: Seeded, base = 'Platform') =>
+    service.createGroup(by(admin), { name: fresh(base) })
+  /** A new project named after `base`, of which `admin` is the only admin. */
+  const project = async (admin: Seeded, base = 'Apollo') => {
+    const name = fresh(base)
+    return { id: await seedProject(x.db, admin, name), name }
+  }
+  /** The ids of the projects in the group, straight from the database. */
+  const projectsIn = async (groupId: string) =>
+    (await x.db.select().from(groupProjects).where(eq(groupProjects.groupId, groupId))).map(
+      (row) => row.projectId,
+    )
+  /** The audit log's entries of projects added to the group. */
+  const additionsTo = (groupId: string) =>
+    x.db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.subjectId, groupId), eq(auditLog.action, 'group.project-added')))
+
+  describe('addProject', () => {
+    it("lets the project's admin add it to a group they are not a member of, and records it", async () => {
+      const platform = await group(bob)
+      const apollo = await project(alice)
+      expect(await service.addProject(by(alice), platform.id, apollo.id)).toEqual(apollo)
+      expect(await projectsIn(platform.id)).toEqual([apollo.id])
+      expect(await additionsTo(platform.id)).toMatchObject([
+        {
+          actorAccountId: alice.id,
+          subjectType: 'group',
+          projectId: apollo.id,
+          details: { projectName: apollo.name },
+        },
+      ])
+      // Adding it makes alice no member of the group.
+      expect(
+        await x.db.select().from(groupMembers).where(eq(groupMembers.groupId, platform.id)),
+      ).toEqual([{ groupId: platform.id, accountId: bob.id, role: 'admin' }])
+    })
+
+    it("gives the group's members their group role on the project (FR-111)", async () => {
+      const platform = await group(bob)
+      await service.setMemberRole(by(bob), platform.id, carol.id, 'contributor')
+      const apollo = await project(alice)
+      expect(await roles.roleOf(carol.id, apollo.id)).toBeUndefined()
+      await service.addProject(by(alice), platform.id, apollo.id)
+      expect(await roles.roleOf(carol.id, apollo.id)).toBe('contributor')
+      expect(await roles.roleOf(bob.id, apollo.id)).toBe('admin')
+      // alice's own role is unchanged.
+      expect(await roles.roleOf(alice.id, apollo.id)).toBe('admin')
+    })
+
+    it('leaves a project already in the group as it is, and records nothing more', async () => {
+      const platform = await group(alice)
+      const apollo = await project(alice)
+      await service.addProject(by(alice), platform.id, apollo.id)
+      expect(await service.addProject(by(alice), platform.id, apollo.id)).toEqual(apollo)
+      expect(await projectsIn(platform.id)).toEqual([apollo.id])
+      expect(await additionsTo(platform.id)).toHaveLength(1)
+    })
+
+    it('lets someone who holds the admin role on the project through a group add it too', async () => {
+      const first = await group(alice)
+      const apollo = await project(alice)
+      await service.addProject(by(alice), first.id, apollo.id)
+      await service.setMemberRole(by(alice), first.id, bob.id, 'admin')
+      const second = await group(carol)
+      await service.addProject(by(bob), second.id, apollo.id)
+      expect(await projectsIn(second.id)).toEqual([apollo.id])
+    })
+
+    it.each(['read-only', 'contributor', 'read-write'] as const)(
+      'refuses a project member with the %s role, and adds nothing',
+      async (role) => {
+        const platform = await group(bob)
+        const apollo = await project(alice)
+        await grantRole(x.db, bob, apollo.id, role)
+        const error = await refused(
+          service.addProject(by(bob), platform.id, apollo.id),
+          'forbidden',
+        )
+        expect(error.message).toBe(
+          "Only the project's admins can manage its members, roles, repositories and settings",
+        )
+        expect(await projectsIn(platform.id)).toEqual([])
+        expect(await roles.roleOf(bob.id, apollo.id)).toBe(role)
+      },
+    )
+
+    it("refuses the group's own admin who holds no role in the project as not visible", async () => {
+      const platform = await group(bob)
+      const apollo = await project(alice)
+      await refused(service.addProject(by(bob), platform.id, apollo.id), 'not-visible')
+      // A system admin holds no role in it either (FR-017).
+      await refused(service.addProject(by(root), platform.id, apollo.id), 'not-visible')
+      // Nor does a caller whose id is not an account's.
+      const nobody = { accountId: 'nobody', channel: 'ui' } as const
+      await refused(service.addProject(nobody, platform.id, apollo.id), 'not-visible')
+      expect(await projectsIn(platform.id)).toEqual([])
+    })
+
+    it('answers a project that does not exist as not visible, as one the caller cannot see', async () => {
+      const platform = await group(alice)
+      for (const projectId of [randomUUID(), 'not-a-uuid']) {
+        const error = await refused(
+          service.addProject(by(alice), platform.id, projectId),
+          'not-visible',
+        )
+        expect(error.message).toBe('This project is not visible to you')
+      }
+    })
+
+    it('refuses a group that does not exist as not found', async () => {
+      const apollo = await project(alice)
+      for (const groupId of [randomUUID(), 'not-a-uuid']) {
+        const error = await refused(service.addProject(by(alice), groupId, apollo.id), 'not-found')
+        expect(error.message).toBe('There is no such group')
+      }
+    })
+
+    it("waits for a demotion of the project's admin in progress, then refuses them", async () => {
+      const platform = await group(bob)
+      const apollo = await project(alice)
+      let demoted!: () => void
+      const held = new Promise<void>((resolve) => (demoted = resolve))
+      let started!: () => void
+      const demoting = new Promise<void>((resolve) => (started = resolve))
+      // A demotion of alice, not yet committed while she tries to add Apollo.
+      const demotion = x.db.transaction(async (tx) => {
+        await tx
+          .update(projectMembers)
+          .set({ role: 'read-write' })
+          .where(
+            and(eq(projectMembers.projectId, apollo.id), eq(projectMembers.accountId, alice.id)),
+          )
+        started()
+        await held
+      })
+      await demoting
+      const attempt = service.addProject(by(alice), platform.id, apollo.id)
+      // Long enough for the attempt to reach its lock, which the demotion holds.
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      demoted()
+      await demotion
+      const error = await refused(attempt, 'forbidden')
+      expect(error.message).toBe(
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      )
+      expect(await projectsIn(platform.id)).toEqual([])
+    })
+
+    it('adds nothing when the audit log cannot be written', async () => {
+      class BrokenAuditLog extends AuditLogService {
+        override async record(): Promise<void> {
+          throw new Error('audit log unavailable')
+        }
+      }
+      const broken = new GroupService(x.db, new BrokenAuditLog(x.db), roles)
+      const platform = await group(alice)
+      const apollo = await project(alice)
+      await expect(broken.addProject(by(alice), platform.id, apollo.id)).rejects.toThrow(
+        'audit log unavailable',
+      )
+      expect(await projectsIn(platform.id)).toEqual([])
+    })
+  })
+
+  describe('a new project added to groups as it is created', () => {
+    it('lets anyone add their new project to any groups, none of which they are a member of', async () => {
+      const [one, two] = [await group(alice, 'One'), await group(bob, 'Two')]
+      const name = fresh('Delta')
+      // The same group twice counts once.
+      const delta = await projectService.createProject(by(carol), {
+        name,
+        groupIds: [one.id, two.id, one.id],
+      })
+      expect(await projectsIn(one.id)).toEqual([delta.id])
+      expect(await projectsIn(two.id)).toEqual([delta.id])
+      expect(await additionsTo(one.id)).toMatchObject([
+        { actorAccountId: carol.id, projectId: delta.id, details: { projectName: name } },
+      ])
+      expect(await additionsTo(two.id)).toHaveLength(1)
+      // carol is its admin, and becomes a member of neither group.
+      expect(await roles.roleOf(carol.id, delta.id)).toBe('admin')
+      expect(await service.listMembers(by(alice), one.id)).toEqual([
+        { accountId: alice.id, username: 'alice', role: 'admin' },
+      ])
+      // The groups' members hold their group roles on it.
+      expect(await roles.roleOf(alice.id, delta.id)).toBe('admin')
+      expect(await roles.roleOf(bob.id, delta.id)).toBe('admin')
+    })
+
+    it('adds the project to no group when none is given', async () => {
+      const platform = await group(alice)
+      for (const groupIds of [undefined, []]) {
+        await projectService.createProject(by(carol), {
+          name: fresh('Plain'),
+          ...(groupIds ? { groupIds } : {}),
+        })
+      }
+      expect(await projectsIn(platform.id)).toEqual([])
+    })
+
+    it.each([
+      ['a group that does not exist', () => randomUUID()],
+      ['a group id that is not a UUID', () => 'not-a-uuid'],
+    ])('refuses %s as not found, and creates nothing', async (_, missing) => {
+      const platform = await group(alice)
+      const name = fresh('Lost')
+      const error = await refused(
+        projectService.createProject(by(carol), { name, groupIds: [platform.id, missing()] }),
+        'not-found',
+      )
+      expect(error.message).toBe('There is no such group')
+      expect(await x.db.select().from(projects).where(eq(projects.name, name))).toEqual([])
+      expect(await projectsIn(platform.id)).toEqual([])
+    })
+  })
+
+  describe('listProjects', () => {
+    it("shows a group's members all of its projects, by name", async () => {
+      const platform = await group(alice)
+      await service.setMemberRole(by(alice), platform.id, carol.id, 'read-only')
+      const zulu = await project(bob, 'Zulu')
+      const apollo = await project(alice, 'Apollo')
+      await service.addProject(by(bob), platform.id, zulu.id)
+      await service.addProject(by(alice), platform.id, apollo.id)
+      expect(await service.listProjects(by(carol), platform.id)).toEqual([apollo, zulu])
+    })
+
+    it('shows someone who is not a member only the projects they can see themselves', async () => {
+      const platform = await group(alice)
+      const own = await project(bob, 'Own')
+      const hidden = await project(alice, 'Hidden')
+      await service.addProject(by(bob), platform.id, own.id)
+      await service.addProject(by(alice), platform.id, hidden.id)
+      expect(await service.listProjects(by(bob), platform.id)).toEqual([own])
+      expect(await service.listProjects(by(root), platform.id)).toEqual([])
+    })
+
+    it('lists nothing for a group with no projects', async () => {
+      const platform = await group(alice)
+      expect(await service.listProjects(by(alice), platform.id)).toEqual([])
+    })
+
+    it('refuses a group that does not exist as not found', async () => {
+      for (const groupId of [randomUUID(), 'not-a-uuid']) {
+        const error = await refused(service.listProjects(by(alice), groupId), 'not-found')
+        expect(error.message).toBe('There is no such group')
+      }
+    })
+
+    it('refuses a caller who has no account', async () => {
+      const platform = await group(alice)
+      for (const accountId of [randomUUID(), 'nobody']) {
+        const caller = { accountId, channel: 'ui' } as const
+        const error = await refused(service.listProjects(caller, platform.id), 'forbidden')
+        expect(error.message).toBe('Only people with an account can see the groups')
+      }
+    })
+  })
+
+  describe('the roles a group gives on its projects (FR-111)', () => {
+    it('gives each member their group role, for as long as they are a member', async () => {
+      const platform = await group(alice)
+      const apollo = await project(alice)
+      await service.addProject(by(alice), platform.id, apollo.id)
+      await service.setMemberRole(by(alice), platform.id, carol.id, 'read-write')
+      expect(await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).toEqual(['read-write'])
+      expect(await roles.readableProjects(carol.id)).toContain(apollo.id)
+      await service.removeMember(by(alice), platform.id, carol.id)
+      expect(await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).toEqual([])
+      expect(await roles.roleOf(carol.id, apollo.id)).toBeUndefined()
+    })
+
+    it('applies the highest of the roles held through several groups and directly (FR-112)', async () => {
+      const [one, two] = [await group(alice, 'One'), await group(alice, 'Two')]
+      const apollo = await project(alice)
+      await service.addProject(by(alice), one.id, apollo.id)
+      await service.addProject(by(alice), two.id, apollo.id)
+      await service.setMemberRole(by(alice), one.id, carol.id, 'read-only')
+      await service.setMemberRole(by(alice), two.id, carol.id, 'read-write')
+      await grantRole(x.db, carol, apollo.id, 'contributor')
+      expect((await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).sort()).toEqual([
+        'read-only',
+        'read-write',
+      ])
+      expect(await roles.roleOf(carol.id, apollo.id)).toBe('read-write')
+      const all = await groupRoles.allRolesThroughGroups(x.db, carol.id)
+      expect(
+        all
+          .filter((r) => r.projectId === apollo.id)
+          .map((r) => r.role)
+          .sort(),
+      ).toEqual(['read-only', 'read-write'])
+    })
+
+    it('gives a member nothing on a project of the group they are not in, or for ids that are not UUIDs', async () => {
+      const platform = await group(alice)
+      const apollo = await project(alice)
+      await service.addProject(by(alice), platform.id, apollo.id)
+      expect(await groupRoles.rolesThroughGroups(x.db, bob.id, apollo.id)).toEqual([])
+      expect(await groupRoles.rolesThroughGroups(x.db, 'nobody', apollo.id)).toEqual([])
+      expect(await groupRoles.rolesThroughGroups(x.db, bob.id, 'nothing')).toEqual([])
+      expect(await groupRoles.allRolesThroughGroups(x.db, 'nobody')).toEqual([])
+    })
+  })
+})
+
 describe('test cases through the REST API', () => {
   // Each test case starts from its own fresh test deployment, as the test cases ask.
   let x: TestDatabase
@@ -758,6 +1107,104 @@ describe('test cases through the REST API', () => {
         { accountId: alice.id, username: 'alice', role: 'admin' },
         { accountId: bob.id, username: 'bob', role: 'read-write' },
       ])
+    })
+  })
+
+  // The test cases of FR-123 (SC-058).
+  const createProject = (account: Seeded, name: string, groupIds?: string[]) =>
+    app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(account),
+      payload: { name, ...(groupIds ? { groupIds } : {}) },
+    })
+  const addProject = (account: Seeded, groupId: string, projectId: string) =>
+    app.inject({
+      method: 'PUT',
+      url: `/api/groups/${groupId}/projects/${projectId}`,
+      headers: as(account),
+    })
+  const projectsOf = (account: Seeded, groupId: string) =>
+    app.inject({ method: 'GET', url: `/api/groups/${groupId}/projects`, headers: as(account) })
+  const projectMembersOf = (account: Seeded, projectId: string) =>
+    app.inject({ method: 'GET', url: `/api/projects/${projectId}/members`, headers: as(account) })
+
+  describe('TC-182: anyone adds a new project to a group', () => {
+    it('lets dave, not a member of Platform, create Delta and add it to Platform', async () => {
+      const alice = await seedAccount(x.db, { username: 'alice' })
+      const dave = await seedAccount(x.db, { username: 'dave' })
+      const platform = (await create(alice, 'Platform')).json<{ id: string }>()
+
+      // Step 1: as dave, create project Delta and add it to Platform.
+      const created = await createProject(dave, 'Delta', [platform.id])
+      expect(created.statusCode).toBe(201)
+      const delta = created.json<{ id: string; name: string }>()
+      expect(delta.name).toBe('Delta')
+
+      // Step 2: list Platform's projects. Delta is in Platform.
+      const listed = await projectsOf(alice, platform.id)
+      expect(listed.statusCode).toBe(200)
+      expect(listed.json()).toEqual([delta])
+
+      // Negative: dave does not become a member of Platform.
+      expect((await members(alice, platform.id)).json()).toEqual([
+        { accountId: alice.id, username: 'alice', role: 'admin' },
+      ])
+    })
+  })
+
+  describe("TC-183: a project's admin adds the existing project to a group", () => {
+    it('lets alice, admin of Apollo and not a member of Platform, add Apollo to it', async () => {
+      const alice = await seedAccount(x.db, { username: 'alice' })
+      const bob = await seedAccount(x.db, { username: 'bob' })
+      const platform = (await create(bob, 'Platform')).json<{ id: string }>()
+      const apollo = (await createProject(alice, 'Apollo')).json<{ id: string; name: string }>()
+      const aliceAdmin = [{ accountId: alice.id, username: 'alice', role: 'admin' }]
+      expect((await projectMembersOf(alice, apollo.id)).json()).toEqual(aliceAdmin)
+
+      // Step 1: as alice, add Apollo to Platform.
+      const added = await addProject(alice, platform.id, apollo.id)
+      expect(added.statusCode).toBe(200)
+      expect(added.json()).toEqual(apollo)
+
+      // Step 2: list Platform's projects. Apollo is in Platform.
+      const listed = await projectsOf(bob, platform.id)
+      expect(listed.statusCode).toBe(200)
+      expect(listed.json()).toEqual([apollo])
+
+      // Negative: alice's role in Apollo is unchanged.
+      expect((await projectMembersOf(alice, apollo.id)).json()).toEqual(aliceAdmin)
+      expect(await createServices(x.db).projectRoles.roleOf(alice.id, apollo.id)).toBe('admin')
+    })
+  })
+
+  describe('TC-184: someone who is not its admin cannot add an existing project to a group', () => {
+    it('rejects bob, read-write on Apollo, adding Apollo to Platform', async () => {
+      const alice = await seedAccount(x.db, { username: 'alice' })
+      const bob = await seedAccount(x.db, { username: 'bob' })
+      const platform = (await create(bob, 'Platform')).json<{ id: string }>()
+      const apollo = (await createProject(alice, 'Apollo')).json<{ id: string }>()
+      const given = await app.inject({
+        method: 'PUT',
+        url: `/api/projects/${apollo.id}/members/${bob.id}`,
+        headers: as(alice),
+        payload: { role: 'read-write' },
+      })
+      expect(given.statusCode).toBe(200)
+
+      // Step 1: as bob, try to add Apollo to Platform. The attempt is rejected.
+      const attempt = await addProject(bob, platform.id, apollo.id)
+      expect(attempt.statusCode).toBe(403)
+
+      // Step 2: list Platform's projects. Apollo is not in Platform.
+      const listed = await projectsOf(bob, platform.id)
+      expect(listed.statusCode).toBe(200)
+      expect(listed.json()).toEqual([])
+      expect(await x.db.select().from(groupProjects)).toEqual([])
+
+      // Negative: Platform's members get no role on Apollo: bob, its only member, still holds
+      // read-write there, not the admin role he holds in Platform.
+      expect(await createServices(x.db).projectRoles.roleOf(bob.id, apollo.id)).toBe('read-write')
     })
   })
 })

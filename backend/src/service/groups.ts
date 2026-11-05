@@ -1,11 +1,24 @@
 import { and, asc, eq } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
-import { accounts, groupMembers, groups } from '../db/schema.ts'
+import {
+  accounts,
+  groupMembers,
+  groupProjects,
+  groups,
+  projectMembers,
+  projects,
+} from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
-import { ServiceError } from './errors.ts'
-import { isProjectRole, PROJECT_ROLES, type ProjectRole } from './project-roles.ts'
+import { notVisible, ServiceError } from './errors.ts'
+import {
+  type GroupRoles,
+  isProjectRole,
+  PROJECT_ROLES,
+  type ProjectRole,
+  type ProjectRoleService,
+} from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
 import { characters } from './text.ts'
 
@@ -20,6 +33,12 @@ export interface GroupMember {
   accountId: string
   username: string
   role: ProjectRole
+}
+
+/** A project in a group, as the service layer hands it out. */
+export interface GroupProject {
+  id: string
+  name: string
 }
 
 /** The longest name a group can have, in characters, as for a project. */
@@ -53,16 +72,22 @@ const memberColumns = {
  * group without an admin (FR-160). Each change is recorded in the audit log in the same
  * transaction as the change.
  *
+ * Group project assignment (SC-058) is the part through which projects are added to a group:
+ * a new project by anyone, as it is created, and an existing one only by its admin (FR-123). Each
+ * addition is recorded in the audit log in the same transaction as the addition.
+ *
  * A group gives no one any role on a project by being seen: the roles a group gives come only
- * from its members and its projects (SC-057, SC-058).
+ * from its members and its projects (FR-111), as `groupRoles` answers them.
  */
 export class GroupService {
   readonly #db: Database
   readonly #audit: AuditLogService
+  readonly #roles: ProjectRoleService
 
-  constructor(db: Database, audit: AuditLogService) {
+  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
     this.#db = db
     this.#audit = audit
+    this.#roles = roles
   }
 
   /**
@@ -261,6 +286,117 @@ export class GroupService {
     })
   }
 
+  /**
+   * Adds the existing project `projectId` to the group (FR-123). Only the project's admins may
+   * (SRC-143), whether they hold the admin role directly or through another group (FR-112);
+   * someone with no role in it is told that it is not visible to them (FR-017). Refused as not
+   * found if there is no such group. A project already in the group is left as it is.
+   *
+   * Every member of the group then holds their group role on the project (FR-111).
+   */
+  async addProject(caller: Caller, groupId: string, projectId: string): Promise<GroupProject> {
+    await this.#requireGroup(groupId)
+    return this.#db.transaction(async (tx) => {
+      const [project] = isUuid(projectId)
+        ? await tx
+            .select({ id: projects.id, name: projects.name })
+            .from(projects)
+            .where(eq(projects.id, projectId))
+        : []
+      // Whether or not it exists, as for any project the caller cannot see (FR-017).
+      if (!project) throw notVisible()
+      // The rows that give the caller their role on the project are locked first, then the role is
+      // checked, so that a change to that role waits for this one: the caller is still the
+      // project's admin at the change.
+      await this.#lockRolesOn(tx, caller.accountId, projectId)
+      await this.#roles.permissions.require(caller, projectId, 'manage-project', tx)
+      await this.#insertProject(tx, caller, groupId, project)
+      return project
+    })
+  }
+
+  /**
+   * Adds the project `projectId`, which the caller is creating in the transaction `tx`, to each of
+   * the groups `groupIds` (FR-123). Anyone may add a new project to any group, since every group is
+   * visible to everyone (UC-017); the project's creation calls this, after it has made the caller
+   * the project's admin. Refused as not found if any of the groups does not exist, which, thrown
+   * inside the creation's transaction, leaves the project uncreated.
+   */
+  async addNewProject(
+    tx: Executor,
+    caller: Caller,
+    project: GroupProject,
+    groupIds: readonly string[],
+  ): Promise<void> {
+    for (const groupId of new Set(groupIds)) {
+      const [group] = isUuid(groupId)
+        ? await tx.select({ id: groups.id }).from(groups).where(eq(groups.id, groupId))
+        : []
+      if (!group) throw new ServiceError('not-found', 'There is no such group')
+      await this.#insertProject(tx, caller, groupId, project)
+    }
+  }
+
+  /**
+   * The group's projects, by name, among only those the caller can read: who may see a group's
+   * projects is not stated, so each is shown only to those who can see the project itself
+   * (FR-017), which every member of the group can (FR-111). Refused as not found if there is no
+   * such group, and to a caller who has no account.
+   */
+  async listProjects(caller: Caller, groupId: string): Promise<GroupProject[]> {
+    await this.#requireAccount(caller, 'Only people with an account can see the groups')
+    await this.#requireGroup(groupId)
+    const readable = await this.#roles.readableProjects(caller.accountId)
+    const rows = await this.#db
+      .select({ id: projects.id, name: projects.name })
+      .from(groupProjects)
+      .innerJoin(projects, eq(projects.id, groupProjects.projectId))
+      .where(eq(groupProjects.groupId, groupId))
+      .orderBy(asc(projects.name), asc(projects.id))
+    return rows.filter((project) => readable.has(project.id))
+  }
+
+  /**
+   * Locks, until the transaction ends, the rows that give the person a role on the project: their
+   * direct role and their roles in the groups that hold it (FR-111). A change that would take one
+   * of these away updates or deletes its row, so it waits until this transaction ends.
+   */
+  async #lockRolesOn(tx: Executor, accountId: string, projectId: string): Promise<void> {
+    if (!isUuid(accountId)) return
+    await tx
+      .select({ accountId: projectMembers.accountId })
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.accountId, accountId)))
+      .for('share')
+    await tx
+      .select({ groupId: groupMembers.groupId })
+      .from(groupMembers)
+      .innerJoin(groupProjects, eq(groupProjects.groupId, groupMembers.groupId))
+      .where(and(eq(groupMembers.accountId, accountId), eq(groupProjects.projectId, projectId)))
+      .orderBy(asc(groupMembers.groupId))
+      .for('share', { of: groupMembers })
+  }
+
+  async #insertProject(
+    tx: Executor,
+    caller: Caller,
+    groupId: string,
+    project: GroupProject,
+  ): Promise<void> {
+    const added = await tx
+      .insert(groupProjects)
+      .values({ groupId, projectId: project.id })
+      .onConflictDoNothing()
+      .returning({ projectId: groupProjects.projectId })
+    if (added.length === 0) return
+    await this.#audit.record(tx, caller, {
+      action: 'group.project-added',
+      subject: { type: 'group', id: groupId },
+      projectId: project.id,
+      details: { projectName: project.name },
+    })
+  }
+
   async #requireMember(tx: Executor, groupId: string, accountId: string): Promise<ProjectRole> {
     const role = await this.#roleIn(tx, groupId, accountId)
     if (!role) throw new ServiceError('not-found', 'You are not a member of this group')
@@ -323,4 +459,30 @@ export class GroupService {
       : []
     if (!account) throw new ServiceError('forbidden', refusal)
   }
+}
+
+/**
+ * The roles people hold on projects through the groups the projects are in (FR-111): each member
+ * of a group holds their group role on every project in it, for as long as they are a member and
+ * the project is in the group. The project role store (SC-014) asks these, read with the executor
+ * it is given, and applies the highest where a person holds several (FR-112).
+ */
+export const groupRoles: GroupRoles = {
+  async rolesThroughGroups(executor, accountId, projectId) {
+    if (!isUuid(accountId) || !isUuid(projectId)) return []
+    const rows = await executor
+      .select({ role: groupMembers.role })
+      .from(groupMembers)
+      .innerJoin(groupProjects, eq(groupProjects.groupId, groupMembers.groupId))
+      .where(and(eq(groupMembers.accountId, accountId), eq(groupProjects.projectId, projectId)))
+    return rows.map((row) => row.role)
+  },
+  async allRolesThroughGroups(executor, accountId) {
+    if (!isUuid(accountId)) return []
+    return executor
+      .select({ projectId: groupProjects.projectId, role: groupMembers.role })
+      .from(groupMembers)
+      .innerJoin(groupProjects, eq(groupProjects.groupId, groupMembers.groupId))
+      .where(eq(groupMembers.accountId, accountId))
+  },
 }

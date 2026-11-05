@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../app.ts'
 import { createDatabase } from '../db/client.ts'
-import { ServiceError } from '../service/errors.ts'
+import { notVisible, ServiceError } from '../service/errors.ts'
 import { createServices } from '../service/services.ts'
 import type { Authenticator } from './caller.ts'
 
@@ -13,6 +13,7 @@ const ERIN = '6f1c2a5e-0000-4000-8000-000000000005'
 const GROUP = { id: '6f1c2a5e-0000-4000-8000-0000000000b1', name: "Erin's group" }
 const MEMBER = { accountId: ERIN, username: 'erin', role: 'admin' as const }
 const BOB = '6f1c2a5e-0000-4000-8000-000000000002'
+const PROJECT = { id: '6f1c2a5e-0000-4000-8000-0000000000a1', name: 'Apollo' }
 
 const asErin: Authenticator = async (request) =>
   request.headers.authorization === 'Bearer erin' ? { accountId: ERIN, channel: 'ui' } : undefined
@@ -35,6 +36,8 @@ function stubbed() {
     setMemberRole: vi.spyOn(services.groups, 'setMemberRole'),
     removeMember: vi.spyOn(services.groups, 'removeMember'),
     leaveGroup: vi.spyOn(services.groups, 'leaveGroup'),
+    listProjects: vi.spyOn(services.groups, 'listProjects'),
+    addProject: vi.spyOn(services.groups, 'addProject'),
   }
   const app = buildApp({}, { authenticators: [asErin], services })
   closers.push(async () => {
@@ -338,5 +341,109 @@ describe('POST /api/groups/:groupId/leave', () => {
     const response = await app.inject({ method: 'POST', url })
     expect(response.statusCode).toBe(401)
     expect(groups.leaveGroup).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/groups/:groupId/projects', () => {
+  const url = `/api/groups/${GROUP.id}/projects`
+
+  it("hands the service the caller and the group and sends the group's projects", async () => {
+    const { app, groups } = stubbed()
+    groups.listProjects.mockResolvedValue([PROJECT])
+    const response = await app.inject({ method: 'GET', url, headers: erin })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual([PROJECT])
+    expect(groups.listProjects).toHaveBeenCalledWith(caller, GROUP.id)
+  })
+
+  it('refuses a group id that is not a UUID before the service is asked', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/groups/platform/projects',
+      headers: erin,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(groups.listProjects).not.toHaveBeenCalled()
+  })
+
+  it("answers a not-found refusal with 404 and the service's message", async () => {
+    const { app, groups } = stubbed()
+    groups.listProjects.mockRejectedValue(new ServiceError('not-found', 'There is no such group'))
+    const response = await app.inject({ method: 'GET', url, headers: erin })
+    expect(response.statusCode).toBe(404)
+    expect(response.json().message).toBe('There is no such group')
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'GET', url })
+    expect(response.statusCode).toBe(401)
+    expect(groups.listProjects).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/groups/:groupId/projects/:projectId', () => {
+  const url = `/api/groups/${GROUP.id}/projects/${PROJECT.id}`
+
+  it('hands the service the caller, the group and the project and sends the project', async () => {
+    const { app, groups } = stubbed()
+    groups.addProject.mockResolvedValue(PROJECT)
+    const response = await app.inject({ method: 'PUT', url, headers: erin })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(PROJECT)
+    expect(groups.addProject).toHaveBeenCalledWith(caller, GROUP.id, PROJECT.id)
+  })
+
+  it.each([
+    ['an empty object', {}],
+    ['fields the route does not take, which it drops', { role: 'admin' }],
+  ])('takes %s as its body too', async (_, payload) => {
+    const { app, groups } = stubbed()
+    groups.addProject.mockResolvedValue(PROJECT)
+    const response = await app.inject({ method: 'PUT', url, headers: erin, payload })
+    expect(response.statusCode).toBe(200)
+    expect(groups.addProject).toHaveBeenCalledWith(caller, GROUP.id, PROJECT.id)
+  })
+
+  it.each([
+    ['a group id that is not a UUID', `/api/groups/platform/projects/${PROJECT.id}`, undefined],
+    ['a project id that is not a UUID', `/api/groups/${GROUP.id}/projects/apollo`, undefined],
+  ])('refuses %s before the service is asked', async (_, target, payload) => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({
+      method: 'PUT',
+      url: target,
+      headers: erin,
+      ...(payload ? { payload } : {}),
+    })
+    expect(response.statusCode).toBe(400)
+    expect(groups.addProject).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'forbidden',
+      new ServiceError(
+        'forbidden',
+        "Only the project's admins can manage its members, roles, repositories and settings",
+      ),
+      403,
+    ],
+    ['not-visible', notVisible(), 403],
+    ['not-found', new ServiceError('not-found', 'There is no such group'), 404],
+  ] as const)('answers a %s refusal with %i and its message', async (_, error, statusCode) => {
+    const { app, groups } = stubbed()
+    groups.addProject.mockRejectedValue(error)
+    const response = await app.inject({ method: 'PUT', url, headers: erin })
+    expect(response.statusCode).toBe(statusCode)
+    expect(response.json().message).toBe(error.message)
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'PUT', url })
+    expect(response.statusCode).toBe(401)
+    expect(groups.addProject).not.toHaveBeenCalled()
   })
 })

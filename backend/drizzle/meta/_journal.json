@@ -120,6 +120,13 @@
       "when": 1793825097775,
       "tag": "0016_person_load",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793827651594,
+      "tag": "0017_group_projects",
+      "breakpoints": true
     }
   ]
 }

@@ -37,14 +37,38 @@ const memberParams = {
   },
 } as const
 
+const project = {
+  type: 'object',
+  required: ['id', 'name'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+  },
+} as const
+
+const projectParams = {
+  type: 'object',
+  required: ['groupId', 'projectId'],
+  properties: {
+    groupId: { type: 'string', format: 'uuid' },
+    projectId: { type: 'string', format: 'uuid' },
+  },
+} as const
+
 interface MemberParams {
   groupId: string
   accountId: string
 }
 
+interface ProjectParams {
+  groupId: string
+  projectId: string
+}
+
 /**
- * The routes of groups (SC-018, SC-057, SC-026): create a group, list every group, list a group's
- * members with their roles, give someone a role in a group, take them out of it, and leave it.
+ * The routes of groups (SC-018, SC-057, SC-058, SC-026): create a group, list every group, list a
+ * group's members with their roles, give someone a role in a group, take them out of it, leave it,
+ * list a group's projects and add an existing project to it.
  * They only translate the request; the group service decides what is
  * allowed (DD-039).
  */
@@ -145,6 +169,40 @@ export const groupRoutes: FastifyPluginAsync<RouteGroupOptions> = async (routes,
     async (request, reply) => {
       await services.groups.leaveGroup(callerOf(request), request.params.groupId)
       return reply.code(204).send()
+    },
+  )
+
+  routes.get<{ Params: { groupId: string } }>(
+    '/:groupId/projects',
+    {
+      schema: {
+        description:
+          "The group's projects, by name, among only those the caller can see: a member of the " +
+          'group sees them all.',
+        params: groupParams,
+        response: { 200: { type: 'array', items: project } },
+      },
+    },
+    async (request) => services.groups.listProjects(callerOf(request), request.params.groupId),
+  )
+
+  routes.put<{ Params: ProjectParams }>(
+    '/:groupId/projects/:projectId',
+    {
+      schema: {
+        description:
+          "Adds an existing project to the group, which gives the group's members their group " +
+          "role on it. Only the project's admins can; a project already in the group is left as " +
+          'it is. A new project is added to groups as it is created (POST /api/projects).',
+        params: projectParams,
+        // Nothing to send: the body may be left out, or be an empty object.
+        body: { type: ['object', 'null'], properties: {}, additionalProperties: false },
+        response: { 200: project },
+      },
+    },
+    async (request) => {
+      const { groupId, projectId } = request.params
+      return services.groups.addProject(callerOf(request), groupId, projectId)
     },
   )
 }

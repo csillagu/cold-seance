@@ -112,6 +112,72 @@ describe('POST /api/projects', () => {
   })
 })
 
+describe('POST /api/projects with groups', () => {
+  const GROUP = '6f1c2a5e-0000-4000-8000-0000000000b1'
+
+  it('hands the service the groups to add the new project to', async () => {
+    const { app, projects } = stubbed()
+    projects.createProject.mockResolvedValue(PROJECT)
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: erin,
+      payload: { name: "Erin's project", groupIds: [GROUP] },
+    })
+    expect(response.statusCode).toBe(201)
+    expect(projects.createProject).toHaveBeenCalledWith(caller, {
+      name: "Erin's project",
+      groupIds: [GROUP],
+    })
+  })
+
+  it('takes one group id given on its own as a list of one', async () => {
+    const { app, projects } = stubbed()
+    projects.createProject.mockResolvedValue(PROJECT)
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: erin,
+      payload: { name: "Erin's project", groupIds: GROUP },
+    })
+    expect(response.statusCode).toBe(201)
+    expect(projects.createProject).toHaveBeenCalledWith(caller, {
+      name: "Erin's project",
+      groupIds: [GROUP],
+    })
+  })
+
+  it.each([
+    ['a group id that is not a UUID', ['platform']],
+    ['groups that are not ids', [{ id: GROUP }]],
+  ])('refuses %s before the service is asked', async (_, groupIds) => {
+    const { app, projects } = stubbed()
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: erin,
+      payload: { name: "Erin's project", groupIds },
+    })
+    expect(response.statusCode).toBe(400)
+    expect(projects.createProject).not.toHaveBeenCalled()
+  })
+
+  it("answers 404 with the service's message when a group does not exist", async () => {
+    const { app, projects } = stubbed()
+    projects.createProject.mockRejectedValue(
+      new ServiceError('not-found', 'There is no such group'),
+    )
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: erin,
+      payload: { name: "Erin's project", groupIds: [GROUP] },
+    })
+    expect(response.statusCode).toBe(404)
+    expect(response.json().message).toBe('There is no such group')
+  })
+})
+
 describe('GET /api/projects', () => {
   it("sends the caller's projects", async () => {
     const { app, projects } = stubbed()
