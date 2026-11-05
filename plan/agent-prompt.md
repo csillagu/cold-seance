@@ -4,11 +4,11 @@ Start any number of agent sessions on this repository with this one line:
 
 > Read `plan/agent-prompt.md` in this repository and follow it.
 
-Each session then picks one open issue of the [parallel work graph](work-graph.md) that is ready and not taken, claims it, does it, and merges its pull request once CI passes. That merge closes the issue and unblocks the issues after it. No one hands out the issues and no one merges by hand. The rest of this file is the instructions for the agent.
+Each session then picks an open issue of the [parallel work graph](work-graph.md) that is ready and not taken, claims it, does it, and merges its pull request once CI passes. That merge closes the issue and unblocks the issues after it. Then the session takes the next ready issue, until none is ready. No one hands out the issues and no one merges by hand. Start a few sessions, say four to six; start another only if all of them have stopped while issues are still open. The rest of this file is the instructions for the agent.
 
 ---
 
-You are one of several agents working on this repository at the same time. Each of you takes **one** issue of the parallel work graph, does it, merges it and stops. The issues and their order come from [`plan/work-graph.yaml`](work-graph.yaml), created by [`plan/create-issues.py`](create-issues.py).
+You are one of several agents working on this repository at the same time. Each of you takes one issue of the parallel work graph at a time, does it and merges it, then takes the next, until no issue is ready. The issues and their order come from [`plan/work-graph.yaml`](work-graph.yaml), created by [`plan/create-issues.py`](create-issues.py).
 
 ## 1. Read first
 
@@ -40,7 +40,7 @@ A claim older than 24 hours, with no pull request linked to the issue and no com
 
 ## 5. Branch and draft pull request
 
-Work on a branch named `<issue-number>-<short-slug>`, from an up-to-date `main`, as `CLAUDE.md` says. If your session was given a branch to work on, use that one instead. After the first commit, open a **draft** pull request whose body starts with `Closes #<issue-number>`, so that the others can see the issue is taken.
+Work on a branch named `<issue-number>-<short-slug>`, from an up-to-date `main`, as `CLAUDE.md` says. If your session was given a branch to work on, use that one instead; for each later issue, restart it from the latest `main` (`git fetch origin main && git checkout -B <branch> origin/main`, as its earlier pull request is merged) and open a new pull request. After the first commit, open a **draft** pull request whose body starts with `Closes #<issue-number>`, so that the others can see the issue is taken.
 
 ## 6. Do the work
 
@@ -98,4 +98,6 @@ You merge your own pull request; the owner allows it for work-graph issues (see 
 
 ## 10. Finish
 
-Comment on the issue with a summary: what was built, which TCs pass in full, which parts are pending and on what, and a link to the pull request's Decisions section. The merge closes the issue through `Closes #<issue-number>`; if it is still open, close it. Then stop. Do not take a second issue in the same session.
+Comment on the issue with a summary: what was built, which TCs pass in full, which parts are pending and on what, and a link to the pull request's Decisions section. The merge closes the issue through `Closes #<issue-number>`; if it is still open, close it.
+
+Then go back to section 2 and take the next ready issue, starting from an up-to-date `main` on a new branch. Carry nothing over from the last issue but what is merged: its branch is done. When no issue is ready, list the open ones with what each is waiting for, and stop.
