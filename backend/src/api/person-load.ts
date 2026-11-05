@@ -73,8 +73,8 @@ export const personLoadRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
           required: ['accountId'],
           properties: { accountId: { type: 'string', format: 'uuid' } },
         },
-        // The dates carry no format, so that the aggregator alone refuses a bad one, the same
-        // through every channel (DD-039).
+        // Both dates must be there, but they carry no format, so that the aggregator alone
+        // decides whether a date is valid, the same through every channel (DD-039).
         querystring: {
           type: 'object',
           required: ['from', 'to'],

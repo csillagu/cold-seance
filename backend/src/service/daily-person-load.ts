@@ -102,6 +102,7 @@ export function dailyLoads(from: string, to: string, inputs: LoadInputs): DayLoa
   const within = (start: string, finish: string) => {
     const begin = Math.max(first, toDay(start))
     const end = Math.min(last, toDay(finish))
+    if (begin > end) return []
     return days.slice(begin - first, end - first + 1).map((entry, i) => ({ day: begin + i, entry }))
   }
   for (const task of inputs.tasks) {

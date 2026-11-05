@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { tasks } from '../../src/db/schema.ts'
 import type { Caller } from '../../src/service/caller.ts'
@@ -78,7 +78,7 @@ describe('the daily person load aggregator', () => {
   })
 
   // Each test removes the tasks it made, so the next starts with none.
-  beforeEach(() => async () => {
+  afterEach(async () => {
     await x.db.execute('delete from task_assignees')
     await x.db.execute('delete from audit_log')
     await x.db.execute('delete from tasks')

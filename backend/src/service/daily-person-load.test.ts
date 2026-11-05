@@ -144,6 +144,28 @@ describe('dailyLoads', () => {
     expect(loads(days)).toEqual({ '2027-03-03': 60, '2027-03-04': 60 })
   })
 
+  it('counts nothing of a task or an absence wholly outside the span', () => {
+    const days = dailyLoads(
+      '2027-03-03',
+      '2027-03-05',
+      inputs({
+        tasks: [
+          task({ id: 'before', plannedStart: '2027-02-22', plannedFinish: '2027-03-01' }),
+          task({ id: 'after', plannedStart: '2027-03-08', plannedFinish: '2027-03-12' }),
+        ],
+        absences: [
+          { from: '2027-02-22', to: '2027-03-01' },
+          { from: '2027-03-08', to: '2027-03-09' },
+        ],
+      }),
+    )
+    expect(days.map((day) => [day.load, day.capacity])).toEqual([
+      [0, 100],
+      [0, 100],
+      [0, 100],
+    ])
+  })
+
   it('sets the capacity to 0 on each day of an absence, inside the span (FR-151)', () => {
     const days = dailyLoads(
       '2027-03-01',
