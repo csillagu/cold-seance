@@ -9,6 +9,7 @@ import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { groupRoutes } from './groups.ts'
 import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
+import { projectRepositoryRoutes, repositoryRequestRoutes } from './project-repositories.ts'
 import { projectRoutes } from './projects.ts'
 import { repositoryRoutes } from './repositories.ts'
 import { sessionRoutes } from './session.ts'
@@ -49,7 +50,9 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
+  { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },
+  { prefix: '/repository-requests', routes: repositoryRequestRoutes },
   { prefix: '/tasks', routes: taskRoutes },
   { prefix: '/tasks', routes: taskRelationRoutes },
   { prefix: '/tasks', routes: taskStatusRoutes },

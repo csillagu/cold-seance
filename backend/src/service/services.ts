@@ -6,6 +6,7 @@ import { AuditLogService } from './audit.ts'
 import { CalendarService } from './calendars.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
+import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { RepositoryService } from './repositories.ts'
@@ -29,6 +30,8 @@ export interface Services {
   calendars: CalendarService
   githubLinks: GitHubLinkService
   groups: GroupService
+  /** Which projects pull issues from which repositories, with their requests (SC-110). */
+  projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
   /** The registered GitHub repositories and their admins (SC-019). */
@@ -72,6 +75,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     calendars: new CalendarService(db, audit, projectRoles),
     githubLinks: new GitHubLinkService(db, audit),
     groups,
+    projectRepositories: new ProjectRepositoryService(db, audit, projectRoles),
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
     repositories: new RepositoryService(db, audit, options.github),
