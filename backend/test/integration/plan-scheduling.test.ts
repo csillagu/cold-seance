@@ -251,6 +251,14 @@ describe('scheduling in the service layer', () => {
       expect(await span(t)).toEqual(['2027-03-01', '2027-03-04'])
     })
 
+    it('refuses a given finish on a forbidden date, of a task with a duration and no start', async () => {
+      const error = await refused(
+        create({ title: 'T', durationWorkingDays: 3, plannedFinish: '2027-03-06' }),
+        'invalid',
+      )
+      expect(error.message).toMatch(/planned finish cannot be 2027-03-06/)
+    })
+
     it("refuses a fixed-date milestone's date on a weekend or a company holiday", async () => {
       await holiday('2027-03-10')
       await refused(
@@ -358,6 +366,30 @@ describe('scheduling in the service layer', () => {
       const listed = await services.tasks.listTasks(by(alice), apollo)
       expect(listed.find((task: Task) => task.id === m.id)?.milestone?.date).toBe('2027-03-04')
     })
+  })
+
+  it('runs date changes and status changes of related tasks at once without a deadlock', async () => {
+    const p = await create({ title: 'P' })
+    const c = await day('C', '2027-03-01')
+    await services.taskRelations.setParent(by(alice), c.id, p.id)
+    const u = await day('U', '2027-03-01')
+    const t = await create({ title: 'T', durationWorkingDays: 1 })
+    await block(t, u)
+    for (const start of ['2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05', '2027-03-08']) {
+      const results = await Promise.allSettled([
+        update(c, { plannedStart: start }),
+        // Refused, for C is open and U is not done, after the checks lock their rows.
+        services.taskStatus.setStatus(by(alice), p.id, 'done'),
+        update(u, { plannedStart: start }),
+        services.taskStatus.setStatus(by(alice), t.id, 'in-progress'),
+      ])
+      const failures = results.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
+      // Only the two refusals of the service; no deadlock or other database error.
+      expect(failures).toHaveLength(2)
+      for (const failure of failures) expect(failure).toBeInstanceOf(ServiceError)
+    }
+    expect(await span(p)).toEqual(['2027-03-08', '2027-03-08'])
+    expect(await span(t)).toEqual(['2027-03-09', '2027-03-09'])
   })
 
   it('schedules concurrent changes of one plan one after the other, without a deadlock', async () => {

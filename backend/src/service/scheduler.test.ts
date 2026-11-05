@@ -416,6 +416,29 @@ describe('schedule', () => {
     })
   })
 
+  it('schedules what depends on a cycle after the cycle, whatever order it was created in', () => {
+    // B, created first, is blocked by C; C is a subtask of P and blocked by P and by A.
+    const moved = schedule(
+      plan(
+        [
+          task('B', { durationWorkingDays: 1 }),
+          task('P'),
+          task('C', { parentId: 'P', durationWorkingDays: 1 }),
+          task('A', { plannedStart: '2027-03-01', durationWorkingDays: 1 }),
+        ],
+        [
+          ['B', 'C'],
+          ['C', 'P'],
+          ['C', 'A'],
+        ],
+      ),
+      calendars(),
+      ['A'],
+    )
+    expect(moved.get('C')).toEqual(dates('2027-03-02', '2027-03-02'))
+    expect(moved.get('B')).toEqual(dates('2027-03-03', '2027-03-03'))
+  })
+
   describe('milestones', () => {
     it('never moves a fixed-date milestone, whatever it is blocked by (FR-012)', () => {
       const moved = schedule(

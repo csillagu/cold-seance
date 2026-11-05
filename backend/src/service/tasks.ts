@@ -402,7 +402,7 @@ export class TaskService {
   /**
    * Refuses the task's fields if a date they set, unlike `base`, is one of the task's forbidden
    * dates with the given assigned people (FR-011): its planned start, its planned finish unless
-   * its duration gives it (FR-144), or a fixed-date milestone's date.
+   * its start and duration give it (FR-144), or a fixed-date milestone's date.
    */
   async #refuseForbidden(
     tx: Transaction,
@@ -415,7 +415,9 @@ export class TaskService {
         ['planned start', fields.plannedStart, base.plannedStart],
         [
           'planned finish',
-          fields.durationWorkingDays === null ? fields.plannedFinish : null,
+          fields.plannedStart !== null && fields.durationWorkingDays !== null
+            ? null
+            : fields.plannedFinish,
           base.plannedFinish,
         ],
         ['milestone date', fields.milestoneDate, base.milestoneDate],

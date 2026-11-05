@@ -8,6 +8,7 @@ import type { TaskStatus } from './permissions.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
 import { TaskAssignments } from './assignment.ts'
+import { lockPlan } from './plan-scheduling.ts'
 import { lockRelations } from './task-relations.ts'
 import { checkStatusConstraints, mayBeConstrained } from './task-status-constraints.ts'
 import { type Task, taskColumns, type TaskRow, toCompleteTask } from './tasks.ts'
@@ -108,6 +109,10 @@ export class TaskStatusService {
           tx,
         )
         await lockRelations(tx)
+        // And the plan's lock, in the order the scheduler takes them (SC-004): a change of dates
+        // writes the rows of a task's parent and of the tasks it blocks, which the constraint
+        // checks lock too, so the two must not each hold a row the other waits for.
+        await lockPlan(tx, found.projectId)
       }
       const current = await this.#find(taskId, tx, true)
       if (!TARGETS.has(to) || current.status === 'cancelled') {

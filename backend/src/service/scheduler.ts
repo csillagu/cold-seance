@@ -236,24 +236,45 @@ function sameDates(a: ScheduledDates, b: ScheduledDates): boolean {
  * The tasks in an order in which each comes after everything it depends on: its blockers and its
  * subtasks. Among tasks free to come next, the one created first comes first. The blocked-by
  * relations hold no cycle (FR-014), nor do the subtask relations, but a task blocked by its own
- * parent, or by a task that depends on it through a subtask, closes one through both kinds; the
- * tasks such a cycle holds up come last, in the order they were created, each scheduled once, from
- * the dates the others have by then: the rules of such a cycle cannot all hold at once, and
- * scheduling it again would only push its tasks later each time.
+ * parent, or by a task that depends on it through a subtask, closes one through both kinds. The
+ * rules of such a cycle cannot all hold at once, and scheduling it again would only push its tasks
+ * later each time, so it is broken once: when nothing else is free to come next, the task created
+ * first among those on a cycle comes next, scheduled from the dates the others have by then, and
+ * what depends on it follows in order as before.
  */
 function dependencyOrder(nodes: readonly Node[]): Node[] {
   const ready = nodes.filter((node) => node.waiting === 0)
   const order: Node[] = []
+  const placed = new Set<Node>()
   for (;;) {
     ready.sort((a, b) => a.index - b.index)
-    const node = ready.shift()
+    const node = ready.shift() ?? firstOnCycle(nodes, placed)
     if (node === undefined) break
+    if (placed.has(node)) continue
+    placed.add(node)
     order.push(node)
     for (const next of node.successors) {
       next.waiting--
       if (next.waiting === 0) ready.push(next)
     }
   }
-  const placed = new Set(order)
-  return [...order, ...nodes.filter((node) => !placed.has(node))]
+  return order
+}
+
+/** The task created first among those not yet placed that lie on a cycle of dependencies. */
+function firstOnCycle(nodes: readonly Node[], placed: ReadonlySet<Node>): Node | undefined {
+  return nodes.find((node) => !placed.has(node) && reaches(node, node, placed))
+}
+
+/** Whether `to` depends on `from`, through tasks not yet placed. */
+function reaches(from: Node, to: Node, placed: ReadonlySet<Node>): boolean {
+  const seen = new Set<Node>()
+  const stack = [...from.successors]
+  for (let node = stack.pop(); node !== undefined; node = stack.pop()) {
+    if (node === to) return true
+    if (placed.has(node) || seen.has(node)) continue
+    seen.add(node)
+    stack.push(...node.successors)
+  }
+  return false
 }
