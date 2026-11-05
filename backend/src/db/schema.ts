@@ -529,3 +529,59 @@ export const repositoryAdmins = pgTable(
     index('repository_admins_account_id_idx').on(table.accountId),
   ],
 )
+
+/**
+ * The states of a project's request to add a repository (SC-110): `requested`, waiting for one of
+ * the repository's admins (FR-168); `approved`, so the project pulls the repository's issues
+ * (FR-142), whether an admin approved it or the requester was admin of both (FR-170); `rejected`
+ * by one of its admins (FR-171); `withdrawn`, an approval one of its admins took back (FR-172).
+ */
+export const PROJECT_REPOSITORY_STATES = ['requested', 'approved', 'rejected', 'withdrawn'] as const
+
+export const projectRepositoryState = pgEnum('project_repository_state', PROJECT_REPOSITORY_STATES)
+
+/**
+ * Each project's requests to add a registered repository, and what became of them (SC-110). A
+ * project pulls issues from a repository while it has an `approved` row for it (FR-142, FR-181). A
+ * rejected or withdrawn row stays, as the record of it, and can no longer change; a project has at
+ * most one row for a repository that is requested or approved. `decided_by` is the repository admin
+ * who approved or rejected the request, or the requester when they were admin of both;
+ * `withdrawn_by` the one who withdrew the approval.
+ */
+export const projectRepositoryRequests = pgTable(
+  'project_repository_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    repositoryId: uuid('repository_id')
+      .notNull()
+      .references(() => repositories.id),
+    state: projectRepositoryState('state').notNull(),
+    requestedBy: uuid('requested_by')
+      .notNull()
+      .references(() => accounts.id),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedBy: uuid('decided_by').references(() => accounts.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    withdrawnBy: uuid('withdrawn_by').references(() => accounts.id),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+  },
+  (table) => [
+    // One open request or approval for each project and repository: two people asking at once
+    // cannot both succeed.
+    uniqueIndex('project_repository_requests_open_key')
+      .on(table.projectId, table.repositoryId)
+      .where(sql`${table.state} in ('requested', 'approved')`),
+    index('project_repository_requests_repository_id_idx').on(table.repositoryId),
+    check(
+      'project_repository_requests_decided',
+      sql`(${table.state} = 'requested') = (${table.decidedBy} is null) and (${table.decidedBy} is null) = (${table.decidedAt} is null)`,
+    ),
+    check(
+      'project_repository_requests_withdrawn',
+      sql`(${table.state} = 'withdrawn') = (${table.withdrawnBy} is not null) and (${table.withdrawnBy} is null) = (${table.withdrawnAt} is null)`,
+    ),
+  ],
+)
