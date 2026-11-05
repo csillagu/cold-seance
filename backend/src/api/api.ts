@@ -24,6 +24,7 @@ import {
   taskStatusRoutes,
 } from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
+import { violationRoutes } from './violations.ts'
 
 /** Where the REST API is served. */
 export const API_PREFIX = '/api'
@@ -61,6 +62,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectTaskRoutes },
   { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/projects', routes: receivingProjectRoutes },
+  { prefix: '/projects', routes: violationRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/repository-requests', routes: repositoryRequestRoutes },
   { prefix: '/tasks', routes: taskRoutes },
