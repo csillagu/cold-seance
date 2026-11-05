@@ -148,6 +148,13 @@
       "when": 1793869910252,
       "tag": "0020_receiving_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793871729662,
+      "tag": "0021_floating_milestone_date",
+      "breakpoints": true
     }
   ]
 }

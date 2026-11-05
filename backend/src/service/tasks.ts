@@ -1,5 +1,5 @@
 import { asc, eq } from 'drizzle-orm'
-import type { Database, Executor } from '../db/client.ts'
+import type { Database, Executor, Transaction } from '../db/client.ts'
 import { MILESTONE_VARIANTS, tasks } from '../db/schema.ts'
 import {
   type Assignment,
@@ -11,6 +11,7 @@ import {
   TaskAssignments,
 } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
+import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import type { TaskStatus } from './permissions.ts'
@@ -22,20 +23,23 @@ import {
 } from './person-load.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
+import { toDay } from './working-days.ts'
 
 /**
  * A task as the service layer hands it out (FR-001). A task with neither a planned start nor a
  * planned finish is unscheduled; it stays a task of its project like any other (FR-003).
  *
  * Its eligibility expression and its assigned people are those of the eligibility and assignment
- * module (SC-005); the planned finish its start and duration give comes with the scheduler
- * (FR-144, SC-004). `repositoryId` is the registered repository the task is assigned to, set by the
+ * module (SC-005). Its planned dates are those the scheduler gives it (SC-004): the finish its
+ * start and duration give (FR-144), the start its blockers give (FR-005), the span of its
+ * subtasks (FR-006). `repositoryId` is the registered repository the task is assigned to, set by the
  * task repository assignment (SC-036, `TaskRepositoryService`). `githubIssue` is the GitHub issue
  * linked to the task: none until the task is assigned to a repository and its issue is created
  * (SRC-168, SC-060), so always `null` for now.
  *
  * `milestone` is `null` for a task that is not a milestone. A milestone (FR-190) takes no time, so
- * its planned dates, duration, effort and AI share are always `null` (FR-191).
+ * its planned dates, duration, effort and AI share are always `null` (FR-191); its date is the one
+ * a fixed-date milestone is pinned to, or the one the scheduler places a floating milestone on.
  */
 export interface Task {
   id: string
@@ -106,10 +110,11 @@ export type MilestoneVariant = (typeof MILESTONE_VARIANTS)[number]
 
 /**
  * What makes a task a milestone (FR-190): pinned to a fixed date, with that date, `YYYY-MM-DD`; or
- * floating, with no date of its own.
+ * floating, with no date of its own, lying on the date the last of its blockers finishes, or on
+ * none while none of them has a finish (FR-195, SC-004).
  */
 export type Milestone =
-  { variant: 'fixed-date'; date: string } | { variant: 'floating'; date: null }
+  { variant: 'fixed-date'; date: string } | { variant: 'floating'; date: string | null }
 
 /**
  * The fields of a task that its creator gives and an editor changes. Only the title is required
@@ -188,6 +193,7 @@ export const taskColumns = {
   aiOnlyLoad: tasks.aiOnlyLoad,
   milestoneVariant: tasks.milestoneVariant,
   milestoneDate: tasks.milestoneDate,
+  floatingDate: tasks.floatingDate,
   actualStart: tasks.actualStart,
   actualFinish: tasks.actualFinish,
   repositoryId: tasks.repositoryId,
@@ -200,7 +206,9 @@ const columns = taskColumns
 
 /** A task as it is read with `taskColumns`. */
 export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAccess' | 'personLoad'> &
-  Pick<TaskFields, 'milestoneVariant' | 'milestoneDate' | 'aiOnlyLoad'>
+  Pick<TaskFields, 'milestoneVariant' | 'milestoneDate' | 'aiOnlyLoad'> & {
+    floatingDate: string | null
+  }
 
 /**
  * The task record module of the service layer (DD-039, SC-001): it creates, edits, lists and reads
@@ -224,18 +232,27 @@ export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAcces
  *
  * A task's person-load percentage, and the overrides of single assignments, follow the person-load
  * percentage rules (SC-039, `person-load.ts`).
+ *
+ * A task's planned dates are scheduled (SC-004, `PlanScheduling`) in the transaction that creates
+ * or changes it: whenever its start, finish, duration or, for a fixed-date milestone, its date
+ * changes, it and every task of its project that depends on it are scheduled again. A change of
+ * its assigned people, or of any other field, schedules nothing, so it moves no task (FR-148). A
+ * change that sets a task's start, finish or milestone date on one of its forbidden dates is
+ * refused (FR-011).
  */
 export class TaskService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #assignments: TaskAssignments
+  readonly #scheduling: PlanScheduling
 
   constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
     this.#assignments = new TaskAssignments(roles)
+    this.#scheduling = new PlanScheduling(audit)
   }
 
   /**
@@ -244,13 +261,16 @@ export class TaskService {
    * as invalid if a field is not valid (see `validFields`), including a milestone given a planned
    * date, duration, effort or AI share (FR-191); and refused as invalid if its eligibility or
    * assignees are not valid, are given to a milestone, or name someone who cannot read the
-   * project (`TaskAssignments.check`).
+   * project (`TaskAssignments.check`). Refused as invalid, too, if its planned start, its planned
+   * finish or a fixed-date milestone's date is one of its forbidden dates (FR-011). Its planned
+   * finish is the one its start and duration give, if it has both (FR-144).
    */
   async createTask(caller: Caller, projectId: string, task: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
       // In the transaction, so that the role still holds when the task is made; and before the
       // fields, so that a refusal tells nothing about what was sent.
       await this.#roles.permissions.require(caller, projectId, 'edit-plan', tx)
+      await lockPlan(tx, projectId)
       // A title must be given, so a missing one is checked as an empty one.
       const fields = validFields({ ...task, title: task.title ?? '' }, UNSET, 'create')
       const assignment = await this.#assignments.check(
@@ -260,19 +280,28 @@ export class TaskService {
         task,
         NO_ASSIGNMENT,
       )
+      await this.#refuseForbidden(tx, fields, UNSET, assignment.assignees)
       const [created] = await tx
         .insert(tasks)
         .values({ projectId, ...fields, eligibility: assignment.eligibility })
-        .returning(columns)
+        .returning({ id: tasks.id })
       if (!created) throw new Error('The new task was not returned')
       await this.#assignments.store(tx, created.id, assignment)
+      const cause = { action: 'task.created', taskId: created.id }
+      await this.#scheduling.reschedule(tx, caller, projectId, [created.id], cause, created.id)
+      const scheduled = await this.#find(created.id, tx, false)
       await this.#audit.record(tx, caller, {
         action: 'task.created',
         subject: { type: 'task', id: created.id },
         projectId,
-        details: { ...fields, ...assignment },
+        details: {
+          ...fields,
+          plannedStart: scheduled.plannedStart,
+          plannedFinish: scheduled.plannedFinish,
+          ...assignment,
+        },
       })
-      return this.#out(tx, { ...created, ...assignment })
+      return this.#out(tx, scheduled)
     })
   }
 
@@ -284,15 +313,20 @@ export class TaskService {
    * refused as invalid too if the change would make the task a milestone or not one, or change a
    * milestone's variant (FR-194). Refused as invalid, too, if the eligibility or assignees given
    * are not valid, are given to a milestone, or add someone who cannot read the project
-   * (`TaskAssignments.check`).
+   * (`TaskAssignments.check`). Refused as invalid, too, if it moves the task's planned start, its
+   * planned finish or a fixed-date milestone's date onto one of the task's forbidden dates
+   * (FR-011). A change of its start, finish, duration or milestone date schedules it and the
+   * tasks that depend on it again (SC-004).
    */
   async updateTask(caller: Caller, taskId: string, changes: TaskInput): Promise<Task> {
     return this.#db.transaction(async (tx) => {
       // The role is checked before the task is locked, so that someone who may not edit it
-      // cannot hold it up; then it is locked, so that two edits of one task cannot each check
-      // against what the other changes. A task never changes project, so the check still holds.
+      // cannot hold it up; then the plan and the task are locked, so that two edits of one task
+      // cannot each check against what the other changes, and the scheduling sees every change of
+      // the plan before it. A task never changes project, so the check still holds.
       const found = await this.#find(taskId, tx, false)
       await this.#roles.permissions.require(caller, found.projectId, 'edit-plan', tx)
+      await lockPlan(tx, found.projectId)
       const current = await this.#find(taskId, tx, true)
       const merged = validFields(changes, current, 'update')
       const assignment = await this.#assignments.check(
@@ -303,26 +337,36 @@ export class TaskService {
         current,
       )
       const next = { ...merged, ...assignment }
-      const changed = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
+      const given = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
         (field) => !same(next[field], current[field]),
       )
-      if (changed.length === 0) return this.#out(tx, current)
-      const [updated] = await tx
+      if (given.length === 0) return this.#out(tx, current)
+      await this.#refuseForbidden(tx, merged, current, assignment.assignees)
+      await tx
         .update(tasks)
         .set({ ...merged, eligibility: assignment.eligibility })
         .where(eq(tasks.id, taskId))
-        .returning(columns)
-      if (!updated) throw new Error('The edited task was not returned')
-      if (changed.includes('assignees') || changed.includes('loadOverrides')) {
+      if (given.includes('assignees') || given.includes('loadOverrides')) {
         await this.#assignments.store(tx, taskId, assignment)
       }
+      if (given.some((field) => SCHEDULED_FIELDS.has(field))) {
+        const cause = { action: 'task.updated', taskId }
+        await this.#scheduling.reschedule(tx, caller, current.projectId, [taskId], cause, taskId)
+      }
+      const updated = await this.#find(taskId, tx, false)
+      const changed = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
+        (field) => !same(updated[field], current[field]),
+      )
+      // The scheduler can set back what the edit gave, such as the start of a task its blockers
+      // set: then nothing changed.
+      if (changed.length === 0) return this.#out(tx, updated)
       await this.#audit.record(tx, caller, {
         action: 'task.updated',
         subject: { type: 'task', id: taskId },
         projectId: current.projectId,
-        details: { changes: only(next, changed), previous: only(current, changed) },
+        details: { changes: only(updated, changed), previous: only(current, changed) },
       })
-      return this.#out(tx, { ...updated, ...assignment })
+      return this.#out(tx, updated)
     })
   }
 
@@ -353,6 +397,42 @@ export class TaskService {
 
   #out(executor: Executor, row: TaskRow): Promise<Task> {
     return toCompleteTask(this.#assignments, executor, row)
+  }
+
+  /**
+   * Refuses the task's fields if a date they set, unlike `base`, is one of the task's forbidden
+   * dates with the given assigned people (FR-011): its planned start, its planned finish unless
+   * its start and duration give it (FR-144), or a fixed-date milestone's date.
+   */
+  async #refuseForbidden(
+    tx: Transaction,
+    fields: TaskFields,
+    base: TaskFields,
+    assignees: readonly string[],
+  ): Promise<void> {
+    const set = (
+      [
+        ['planned start', fields.plannedStart, base.plannedStart],
+        [
+          'planned finish',
+          fields.plannedStart !== null && fields.durationWorkingDays !== null
+            ? null
+            : fields.plannedFinish,
+          base.plannedFinish,
+        ],
+        ['milestone date', fields.milestoneDate, base.milestoneDate],
+      ] as const
+    ).filter(([, date, before]) => date !== null && date !== before)
+    if (set.length === 0) return
+    const forbidden = await this.#scheduling.forbiddenDates(tx, assignees)
+    for (const [what, date] of set) {
+      if (date !== null && forbidden.has(toDay(date))) {
+        throw invalid(
+          `The task's ${what} cannot be ${date}: that is a non-working day for the task, a ` +
+            'weekend day, a company holiday or a day off of someone assigned to it',
+        )
+      }
+    }
   }
 
   async #find(taskId: string, executor: Executor, lock: boolean): Promise<TaskRow> {
@@ -398,7 +478,7 @@ function namedIn(row: Pick<TaskRow, 'eligibility' | 'assignees'>): string[] {
 }
 
 function toTask(
-  { milestoneVariant, milestoneDate, aiOnlyLoad, ...row }: TaskRow,
+  { milestoneVariant, milestoneDate, floatingDate, aiOnlyLoad, ...row }: TaskRow,
   without: ReadonlySet<string>,
 ): Task {
   return {
@@ -408,15 +488,19 @@ function toTask(
       aiOnlyLoad,
       milestone: milestoneVariant !== null,
     }),
-    milestone: milestoneOf(milestoneVariant, milestoneDate),
+    milestone: milestoneOf(milestoneVariant, milestoneDate, floatingDate),
     withoutReadAccess: namedIn(row).filter((person) => without.has(person)),
     githubIssue: null,
   }
 }
 
-function milestoneOf(variant: MilestoneVariant | null, date: string | null): Milestone | null {
+function milestoneOf(
+  variant: MilestoneVariant | null,
+  date: string | null,
+  floatingDate: string | null,
+): Milestone | null {
   if (variant === null) return null
-  if (variant === 'floating') return { variant, date: null }
+  if (variant === 'floating') return { variant, date: floatingDate }
   // Cannot happen: the table holds a date for every fixed-date milestone
   // (tasks_milestone_date_iff_fixed).
   if (date === null) throw new Error('A fixed-date milestone was stored without its date')
@@ -430,6 +514,14 @@ function only<F extends TaskFields & Assignment>(
 ): Record<string, unknown> {
   return Object.fromEntries(keys.map((key) => [key, fields[key]]))
 }
+
+/** The fields whose change schedules the task again (SC-004). */
+const SCHEDULED_FIELDS: ReadonlySet<string> = new Set([
+  'plannedStart',
+  'plannedFinish',
+  'durationWorkingDays',
+  'milestoneDate',
+])
 
 const ASSIGNMENT_FIELDS = [
   'eligibility',
@@ -453,6 +545,8 @@ function same(a: unknown, b: unknown): boolean {
  * - The title is required.
  * - The description is text.
  * - A planned start or finish is a calendar date, `YYYY-MM-DD`.
+ * - A task with a start and a duration takes no finish of its own: the scheduler derives it
+ *   (FR-144, SC-004).
  * - A duration is a whole number of working days, at least one (DD-006, FR-002): no fraction of a
  *   day and no other unit is taken.
  * - Effort is a number of zero or more; the AI share a percentage from 0 to 100.
@@ -486,6 +580,14 @@ function validFields(input: TaskInput, base: TaskFields, action: 'create' | 'upd
     (v) => validAiOnlyLoad(v, valid.aiShare),
     valid.aiShare === AI_ONLY_SHARE ? base.aiOnlyLoad : null,
   )
+  if (valid.plannedStart !== null && valid.durationWorkingDays !== null) {
+    // The scheduler derives the finish from the start and the duration (FR-144): a finish given
+    // is not taken, and the one a new start or duration no longer gives is cleared for it to set.
+    const moved =
+      valid.plannedStart !== base.plannedStart ||
+      valid.durationWorkingDays !== base.durationWorkingDays
+    valid.plannedFinish = moved ? null : base.plannedFinish
+  }
   if (
     valid.milestoneVariant !== null &&
     (valid.plannedStart !== null ||

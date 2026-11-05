@@ -4,6 +4,7 @@ import { taskBlockedBy, tasks } from '../db/schema.ts'
 import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
@@ -53,6 +54,9 @@ const linked = { id: tasks.id, projectId: tasks.projectId } as const
  * relations are recorded in the audit log, each in its own task's project, in the transaction
  * that makes them (FR-116).
  *
+ * The tasks that gain or lose a blocker are then scheduled again, with what depends on them, in
+ * the same transaction (SC-004).
+ *
  * What else cancelling does is the business of the modules that read a task's status: freeing its
  * load (FR-127, SC-006), showing it in a column for cancelled tasks (FR-129) and closing its GitHub
  * issue as not planned (FR-130, SC-061).
@@ -61,11 +65,13 @@ export class TaskCancellationService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
+  readonly #scheduling: PlanScheduling
 
   constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
+    this.#scheduling = new PlanScheduling(audit)
   }
 
   /**
@@ -82,9 +88,11 @@ export class TaskCancellationService {
       // locked, against what it is then. A task never changes project.
       const found = await find(tx, taskId, false)
       await this.#requireCancel(caller, tx, found)
-      // The relations lock before the task's row, in the order every change of a relation takes
-      // them, so that the relations passed on cannot change under the cancellation.
+      // The relations lock and the plan lock before the task's row, in the order every change of
+      // a relation takes them, so that the relations passed on cannot change under the
+      // cancellation.
       await lockRelations(tx)
+      await lockPlan(tx, found.projectId)
       const current = await find(tx, taskId, true)
       await this.#requireCancel(caller, tx, current)
       if (current.status === 'cancelled') return this.#out(tx, current)
@@ -111,6 +119,13 @@ export class TaskCancellationService {
       for (const task of blocked) {
         await this.#passOn(tx, caller, current.id, task, blockers)
       }
+      await this.#scheduling.reschedule(
+        tx,
+        caller,
+        current.projectId,
+        blocked.map((task) => task.id),
+        { action: 'task.cancelled', taskId: current.id },
+      )
       return this.#out(tx, updated)
     })
   }

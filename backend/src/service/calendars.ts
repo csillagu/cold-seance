@@ -13,17 +13,14 @@ import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 import { isDate } from './tasks.ts'
+import { DEFAULT_WEEKEND_DAYS } from './working-days.ts'
 
 /** A day of the week, as the global calendar names its weekend days. */
 export type Weekday = (typeof WEEKDAYS)[number]
 
 export { WEEKDAYS }
 
-/**
- * The weekend of the global calendar until a system admin first sets it. Which days are the
- * weekend is not stated for a fresh deployment; Saturday and Sunday is this module's choice.
- */
-export const DEFAULT_WEEKEND_DAYS: readonly Weekday[] = ['saturday', 'sunday']
+export { DEFAULT_WEEKEND_DAYS }
 
 /** The one global calendar (FR-040): the weekend days, Monday first, and the company holidays. */
 export interface GlobalCalendar {

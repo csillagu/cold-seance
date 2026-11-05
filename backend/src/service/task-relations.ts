@@ -3,6 +3,7 @@ import type { Database, Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
+import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
@@ -85,12 +86,18 @@ const found = {
  * projects they cannot read (FR-059); only its read-write
  * members and admins may change them (FR-108). Each change is recorded in the audit log, in the
  * project of the task whose relation it is, in the transaction that makes it (FR-116).
+ *
+ * Each change schedules again, in the same transaction, the tasks whose dates it touches and what
+ * depends on them (SC-004): a task that gains or loses a blocker, and a parent that gains or loses
+ * a subtask. The task's project alone is scheduled; a blocker of another project moves nothing
+ * (FR-018).
  */
 export class TaskRelationService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #filter: ViewReadFilter
+  readonly #scheduling: PlanScheduling
 
   constructor(
     db: Database,
@@ -102,6 +109,7 @@ export class TaskRelationService {
     this.#audit = audit
     this.#roles = roles
     this.#filter = filter
+    this.#scheduling = new PlanScheduling(audit)
   }
 
   /**
@@ -122,9 +130,9 @@ export class TaskRelationService {
    * the task itself or one of its subtasks at any depth.
    */
   async setParent(caller: Caller, taskId: string, parentId: unknown): Promise<TaskRelations> {
-    return this.#change(caller, taskId, async (tx, task) => {
+    return this.#change(caller, taskId, 'task.parent-set', async (tx, task) => {
       const parent = parentId === null ? null : await this.#parent(tx, task, parentId)
-      if ((parent?.id ?? null) === task.parentId) return
+      if ((parent?.id ?? null) === task.parentId) return []
       if (parent !== null) {
         if (task.milestone) throw invalid('A milestone cannot be a subtask of another task')
         if (parent.milestone) throw invalid('A task cannot be a subtask of a milestone')
@@ -142,6 +150,7 @@ export class TaskRelationService {
         projectId: task.projectId,
         details: { parentId: parent?.id ?? null, previousParentId: task.parentId },
       })
+      return [task.parentId, parent?.id ?? null].filter((id) => id !== null)
     })
   }
 
@@ -154,7 +163,7 @@ export class TaskRelationService {
    * would close a cycle in the blocking relations, the task blocking itself included (FR-014).
    */
   async addBlocker(caller: Caller, taskId: string, blockerId: unknown): Promise<TaskRelations> {
-    return this.#change(caller, taskId, async (tx, task) => {
+    return this.#change(caller, taskId, 'task.blocker-added', async (tx, task) => {
       const blocker = await this.#find(blockerId, tx)
       if (blocker.projectId !== task.projectId) {
         // Before anything about the blocker is told, so that someone who cannot read its project
@@ -175,13 +184,14 @@ export class TaskRelationService {
         .values({ taskId: task.id, blockerId: blocker.id })
         .onConflictDoNothing()
         .returning({ blockerId: taskBlockedBy.blockerId })
-      if (added.length === 0) return
+      if (added.length === 0) return []
       await this.#audit.record(tx, caller, {
         action: 'task.blocker-added',
         subject: { type: 'task', id: task.id },
         projectId: task.projectId,
         details: { blockerId: blocker.id, blockerProjectId: blocker.projectId },
       })
+      return [task.id]
     })
   }
 
@@ -192,7 +202,7 @@ export class TaskRelationService {
    * own project is not asked: the relation is the task's alone.
    */
   async removeBlocker(caller: Caller, taskId: string, blockerId: unknown): Promise<TaskRelations> {
-    return this.#change(caller, taskId, async (tx, task) => {
+    return this.#change(caller, taskId, 'task.blocker-removed', async (tx, task) => {
       const removed = isTaskId(blockerId)
         ? await tx
             .delete(taskBlockedBy)
@@ -207,6 +217,7 @@ export class TaskRelationService {
         projectId: task.projectId,
         details: { blockerId: relation.blockerId },
       })
+      return [task.id]
     })
   }
 
@@ -214,20 +225,28 @@ export class TaskRelationService {
    * Runs a change of the task's relations in one transaction: the task is looked up and the
    * caller's right to edit its project's plan checked first, so that a refusal tells nothing about
    * what was sent; then the relations lock is taken and the task read afresh, so that the change
-   * is checked against the relations as they are. Answers the task's relations after the change.
+   * is checked against the relations as they are. The change answers the tasks it touched the
+   * dates of, which are then scheduled again with what depends on them, under the project's plan
+   * lock (SC-004). Answers the task's relations after the change.
    */
   async #change(
     caller: Caller,
     taskId: string,
-    apply: (tx: Transaction, task: Found) => Promise<void>,
+    action: string,
+    apply: (tx: Transaction, task: Found) => Promise<string[]>,
   ): Promise<TaskRelations> {
     return this.#db.transaction(async (tx) => {
       const before = await this.#find(taskId, tx)
       // A task never changes project, so the check still holds after the lock.
       await this.#roles.permissions.require(caller, before.projectId, 'edit-plan', tx)
       await lockRelations(tx)
+      await lockPlan(tx, before.projectId)
       const task = await this.#find(taskId, tx)
-      await apply(tx, task)
+      const touched = await apply(tx, task)
+      await this.#scheduling.reschedule(tx, caller, task.projectId, touched, {
+        action,
+        taskId: task.id,
+      })
       return this.#relationsOf(caller, tx, await this.#find(taskId, tx))
     })
   }

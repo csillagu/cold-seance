@@ -61,8 +61,18 @@ const task = {
     title: { type: 'string' },
     description: { type: 'string' },
     status: { type: 'string', enum: [...TASK_STATUSES] },
-    plannedStart: nullable('string', { format: 'date' }),
-    plannedFinish: nullable('string', { format: 'date' }),
+    plannedStart: nullable('string', {
+      format: 'date',
+      description:
+        'The planned start. For a task blocked by tasks of its project that have a finish, the ' +
+        'next working day after the last of them finishes; for a parent, its earliest subtask date',
+    }),
+    plannedFinish: nullable('string', {
+      format: 'date',
+      description:
+        'The planned finish. For a task with a start and a duration, the day its duration runs ' +
+        'out, counted over its working days; for a parent, its latest subtask date',
+    }),
     durationWorkingDays: nullable('integer', {
       description: 'The duration in whole working days',
     }),
@@ -78,7 +88,9 @@ const task = {
       type: ['object', 'null'],
       description:
         'Whether the task is a milestone: pinned to a fixed date, with that date, or floating, ' +
-        'with none. Null for a task that is not a milestone.',
+        'with the date the scheduler places it on: the day the last of its blockers in its ' +
+        'project finishes, or null while none of them has a finish. Null for a task that is not ' +
+        'a milestone.',
       required: ['variant', 'date'],
       properties: {
         variant: { type: 'string', enum: [...MILESTONE_VARIANTS] },
@@ -133,8 +145,17 @@ const task = {
 const fieldProperties = {
   title: { type: 'string' },
   description: { type: 'string' },
-  plannedStart: nullable('string'),
-  plannedFinish: nullable('string'),
+  plannedStart: nullable('string', {
+    description:
+      "The planned start, YYYY-MM-DD. Refused with 400 on one of the task's non-working days: a " +
+      'weekend day, a company holiday, or a day off of someone assigned to it. The scheduler ' +
+      'sets the start of a task blocked by tasks of its project, and of a parent.',
+  }),
+  plannedFinish: nullable('string', {
+    description:
+      'The planned finish, YYYY-MM-DD, for a task with no duration; with a start and a ' +
+      'duration, the scheduler derives it. Refused with 400 on a non-working day of the task.',
+  }),
   durationWorkingDays: nullable('number', {
     description: 'The duration in whole working days',
   }),

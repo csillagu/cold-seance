@@ -267,7 +267,9 @@ export const milestoneVariant = pgEnum('milestone_variant', MILESTONE_VARIANTS)
  * A task can be made a milestone when it is created (FR-190): `milestone_variant` says whether it
  * is pinned to a fixed date, `milestone_date`, or floating, and is null for a task that is not a
  * milestone. A milestone takes no time, so it has no planned dates, duration, effort or AI share
- * (FR-191); a fixed-date milestone's only date is the one it is pinned to.
+ * (FR-191); a fixed-date milestone's only date is the one it is pinned to. A floating milestone's
+ * date, `floating_date`, is not given but set by the scheduler (FR-195, SC-004): the day the last
+ * of its blockers finishes, or none.
  *
  * `parent_id` makes a task a subtask of another task of its project (SC-002); a task has at most
  * one parent, and subtasks nest. The task relation module keeps the nesting free of cycles and
@@ -298,6 +300,8 @@ export const tasks = pgTable(
     aiOnlyLoad: doublePrecision('ai_only_load'),
     milestoneVariant: milestoneVariant('milestone_variant'),
     milestoneDate: date('milestone_date', { mode: 'string' }),
+    /** The date the scheduler places a floating milestone on (FR-195, SC-004), if any. */
+    floatingDate: date('floating_date', { mode: 'string' }),
     /** The date the task was started, recorded by the status transitions (SC-003, FR-022). */
     actualStart: date('actual_start', { mode: 'string' }),
     /** The date the task was finished, recorded by the status transitions (SC-003, FR-023). */
@@ -333,6 +337,10 @@ export const tasks = pgTable(
     check(
       'tasks_milestone_date_iff_fixed',
       sql`(${table.milestoneVariant} is not distinct from 'fixed-date') = (${table.milestoneDate} is not null)`,
+    ),
+    check(
+      'tasks_floating_date_only_floating',
+      sql`${table.floatingDate} is null or ${table.milestoneVariant} = 'floating'`,
     ),
     check(
       'tasks_milestone_has_no_eligibility',
