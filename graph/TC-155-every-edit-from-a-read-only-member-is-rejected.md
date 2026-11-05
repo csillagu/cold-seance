@@ -10,7 +10,7 @@ Verify that the system rejects every edit from a person with the read-only role.
 
 - A fresh test deployment, first system admin `root`; accounts `alice` and `bob`; project `Apollo` created by `alice`, where `bob` has the read-only role.
 - Task `T` in `Apollo`, title `Draft`, not started, no blockers.
-- Edits, each made by `bob` through the REST API: change `T`'s title to `Mine`; set `T` to in progress; create a task `New`; delete `T`; assign `bob` to `T`.
+- Edits, each made by `bob` through the REST API: change `T`'s title to `Mine`; set `T` to in progress; create a task `New`; cancel `T`; assign `bob` to `T`.
 
 ## Procedure
 

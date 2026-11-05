@@ -1,6 +1,9 @@
 # cold-seance
 
-The requirements live in [`graph/`](graph/) (a [reqlite](https://github.com/major-solutions/reqlite) graph) and the build order in [`docs/implementation-plan.md`](docs/implementation-plan.md).
+The requirements live in [`graph/`](graph/) (a [reqlite](https://github.com/major-solutions/reqlite) graph). Two documents order the work:
+
+- [`docs/implementation-plan.md`](docs/implementation-plan.md), the **implementation plan**: every solution component in build order, in waves, with the status of each. It is the record of what is done.
+- [`plan/work-graph.md`](plan/work-graph.md), the **parallel work graph**: the components not yet built, cut into issue-sized nodes with "blocked by" relations, so that several people or agents can work at once. Its data is in [`plan/work-graph.yaml`](plan/work-graph.yaml). [`plan/create-issues.py`](plan/create-issues.py) turns it into GitHub issues, and agents take them one at a time as [`plan/agent-prompt.md`](plan/agent-prompt.md) sets out.
 
 ## Development
 
@@ -47,6 +50,10 @@ The backend does not start if a required setting is missing, a value is not vali
 | `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                         |
 | `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image |
 | `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                             |
+
+### Parallel branches
+
+Many branches are open at once. Before a branch is merged, `npm run db:rebase` brings it up to date: it fetches `origin/main`, rebases onto it, and generates the branch's migration again after `main`'s, in one commit. Two branches' migrations would otherwise share a number and a journal, and merging them by hand risks a migration that existing databases skip. New tables go in a schema module of their own under `backend/src/db/schema/`, re-exported from `backend/src/db/schema.ts`; `CLAUDE.md` lists the other habits that keep branches from colliding.
 
 ### Tests
 

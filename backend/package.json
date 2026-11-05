@@ -15,7 +15,8 @@
     "test:image": "vitest run --project image",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:check": "node scripts/db-check.ts"
+    "db:check": "node scripts/db-check.ts",
+    "db:rebase": "node scripts/db-rebase.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.8",

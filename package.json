@@ -22,6 +22,7 @@
     "test:image": "npm run test:image --workspace backend",
     "build": "npm run build --workspaces",
     "db:check": "npm run db:check --workspace backend",
+    "db:rebase": "npm run db:rebase --workspace backend",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run db:check && npm run test:unit && npm run build"
   },
   "devDependencies": {

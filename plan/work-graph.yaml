@@ -1,0 +1,771 @@
+# Parallel work graph: the solution components still to build, cut into GitHub issues.
+#
+# This is not the implementation plan. docs/implementation-plan.md orders all the SCs in waves
+# and keeps the status of each; it stays the record of what is done. This graph takes the SCs
+# not yet implemented, as of 2026-11-05, and cuts them into issue-sized nodes with blocked-by
+# relations, for several people or agents to work on at once.
+#
+# Drafted by Claude on 2026-11-05 from docs/implementation-plan.md, the SC and TC files in graph/
+# and the "Pending" notes in backend/test/integration/. It awaits the owner's confirmation.
+#
+# One node is one GitHub issue. A node holds one SC, or a few small SCs that belong together.
+# blocked_by lists the nodes that must be merged before the node can start. It becomes the
+# issue's "blocked by" relations.
+#
+# TCs: a TC is linked to the FRs it verifies, not to an SC, so a TC is given to every node
+# whose SC delivers one of its FRs. Where several nodes share a TC, each one takes a part:
+#   full     - this node makes the TC pass in full.
+#   part     - this node tests what it builds; `part` says which steps or which channel.
+# The usual split: a backend node tests the service and REST API side, and the frontend node
+# with the screen tests the same TC's browser steps.
+#
+# needs_owner: a question only the owner can answer. The node's issue is created with the label
+# needs-owner, and no agent takes it until the owner answers and removes the label.
+#
+# SC-073 (migrations), SC-026 (REST routes), SC-063 (OpenAPI), SC-028 (image) and SC-029 (Compose)
+# are tracks: every backend node adds its tables and migration, its routes and their OpenAPI
+# description. They are closed in Z01.
+
+nodes:
+  # ---------------------------------------------------------------- backend
+
+  B01:
+    title: Finish the TC parts left pending on SCs that are now done
+    scs: []
+    effort: 0 # tests only; no SC effort
+    blocked_by: []
+    tcs:
+      - { tc: TC-157, part: "the 'cancel Mine' edit (SC-038 is done)" }
+      - { tc: TC-162, part: full }
+      - { tc: TC-163, part: full }
+      - { tc: TC-164, part: full }
+      - { tc: TC-165, part: "bob's token reads T and is refused renaming it (SC-001 is done)" }
+      - { tc: TC-171, part: full }
+      - { tc: TC-174, part: 'erin signs in with the password root gave (SC-052 is done)' }
+      - { tc: TC-175, part: "alice as Apollo's admin, and erin's failed sign-in" }
+      - { tc: TC-203, part: full }
+      - { tc: TC-204, part: full }
+      - { tc: TC-205, part: full }
+      - { tc: TC-034, part: "alice's daily load is unchanged by the hold (SC-006 is done)" }
+      - { tc: TC-044, part: "alice's load per day reads 100% (SC-006 is done)" }
+      - { tc: TC-045, part: "alice's and bob's load on 2027-03-01 (SC-006 is done)" }
+      - { tc: TC-155, part: "the 'cancel T' edit, which replaced 'delete T' (SC-038 is done)" }
+
+  B02:
+    title: Overloads and red flags (overload detector, availability flags, red flag register)
+    scs: [SC-040, SC-042, SC-043] # built in this order
+    effort: 7
+    blocked_by: []
+    tcs:
+      - { tc: TC-056, part: 'service and REST: alice marked overloaded' }
+      - { tc: TC-057, part: 'service and REST: a load equal to capacity is no overload' }
+      - { tc: TC-029, part: 'service and REST: T1 red; not the Gantt' }
+      - { tc: TC-030, part: 'service and REST: T red; not the Gantt' }
+      - { tc: TC-058, part: 'service and REST: red in both projects; not the person load view' }
+      - { tc: TC-031, part: 'service and REST: the flags clear; not the Gantt' }
+      - { tc: TC-044, part: 'alice is not overloaded and nothing is red' }
+
+  B03:
+    title: Unassigned task load rating
+    scs: [SC-041]
+    effort: 3
+    blocked_by: []
+    tcs:
+      - { tc: TC-060, part: 'service and REST: the red rating' }
+      - { tc: TC-061, part: 'service and REST: the amber rating' }
+      - { tc: TC-062, part: 'service and REST: the green rating' }
+
+  B04:
+    title: Variance calculator
+    scs: [SC-044]
+    effort: 2
+    blocked_by: []
+    tcs:
+      - { tc: TC-092, part: full }
+      - { tc: TC-093, part: full }
+
+  B05:
+    title: Mermaid Gantt exporter
+    scs: [SC-021]
+    effort: 2
+    blocked_by: []
+    tcs:
+      - {
+          tc: TC-089,
+          part: "service and REST: the exported text holds the tasks, dates, dependencies and milestones; not the dialog or GitHub's rendering",
+        }
+
+  B06:
+    title: Saved views and group deletion
+    scs: [SC-020, SC-059]
+    effort: 6
+    blocked_by: []
+    tcs:
+      - { tc: TC-073, part: 'REST: both views saved, listed and read back' }
+      - { tc: TC-074, part: 'step 3 (REST)' }
+      - { tc: TC-075, part: 'REST: who sees a project view' }
+      - { tc: TC-076, part: 'REST: who sees a group view' }
+      - { tc: TC-077, part: 'REST: who sees a personal view' }
+      - { tc: TC-078, part: full }
+      - { tc: TC-079, part: full }
+      - { tc: TC-080, part: full }
+      - { tc: TC-081, part: 'REST: each filter saved and applied' }
+      - { tc: TC-082, part: 'REST: each viewer gets their own tasks' }
+      - { tc: TC-083, part: "REST: the view's tasks before and after bob's change" }
+      - { tc: TC-187, part: full }
+      - { tc: TC-188, part: full }
+      - { tc: TC-233, part: "REST: the group's views are gone" }
+
+  B07:
+    title: GitHub planning mirror
+    scs: [SC-022]
+    effort: 5
+    blocked_by: []
+    tcs:
+      - { tc: TC-126, part: full }
+      - { tc: TC-127, part: full }
+      - { tc: TC-128, part: full }
+      - { tc: TC-129, part: full }
+      - { tc: TC-130, part: full }
+
+  B08:
+    title: GitHub issue creator and not-planned closer
+    scs: [SC-060, SC-061]
+    effort: 3
+    blocked_by: [B07]
+    tcs:
+      - { tc: TC-124, part: full }
+      - { tc: TC-125, part: full }
+      - { tc: TC-193, part: full }
+
+  B09:
+    title: GitHub seeding importer
+    scs: [SC-025]
+    effort: 8
+    blocked_by: []
+    tcs:
+      - { tc: TC-149, part: 'service and REST; not the seeding screen' }
+      - { tc: TC-150, part: 'service and REST; not the seeding screen' }
+      - { tc: TC-202, part: 'service and REST; not the seeding screen' }
+      - { tc: TC-151, part: full }
+      - { tc: TC-152, part: full }
+      - { tc: TC-236, part: full }
+      - { tc: TC-237, part: full }
+      - { tc: TC-238, part: full }
+
+  B10:
+    title: Proposal store
+    scs: [SC-010]
+    effort: 3
+    blocked_by: []
+    tcs:
+      - {
+          tc: TC-097,
+          part: 'full, the proposal created through the service layer (the MCP server comes in B19)',
+        }
+      - { tc: TC-098, part: 'the groups are stored; dropping and approving come in B14 and F25' }
+      - { tc: TC-099, part: 'the groups are stored; approving comes in B14' }
+      - { tc: TC-226, part: 'step 1 (REST): only planning inputs are stored' }
+      - { tc: TC-239, part: 'the proposal keeps the channel it was made through' }
+
+  B11:
+    title: Proposal edit, reject and expiry
+    scs: [SC-045, SC-046]
+    effort: 3
+    blocked_by: [B10]
+    tcs:
+      - { tc: TC-104, part: "service and REST: bob's edit saved without approval" }
+      - { tc: TC-105, part: 'service and REST: the rejection' }
+      - { tc: TC-116, part: 'service: an edit at t0 + 23 hours keeps the proposal alive' }
+      - { tc: TC-115, part: 'service: the proposal reads as expired' }
+
+  B12:
+    title: Proposal conflict detector
+    scs: [SC-047]
+    effort: 3
+    blocked_by: [B10]
+    tcs:
+      - { tc: TC-106, part: 'service and REST; not the conflict panel' }
+      - { tc: TC-107, part: 'service and REST; not the conflict panel' }
+      - { tc: TC-108, part: 'service and REST; not the conflict panel' }
+    notes:
+      - 'Open question for the owner: TC-107 has bob delete task A, and DD-022 counts a deleted task as a conflict, but no SC deletes a task (tasks are cancelled).'
+
+  B13:
+    title: Proposal preview
+    scs: [SC-011]
+    effort: 5
+    blocked_by: [B10, B02]
+    tcs:
+      - { tc: TC-100, part: 'service and REST: the live plan is untouched' }
+      - { tc: TC-101, part: 'service and REST: the differences and new red flags' }
+      - { tc: TC-112, part: 'service and REST: the proposal is not rebased' }
+      - { tc: TC-226, part: "the preview's content (service)" }
+
+  B14:
+    title: Proposal approval
+    scs: [SC-048]
+    effort: 5
+    blocked_by: [B11, B12, B13]
+    tcs:
+      - { tc: TC-110, part: full }
+      - { tc: TC-113, part: full }
+      - { tc: TC-114, part: full }
+      - { tc: TC-195, part: full }
+      - { tc: TC-115, part: full }
+      - { tc: TC-109, part: 'service and REST: all or nothing' }
+      - { tc: TC-111, part: 'service and REST: a changed plan asks for a new confirmation' }
+      - { tc: TC-098, part: 'approval with G1 dropped (service)' }
+      - { tc: TC-099, part: 'approval with G1 kept (service)' }
+      - { tc: TC-206, part: 'service: the approver is logged; the MCP server comes in B19' }
+      - { tc: TC-159, part: 'service: bob approves; the MCP server comes in B19' }
+      - {
+          tc: TC-019,
+          part: 'approval of a weekend move is rejected (service); the MCP server comes in B19',
+        }
+
+  B15:
+    title: Notifications
+    scs: [SC-012]
+    effort: 5
+    blocked_by: [B02, B10]
+    tcs:
+      - { tc: TC-118, part: full }
+      - { tc: TC-119, part: full }
+      - { tc: TC-120, part: 'full, the proposal created through the service layer' }
+      - { tc: TC-196, part: 'service and REST; not the subscription controls' }
+      - { tc: TC-197, part: 'service and REST; not the subscription controls' }
+      - { tc: TC-198, part: full }
+      - { tc: TC-253, part: full }
+      - { tc: TC-261, part: 'the notification to every system admin' }
+      - { tc: TC-117, part: 'service and REST: in-app only, no outbound traffic' }
+      - { tc: TC-122, part: 'REST read of the notifications' }
+      - { tc: TC-227, part: 'step 2: bob has no notification' }
+    notes:
+      - 'The plan puts B4.3 after B3.3 only. Here it also waits for B10, so TC-120 (a proposal waiting for review) is done in the same node.'
+
+  B16:
+    title: GitHub change handler
+    scs: [SC-023]
+    effort: 13
+    blocked_by: [B07, B20]
+    tcs:
+      - { tc: TC-131, part: 'handler, fed the change directly' }
+      - { tc: TC-132, part: 'handler, fed the change directly' }
+      - { tc: TC-133, part: 'handler, fed the change directly' }
+      - { tc: TC-134, part: 'handler, fed the change directly' }
+      - { tc: TC-135, part: 'handler, fed the change directly' }
+      - { tc: TC-136, part: 'handler, fed the change directly' }
+      - { tc: TC-137, part: 'handler, fed the change directly' }
+      - { tc: TC-138, part: 'handler, fed the change directly' }
+      - { tc: TC-139, part: 'handler, fed the change directly' }
+      - { tc: TC-140, part: 'handler, fed the change directly' }
+      - { tc: TC-141, part: 'handler, fed the change directly' }
+      - { tc: TC-142, part: 'handler, fed the change directly' }
+      - { tc: TC-143, part: 'handler, fed the change directly' }
+      - { tc: TC-145, part: 'handler, fed the change directly' }
+      - { tc: TC-146, part: 'handler, fed the change directly' }
+      - { tc: TC-147, part: 'handler, fed the change directly' }
+      - { tc: TC-201, part: 'handler, fed the change directly' }
+      - { tc: TC-228, part: 'handler, fed the change directly' }
+      - { tc: TC-229, part: 'handler, fed the change directly' }
+      - { tc: TC-173, part: full }
+      - { tc: TC-212, part: 'steps 2 and 3' }
+    notes:
+      - 'The largest node (effort 13). It is off the critical path, but could be split by kind of change if one person cannot take it.'
+      - 'TC-173 carries an open question for the owner: how a GitHub user with no account in the tool is named in the log.'
+
+  B20:
+    title: Project repository removal
+    scs: [SC-117]
+    effort: 2
+    needs_owner: 'What becomes of the tasks the project already has from a removed repository (TC-212 expects them to stay)?'
+    blocked_by: []
+    tcs:
+      - { tc: TC-212, part: 'step 1: alice removes tc-repo from Apollo' }
+
+  B17:
+    title: GitHub webhook endpoint and re-check timer
+    scs: [SC-105, SC-024]
+    effort: 5
+    blocked_by: [B16]
+    tcs:
+      - { tc: TC-148, part: full }
+      - {
+          tc: TC-131,
+          part: "end to end: the change arrives by webhook or re-check, within an hour (the same for each of B16's TCs)",
+        }
+
+  B18:
+    title: GitHub revert commenter and revert notifications
+    scs: [SC-062]
+    effort: 1
+    blocked_by: [B16, B15]
+    tcs:
+      - { tc: TC-144, part: full }
+      - { tc: TC-121, part: full }
+      - { tc: TC-234, part: full }
+      - { tc: TC-235, part: full }
+    notes:
+      - 'The plan puts SC-062 in B3.6 after SC-022. It moves here because TC-144 needs a revert, which SC-023 makes.'
+
+  B19:
+    title: MCP server endpoint
+    scs: [SC-027]
+    effort: 5
+    blocked_by: [B14, B15]
+    tcs:
+      - { tc: TC-094, part: full }
+      - { tc: TC-095, part: full }
+      - { tc: TC-096, part: full }
+      - { tc: TC-165, part: full }
+      - { tc: TC-166, part: full }
+      - { tc: TC-019, part: full }
+      - { tc: TC-159, part: full }
+      - { tc: TC-172, part: full }
+      - { tc: TC-206, part: full }
+      - { tc: TC-123, part: 'the MCP read of the notifications' }
+      - { tc: TC-169, part: 'step 3, through the MCP server' }
+
+  # ---------------------------------------------------------------- frontend
+
+  D01:
+    title: Frontend design
+    scs: []
+    effort: 0 # no SC holds it yet; not estimated
+    needs_owner: 'What does the design cover, in what form is it made, and should it be an SC?'
+    blocked_by: []
+    tcs: []
+    notes:
+      - 'The owner, design session 2026-11-05: "we will need to create a design first thats needed for all frontend stuff, not done yet."'
+      - 'Not stated: what the design covers or in what form it is made. No SC holds it yet.'
+
+  P01:
+    title: Playwright browser tests
+    scs: []
+    effort: 0 # test setup; no SC
+    blocked_by: []
+    tcs: []
+    notes:
+      - 'Sets up the Playwright tests that check the browser steps of the TCs, and the command that runs them. Every F node writes its browser TC parts as Playwright tests.'
+      - 'The owner, design session 2026-11-05, asked how the browser steps should be checked: "yeah we need playwright tests."'
+
+  F01:
+    title: Frontend layout and sign-in page
+    scs: [SC-113, SC-075]
+    effort: 4
+    blocked_by: [D01, P01]
+    tcs:
+      - { tc: TC-177, part: full }
+      - { tc: TC-176, part: 'the sign-in page offers no registration' }
+      - { tc: TC-025, part: full }
+
+  F02:
+    title: Project search bar and signed-in person menu
+    scs: [SC-114, SC-115]
+    effort: 3
+    blocked_by: [F01]
+    tcs: []
+    notes:
+      - "SC-115's entries for F03's and F10's screens work once those are merged; they do not block this node."
+
+  F03:
+    title: Account administration, GitHub link and personal access token pages
+    scs: [SC-076, SC-077, SC-078]
+    effort: 5
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-174, part: 'browser' }
+      - { tc: TC-175, part: 'browser: alice is offered no way to create accounts' }
+      - { tc: TC-207, part: 'browser' }
+      - { tc: TC-199, part: 'browser' }
+      - { tc: TC-200, part: 'browser' }
+      - { tc: TC-240, part: full }
+
+  F04:
+    title: Audit log viewer
+    scs: [SC-094]
+    effort: 3
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-203, part: 'browser' }
+      - { tc: TC-204, part: 'browser' }
+      - { tc: TC-205, part: 'browser' }
+      - { tc: TC-171, part: 'browser: reading the log' }
+      - { tc: TC-170, part: 'browser: reading the log' }
+      - { tc: TC-172, part: 'browser: reading the log' }
+      - { tc: TC-173, part: 'browser: reading the log' }
+
+  F05:
+    title: Project creation form and members screen
+    scs: [SC-079, SC-080]
+    effort: 4
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-178, part: browser }
+      - { tc: TC-179, part: browser }
+      - { tc: TC-153, part: browser }
+      - { tc: TC-160, part: browser }
+      - { tc: TC-161, part: browser }
+
+  F06:
+    title: Group screens (list, members, projects)
+    scs: [SC-082, SC-083, SC-084]
+    effort: 5
+    blocked_by: [F01, B06]
+    tcs:
+      - { tc: TC-180, part: browser }
+      - { tc: TC-181, part: browser }
+      - { tc: TC-182, part: browser }
+      - { tc: TC-183, part: browser }
+      - { tc: TC-184, part: browser }
+      - { tc: TC-185, part: browser }
+      - { tc: TC-186, part: browser }
+      - { tc: TC-232, part: browser }
+      - { tc: TC-187, part: 'browser: the delete action' }
+      - { tc: TC-188, part: 'browser: no delete action for a group admin' }
+
+  F07:
+    title: Repository registration and admins screens
+    scs: [SC-085, SC-086]
+    effort: 4
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-242, part: browser }
+      - { tc: TC-243, part: browser }
+      - { tc: TC-244, part: browser }
+      - { tc: TC-248, part: browser }
+      - { tc: TC-254, part: browser }
+      - { tc: TC-255, part: browser }
+      - { tc: TC-256, part: browser }
+      - { tc: TC-257, part: browser }
+      - { tc: TC-258, part: browser }
+
+  F08:
+    title: Repository request inbox
+    scs: [SC-087]
+    effort: 3
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-245, part: browser }
+      - { tc: TC-246, part: browser }
+      - { tc: TC-247, part: browser }
+      - { tc: TC-250, part: browser }
+      - { tc: TC-251, part: browser }
+      - { tc: TC-252, part: browser }
+
+  F09:
+    title: Project repository settings and receiving project control
+    scs: [SC-081, SC-112]
+    effort: 3
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-210, part: browser }
+      - { tc: TC-249, part: browser }
+      - { tc: TC-211, part: browser }
+    notes:
+      - "TC-212's step 1, removing a repository from the project, is in B20 (SC-117). Whether this screen offers it is not stated."
+
+  F10:
+    title: Capacity, absences and personal working calendar screens
+    scs: [SC-088, SC-089]
+    effort: 4
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-049, part: browser }
+      - { tc: TC-050, part: browser }
+      - { tc: TC-051, part: browser }
+      - { tc: TC-052, part: browser }
+      - { tc: TC-222, part: browser }
+
+  F11:
+    title: Company calendar screen
+    scs: [SC-090]
+    effort: 3
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-053, part: browser }
+      - { tc: TC-054, part: browser }
+      - { tc: TC-055, part: browser }
+      - { tc: TC-194, part: browser }
+
+  F12:
+    title: Task details editor and cancel action
+    scs: [SC-098, SC-102]
+    effort: 4
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-001, part: browser }
+      - { tc: TC-002, part: browser }
+      - { tc: TC-003, part: browser }
+      - { tc: TC-208, part: browser }
+      - { tc: TC-209, part: browser }
+      - { tc: TC-037, part: browser }
+      - {
+          tc: TC-170,
+          part: 'renaming T in the browser; the log read through the REST API (F04 reads it on the page)',
+        }
+
+  F13:
+    title: Eligibility expression and assignment editors
+    scs: [SC-099, SC-100]
+    effort: 5
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-038, part: browser }
+      - { tc: TC-272, part: browser }
+      - { tc: TC-274, part: browser }
+      - { tc: TC-039, part: browser }
+      - { tc: TC-040, part: browser }
+      - { tc: TC-045, part: browser }
+      - { tc: TC-220, part: browser }
+      - { tc: TC-221, part: full }
+      - { tc: TC-275, part: browser }
+
+  F14:
+    title: Task relation editor
+    scs: [SC-101]
+    effort: 3
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-022, part: browser }
+      - { tc: TC-023, part: browser }
+      - { tc: TC-024, part: browser }
+      - { tc: TC-169, part: 'step 1, in the UI' }
+
+  F15:
+    title: Kanban view
+    scs: [SC-030]
+    effort: 8
+    blocked_by: [F01]
+    tcs:
+      - { tc: TC-004, part: full }
+      - { tc: TC-065, part: full }
+      - { tc: TC-191, part: full }
+      - { tc: TC-214, part: full }
+      - { tc: TC-071, part: full }
+      - { tc: TC-084, part: 'on the Kanban' }
+      - { tc: TC-085, part: 'on the Kanban' }
+      - { tc: TC-086, part: 'on the Kanban' }
+      - { tc: TC-087, part: 'on the Kanban' }
+      - { tc: TC-064, part: 'the Kanban' }
+      - { tc: TC-154, part: 'the Kanban' }
+    notes:
+      - "SC-030's pending proposal overlay is built in F26, with SC-068."
+
+  F16:
+    title: Gantt timeline
+    scs: [SC-031]
+    effort: 8
+    blocked_by: [F01, B02]
+    tcs:
+      - { tc: TC-067, part: full }
+      - { tc: TC-021, part: 'browser: the red violation' }
+      - { tc: TC-029, part: 'browser: T1 red on the Gantt' }
+      - { tc: TC-030, part: 'browser: T red on the Gantt' }
+      - { tc: TC-031, part: 'browser: the red clears on the Gantt' }
+      - { tc: TC-064, part: 'the Gantt' }
+      - { tc: TC-154, part: 'the Gantt' }
+    notes:
+      - 'It waits for B02 so that red flags show from the start. B02 can start now and is smaller than F01 plus this node, so the wait should cost nothing.'
+
+  F17:
+    title: Gantt unscheduled and cancelled tasks, baseline bars and export dialog
+    scs: [SC-064, SC-065, SC-096]
+    effort: 5
+    blocked_by: [F16, B05]
+    tcs:
+      - { tc: TC-005, part: full }
+      - { tc: TC-192, part: full }
+      - { tc: TC-215, part: full }
+      - { tc: TC-068, part: full }
+      - { tc: TC-089, part: full }
+
+  F18:
+    title: Gantt cross-project dependency lines
+    scs: [SC-066]
+    effort: 3
+    blocked_by: [F16]
+    tcs:
+      - { tc: TC-088, part: full }
+      - { tc: TC-227, part: 'step 1: no action to ask Borealis to change' }
+
+  F19:
+    title: Gantt in-place editing
+    scs: [SC-067]
+    effort: 5
+    blocked_by: [F16]
+    tcs:
+      - { tc: TC-072, part: full }
+      - { tc: TC-018, part: full }
+      - { tc: TC-084, part: 'on the Gantt' }
+      - { tc: TC-085, part: 'on the Gantt' }
+      - { tc: TC-086, part: 'on the Gantt' }
+      - { tc: TC-087, part: 'on the Gantt' }
+
+  F20:
+    title: Person load chart and unassigned task rating panel
+    scs: [SC-032, SC-069]
+    effort: 5
+    blocked_by: [F01, B02, B03]
+    tcs:
+      - { tc: TC-006, part: full }
+      - { tc: TC-056, part: browser }
+      - { tc: TC-057, part: browser }
+      - { tc: TC-058, part: browser }
+      - { tc: TC-063, part: browser }
+      - { tc: TC-069, part: full }
+      - { tc: TC-060, part: browser }
+      - { tc: TC-061, part: browser }
+      - { tc: TC-062, part: browser }
+      - { tc: TC-064, part: 'the person load view' }
+      - { tc: TC-154, part: 'the person load view' }
+
+  F21:
+    title: Baseline variance view and baseline save dialog
+    scs: [SC-033, SC-097]
+    effort: 4
+    blocked_by: [F01, B04]
+    tcs:
+      - { tc: TC-007, part: full }
+      - { tc: TC-070, part: full }
+      - { tc: TC-224, part: full }
+      - { tc: TC-090, part: browser }
+      - { tc: TC-091, part: browser }
+      - { tc: TC-225, part: browser }
+      - { tc: TC-064, part: 'the baseline variance view' }
+      - { tc: TC-154, part: 'the baseline variance view' }
+
+  F22:
+    title: Saved view editor and filter builder
+    scs: [SC-091, SC-092]
+    effort: 6
+    blocked_by: [F15, F16, B06]
+    tcs:
+      - { tc: TC-073, part: full }
+      - { tc: TC-074, part: full }
+      - { tc: TC-075, part: full }
+      - { tc: TC-076, part: full }
+      - { tc: TC-077, part: full }
+      - { tc: TC-081, part: full }
+      - { tc: TC-082, part: full }
+      - { tc: TC-066, part: full }
+      - { tc: TC-083, part: full }
+      - { tc: TC-233, part: full }
+      - { tc: TC-154, part: 'the saved view Board' }
+
+  F23:
+    title: Proposal preview screen
+    scs: [SC-034]
+    effort: 3
+    blocked_by: [F16, B13]
+    tcs:
+      - { tc: TC-100, part: full }
+      - { tc: TC-101, part: full }
+      - { tc: TC-112, part: full }
+      - { tc: TC-226, part: full }
+
+  F24:
+    title: Proposal conflict panel and proposal editor
+    scs: [SC-070, SC-071]
+    effort: 5
+    blocked_by: [F23, B11, B12]
+    tcs:
+      - { tc: TC-106, part: full }
+      - { tc: TC-107, part: full }
+      - { tc: TC-108, part: full }
+      - { tc: TC-104, part: full }
+      - { tc: TC-116, part: full }
+
+  F25:
+    title: Proposal approve and reject controls
+    scs: [SC-072]
+    effort: 2
+    blocked_by: [F23, B14]
+    tcs:
+      - { tc: TC-105, part: full }
+      - { tc: TC-109, part: full }
+      - { tc: TC-111, part: full }
+      - { tc: TC-098, part: full }
+      - { tc: TC-099, part: full }
+      - { tc: TC-239, part: full }
+
+  F26:
+    title: Proposal overlay on the Gantt and the Kanban
+    scs: [SC-068]
+    effort: 3
+    blocked_by: [F15, F16, B10]
+    tcs:
+      - { tc: TC-102, part: full }
+      - { tc: TC-103, part: full }
+    notes:
+      - "Also builds SC-030's pending proposal overlay on the Kanban, as the plan says."
+
+  F27:
+    title: Project seeding screen
+    scs: [SC-095]
+    effort: 3
+    blocked_by: [F01, B09]
+    tcs:
+      - { tc: TC-149, part: full }
+      - { tc: TC-150, part: full }
+      - { tc: TC-202, part: full }
+
+  F28:
+    title: In-app notification list and subscription controls
+    scs: [SC-035, SC-093]
+    effort: 3
+    blocked_by: [F01, B15]
+    tcs:
+      - { tc: TC-117, part: full }
+      - { tc: TC-196, part: full }
+      - { tc: TC-197, part: full }
+      - { tc: TC-122, part: full }
+      - { tc: TC-123, part: 'the in-app read; full once B19 is in' }
+
+  # ---------------------------------------------------------------- closing
+
+  Z01:
+    title: Close the tracks (migrations, REST routes, OpenAPI, image, Compose)
+    scs: [SC-073, SC-026, SC-063, SC-028, SC-029]
+    effort: 20 # the five SCs' estimates; most of it is done along the way
+    blocked_by:
+      [
+        B01,
+        B08,
+        B17,
+        B18,
+        B19,
+        F02,
+        F03,
+        F04,
+        F05,
+        F06,
+        F07,
+        F08,
+        F09,
+        F10,
+        F11,
+        F12,
+        F13,
+        F14,
+        F17,
+        F18,
+        F19,
+        F20,
+        F21,
+        F22,
+        F24,
+        F25,
+        F26,
+        F27,
+        F28,
+      ]
+    tcs:
+      - { tc: TC-167, part: full }
+      - { tc: TC-168, part: full }
+      - { tc: TC-169, part: full }
+      - { tc: TC-064, part: full }
+      - { tc: TC-154, part: full }
+      - { tc: TC-123, part: full }
+      - { tc: TC-259, part: 'checked again against the finished image and Compose file' }
