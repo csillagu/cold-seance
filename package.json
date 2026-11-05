@@ -8,6 +8,7 @@
   },
   "workspaces": [
     "backend",
+    "e2e",
     "frontend"
   ],
   "scripts": {
@@ -15,12 +16,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces && tsc -p scripts",
-    "test": "npm run test --workspaces",
-    "test:unit": "npm run test:unit --workspaces",
-    "test:coverage": "npm run test:coverage --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
     "test:integration": "npm run test:integration --workspace backend",
+    "test:e2e": "npm run build --workspace frontend && npm run test:e2e --workspace e2e",
     "test:image": "npm run test:image --workspace backend",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "db:check": "npm run db:check --workspace backend",
     "db:rebase": "npm run db:rebase --workspace backend",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run db:check && npm run test:unit && npm run build"

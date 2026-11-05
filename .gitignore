@@ -11,3 +11,5 @@ config.yaml
 
 # The Compose install's key files (compose.yaml mounts secrets/ at /run/secrets).
 /secrets/
+playwright-report/
+test-results/

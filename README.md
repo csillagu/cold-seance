@@ -7,12 +7,13 @@ The requirements live in [`graph/`](graph/) (a [reqlite](https://github.com/majo
 
 ## Development
 
-The repository is one npm workspace with two packages, sharing one `package-lock.json`:
+The repository is one npm workspace with three packages, sharing one `package-lock.json`:
 
 | Package                  | Stack                                                       |
 | ------------------------ | ----------------------------------------------------------- |
 | [`backend/`](backend/)   | Fastify on Node.js (DD-044), Drizzle on PostgreSQL (DD-057) |
 | [`frontend/`](frontend/) | React, built with Vite (DD-045)                             |
+| [`e2e/`](e2e/)           | The browser tests, with Playwright                          |
 
 You need Node.js 26 (see [`.nvmrc`](.nvmrc); `nvm use` picks it up) and, for the integration tests, Docker or another PostgreSQL server.
 
@@ -48,6 +49,7 @@ The backend does not start if a required setting is missing, a value is not vali
 | `npm run test:unit`               | Vitest unit tests, both packages                                                                                     |
 | `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                |
 | `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                         |
+| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL               |
 | `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image |
 | `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                             |
 
@@ -63,6 +65,12 @@ Many branches are open at once. Before a branch is merged, `npm run db:rebase` b
   ```sh
   docker compose -f compose.test.yaml up -d
   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:integration
+  ```
+
+- **Browser tests** are in `e2e/tests/`, as Playwright tests (`*.spec.ts`). They check the browser steps of the test cases, each test named with its TC's id. The `deployment` fixture of `e2e/fixtures.ts` gives each test a fresh test deployment of its own: a fresh database, the first system admin `root` (password `root-password`) and the backend serving the built frontend on a free port, which the test's `page` and `request` open by relative paths. `deployment.seedAccount('alice')` adds an account, password `alice-password`, and `deployment.db` puts in place anything else a test case's inputs give. They need PostgreSQL as the integration tests do, and Playwright's Chromium (`npx --workspace e2e playwright install chromium`, once):
+
+  ```sh
+  TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run test:e2e
   ```
 
 ### Docker image
@@ -139,6 +147,6 @@ At start, before it serves any request, the backend applies the migrations the d
 
 ### CI and dependencies
 
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests (with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests and the browser tests (each with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.
