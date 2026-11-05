@@ -598,8 +598,8 @@ export const projectRepositoryRequests = pgTable(
  * issues (FR-143, FR-157). The repository is the key, so a repository never has two (FR-179); the
  * row is deleted when the receiving project's admin gives the role up (FR-180), and the audit log
  * keeps the history. The row stays when the project stops pulling from the repository, so that no
- * project receives its new issues until the role is given up (SRC-215). `marked_by` is the admin
- * who marked it.
+ * project receives its new issues until the role is given up (SRC-215). Who marked it, and when,
+ * is in the audit log.
  */
 export const repositoryReceivingProjects = pgTable(
   'repository_receiving_projects',
@@ -610,10 +610,6 @@ export const repositoryReceivingProjects = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => projects.id),
-    markedBy: uuid('marked_by')
-      .notNull()
-      .references(() => accounts.id),
-    markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('repository_receiving_projects_project_id_idx').on(table.projectId)],
 )

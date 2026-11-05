@@ -1,5 +1,5 @@
 {
-  "id": "9d20eff9-4f7e-4b8a-b6ea-b1a593ee9a58",
+  "id": "c4b16abd-b26e-44d3-a063-e64f6a5d1079",
   "prevId": "0a34ee92-5a40-41ad-b6ba-bcfa07e64de3",
   "version": "7",
   "dialect": "postgresql",
@@ -1330,19 +1330,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "marked_by": {
-          "name": "marked_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "marked_at": {
-          "name": "marked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {
@@ -1382,19 +1369,6 @@
           "tableTo": "projects",
           "columnsFrom": [
             "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "repository_receiving_projects_marked_by_accounts_id_fk": {
-          "name": "repository_receiving_projects_marked_by_accounts_id_fk",
-          "tableFrom": "repository_receiving_projects",
-          "tableTo": "accounts",
-          "columnsFrom": [
-            "marked_by"
           ],
           "columnsTo": [
             "id"

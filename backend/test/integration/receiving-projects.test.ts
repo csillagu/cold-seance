@@ -1,7 +1,13 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
-import { auditLog, groupMembers, groupProjects, groups } from '../../src/db/schema.ts'
+import {
+  auditLog,
+  groupMembers,
+  groupProjects,
+  groups,
+  repositoryReceivingProjects,
+} from '../../src/db/schema.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
 import type {
@@ -55,6 +61,7 @@ describe('the receiving project service', () => {
   let bob: Seeded
   let carol: Seeded
   let dave: Seeded
+  let root: Seeded
   let n = 0
 
   beforeAll(async () => {
@@ -63,7 +70,7 @@ describe('the receiving project service', () => {
     services = createServices(x.db, { github: github.reach })
     service = services.receivingProjects
     approvals = services.projectRepositories
-    await seedAccount(x.db, { username: 'root', systemAdmin: true })
+    root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
     bob = await seedAccount(x.db, { username: 'bob' })
     carol = await seedAccount(x.db, { username: 'carol' })
@@ -105,8 +112,6 @@ describe('the receiving project service', () => {
       expect(marked).toEqual({
         repository: { id: repo.id, githubId: repo.githubId, owner: repo.owner, name: repo.name },
         pulls: true,
-        markedBy: { accountId: bob.id, username: 'bob' },
-        markedAt: expect.any(Date),
       })
       expect(await receivingOf(repo.id)).toBe(apollo)
       expect(await entriesFor(repo.id)).toMatchObject([
@@ -262,6 +267,62 @@ describe('the receiving project service', () => {
       expect(await entriesFor(repo.id)).toHaveLength(1)
     })
 
+    it('makes a marking wait for one not yet committed, then refuses it', async () => {
+      const repo = await repository()
+      const apollo = await pulling(repo)
+      const borealis = await pulling(repo, bob)
+      let release: () => void = () => undefined
+      const hold = new Promise<void>((resolve) => (release = resolve))
+      let inserted = false
+      // Apollo's marking, held open after its row is written.
+      const holding = x.db.transaction(async (tx) => {
+        await tx
+          .insert(repositoryReceivingProjects)
+          .values({ repositoryId: repo.id, projectId: apollo })
+        inserted = true
+        await hold
+      })
+      await expect.poll(() => inserted).toBe(true)
+      let settled = false
+      const second = service
+        .markReceiving(by(bob), borealis, repo.id)
+        .finally(() => (settled = true))
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(settled).toBe(false)
+      release()
+      await holding
+      const error = await refused(second, 'conflict')
+      expect(error.message).toBe(ALREADY_RECEIVING_MESSAGE)
+      expect(await receivingOf(repo.id)).toBe(apollo)
+    })
+
+    it('marks a project whose rival marking waited on is given up before it is read', async () => {
+      const repo = await repository()
+      const apollo = await pulling(repo)
+      const borealis = await pulling(repo, bob)
+      let release: () => void = () => undefined
+      const hold = new Promise<void>((resolve) => (release = resolve))
+      let inserted = false
+      // A rival marking that is rolled back: the waiting one then finds the repository free.
+      const holding = x.db
+        .transaction(async (tx) => {
+          await tx
+            .insert(repositoryReceivingProjects)
+            .values({ repositoryId: repo.id, projectId: apollo })
+          inserted = true
+          await hold
+          tx.rollback()
+        })
+        .catch(() => undefined)
+      await expect.poll(() => inserted).toBe(true)
+      const second = service.markReceiving(by(bob), borealis, repo.id)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      release()
+      await holding
+      await expect(second).resolves.toMatchObject({ repository: { id: repo.id }, pulls: true })
+      expect(await receivingOf(repo.id)).toBe(borealis)
+    })
+
     it('lets two admins of the same project mark it at once', async () => {
       const repo = await repository()
       const apollo = await pulling(repo)
@@ -318,15 +379,17 @@ describe('the receiving project service', () => {
 
     it("refuses anyone but the receiving project's admin, and the role stays", async () => {
       const repo = await repository()
-      const apollo = await pulling(repo)
-      await service.markReceiving(by(alice), apollo, repo.id)
+      const apollo = await pulling(repo, bob)
+      await service.markReceiving(by(bob), apollo, repo.id)
       for (const role of ['read-write', 'contributor', 'read-only'] as const) {
         await grantRole(x.db, carol, apollo, role)
         await refused(service.giveUpReceiving(by(carol), apollo, repo.id), 'forbidden')
       }
-      // bob has no role in Apollo; alice, the repository's admin, is not enough for him.
-      await refused(service.giveUpReceiving(by(bob), apollo, repo.id), 'not-visible')
-      await refused(service.giveUpReceiving(by(alice), NO_SUCH_ID, repo.id), 'not-visible')
+      // alice is the repository's admin and holds no role in Apollo; root is a system admin.
+      // Neither is the receiving project's admin (SRC-218).
+      await refused(service.giveUpReceiving(by(alice), apollo, repo.id), 'not-visible')
+      await refused(service.giveUpReceiving(by(root), apollo, repo.id), 'not-visible')
+      await refused(service.giveUpReceiving(by(bob), NO_SUCH_ID, repo.id), 'not-visible')
       expect(await receivingOf(repo.id)).toBe(apollo)
       expect(await entriesFor(repo.id)).toHaveLength(1)
     })
@@ -501,6 +564,7 @@ describe('test cases through the REST API', () => {
       expect(await receivingOf(bob, borealis)).toMatchObject([
         { repository: { id: repoId, owner: 'csillagu', name: 'tc-repo' }, pulls: true },
       ])
+      // The same, read where the GitHub change handler (SC-023) will read it.
       expect(await services.receivingProjects.receivingProjectOf(repoId)).toBe(borealis)
       // Negative: Apollo is not marked as receiving.
       expect(await receivingOf(alice, apollo)).toEqual([])
@@ -508,8 +572,8 @@ describe('test cases through the REST API', () => {
   })
 
   describe('TC-212: a receiving project that stops pulling stops receiving new issues', () => {
-    it('leaves Apollo marked but no longer pulling from tc-repo, with its tasks kept', async () => {
-      // Partly pending. Step 1 asks alice to remove tc-repo from Apollo's repositories, which no
+    it('precondition only: Apollo keeps the role but no longer pulls from tc-repo (SRC-215)', async () => {
+      // This does not verify TC-212: its steps 2 and 3 and its expected response are pending. Step 1 asks alice to remove tc-repo from Apollo's repositories, which no
       // SC offers a project's admin; the nearest is alice, as tc-repo's admin, withdrawing
       // Apollo's approval (SC-110). Steps 2 and 3, a new issue reaching the tool from GitHub,
       // wait for the GitHub change handler (SC-023, FR-157). This checks what the register holds
@@ -519,14 +583,6 @@ describe('test cases through the REST API', () => {
       const apollo = await createdBy(alice, 'Apollo')
       const requestId = await added(alice, apollo, repoId, alice)
       expect((await mark(alice, apollo, repoId)).statusCode).toBe(200)
-      const task = await app.inject({
-        method: 'POST',
-        url: `/api/projects/${apollo}/tasks`,
-        headers: as(alice),
-        payload: { title: 'Earlier' },
-      })
-      expect(task.statusCode).toBe(201)
-
       // Step 1 (as available): Apollo stops pulling issues from tc-repo.
       const withdrawn = await app.inject({
         method: 'POST',
@@ -537,13 +593,8 @@ describe('test cases through the REST API', () => {
 
       expect(await services.projectRepositories.pulls(apollo, repoId)).toBe(false)
       expect(await receivingOf(alice, apollo)).toMatchObject([{ pulls: false }])
-      // Negative: the tasks Apollo already had remain.
-      const tasks = await app.inject({
-        method: 'GET',
-        url: `/api/projects/${apollo}/tasks`,
-        headers: as(alice),
-      })
-      expect(tasks.json<{ title: string }[]>().map((t) => t.title)).toEqual(['Earlier'])
+      // The negative assertion, that Apollo keeps its tasks from tc-repo, needs a task that came
+      // from tc-repo, which only the GitHub change handler (SC-023) brings in; pending with it.
     })
   })
 

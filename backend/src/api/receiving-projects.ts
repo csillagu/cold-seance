@@ -4,7 +4,7 @@ import { callerOf } from './caller.ts'
 
 const receiving = {
   type: 'object',
-  required: ['repository', 'pulls', 'markedBy', 'markedAt'],
+  required: ['repository', 'pulls'],
   properties: {
     repository: {
       type: 'object',
@@ -22,15 +22,6 @@ const receiving = {
         'Whether the project still pulls issues from the repository. While it does not, no ' +
         "project receives the repository's new issues until it gives the role up.",
     },
-    markedBy: {
-      type: 'object',
-      required: ['accountId', 'username'],
-      properties: {
-        accountId: { type: 'string', format: 'uuid' },
-        username: { type: 'string' },
-      },
-    },
-    markedAt: { type: 'string', format: 'date-time' },
   },
 } as const
 

@@ -1,7 +1,6 @@
 import { and, asc, eq, exists } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import {
-  accounts,
   projectRepositoryRequests,
   projects,
   repositories,
@@ -34,8 +33,6 @@ export interface ReceivingRepository {
    * role and no project receives the repository's new issues (SRC-215), until it gives it up.
    */
   pulls: boolean
-  markedBy: { accountId: string; username: string }
-  markedAt: Date
 }
 
 const receivingColumns = {
@@ -43,9 +40,6 @@ const receivingColumns = {
   githubId: repositories.githubId,
   owner: repositories.owner,
   name: repositories.name,
-  markedById: accounts.id,
-  markedByName: accounts.username,
-  markedAt: repositoryReceivingProjects.markedAt,
 } as const
 
 /**
@@ -63,7 +57,9 @@ const receivingColumns = {
  * marking stands, unchanged); whether a project admin who is refused learns which project holds
  * the role (they do not, since that project may not be visible to them, FR-017); whether a system
  * admin, or a repository admin, may give the role up for the project (neither may, as SRC-218
- * names only the receiving project's admin).
+ * names only the receiving project's admin); whether a project's admins should see if it still
+ * pulls from a repository it receives for (they do, as `pulls`, so they can tell when it holds the
+ * role without receiving anything).
  */
 export class ReceivingProjectService {
   readonly #db: Database
@@ -106,16 +102,21 @@ export class ReceivingProjectService {
       ) {
         throw new ServiceError('invalid', NOT_PULLING_MESSAGE)
       }
-      // Two markings at once: the second waits for the first, then finds the row it made.
-      const [inserted] = await tx
-        .insert(repositoryReceivingProjects)
-        .values({ repositoryId: repository, projectId: project, markedBy: caller.accountId })
-        .onConflictDoNothing({ target: repositoryReceivingProjects.repositoryId })
-        .returning({ projectId: repositoryReceivingProjects.projectId })
-      if (!inserted) {
+      // Two markings at once: the second waits for the first, then finds the row it made. If that
+      // row is given up before it is read, the repository has none again, so the marking is tried
+      // once more.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const [inserted] = await tx
+          .insert(repositoryReceivingProjects)
+          .values({ repositoryId: repository, projectId: project })
+          .onConflictDoNothing({ target: repositoryReceivingProjects.repositoryId })
+          .returning({ projectId: repositoryReceivingProjects.projectId })
+        if (inserted) break
         const current = await this.receivingProjectOf(repository, { executor: tx, lock: true })
-        if (current !== project) throw new ServiceError('conflict', ALREADY_RECEIVING_MESSAGE)
-        return this.#read(tx, project, repository)
+        if (current === project) return this.#read(tx, project, repository)
+        if (current !== null || attempt > 0) {
+          throw new ServiceError('conflict', ALREADY_RECEIVING_MESSAGE)
+        }
       }
       const marked = await this.#read(tx, project, repository)
       await this.#audit.record(tx, caller, {
@@ -139,8 +140,17 @@ export class ReceivingProjectService {
     const repository = repositoryId.toLowerCase()
     await this.#db.transaction(async (tx) => {
       await this.#requireAdmin(tx, caller, project)
-      const current = await this.receivingProjectOf(repository, { executor: tx, lock: true })
-      if (current !== project) throw new ServiceError('conflict', NOT_RECEIVING_MESSAGE)
+      // Locked for update: the role is about to be given up.
+      const [current] = !isUuid(repository)
+        ? []
+        : await tx
+            .select({ projectId: repositoryReceivingProjects.projectId })
+            .from(repositoryReceivingProjects)
+            .where(eq(repositoryReceivingProjects.repositoryId, repository))
+            .for('update')
+      if (current?.projectId !== project) {
+        throw new ServiceError('conflict', NOT_RECEIVING_MESSAGE)
+      }
       const given = await this.#read(tx, project, repository)
       await tx
         .delete(repositoryReceivingProjects)
@@ -168,7 +178,9 @@ export class ReceivingProjectService {
    * The id of the repository's receiving project, or null while it has none. The module that adds
    * a repository's new issues to a project (SC-023) asks this in its own transaction, together
    * with whether that project still pulls from the repository (FR-157). With `lock`, the marking
-   * is locked until that transaction ends, so that giving the role up waits for it.
+   * is share-locked until that transaction ends, so that giving the role up waits for it while
+   * other readers do not. A caller that also asks `pulls` with a lock may take the two locks in
+   * either order: both are share locks, and neither a withdrawal nor a giving up takes the other.
    */
   async receivingProjectOf(
     repositoryId: string,
@@ -179,7 +191,7 @@ export class ReceivingProjectService {
       .select({ projectId: repositoryReceivingProjects.projectId })
       .from(repositoryReceivingProjects)
       .where(eq(repositoryReceivingProjects.repositoryId, repositoryId))
-    const [row] = options.lock === true ? await query.for('update') : await query
+    const [row] = options.lock === true ? await query.for('share') : await query
     return row?.projectId ?? null
   }
 
@@ -223,7 +235,6 @@ export class ReceivingProjectService {
       .select({ ...receivingColumns, pulls: exists(pulling).mapWith(Boolean) })
       .from(repositoryReceivingProjects)
       .innerJoin(repositories, eq(repositories.id, repositoryReceivingProjects.repositoryId))
-      .innerJoin(accounts, eq(accounts.id, repositoryReceivingProjects.markedBy))
       .where(
         and(
           eq(repositoryReceivingProjects.projectId, projectId),
@@ -236,8 +247,6 @@ export class ReceivingProjectService {
     return rows.map((row) => ({
       repository: { id: row.id, githubId: row.githubId, owner: row.owner, name: row.name },
       pulls: row.pulls,
-      markedBy: { accountId: row.markedById, username: row.markedByName },
-      markedAt: row.markedAt,
     }))
   }
 }

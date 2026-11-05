@@ -18,8 +18,6 @@ const REPO_ID = '6f1c2a5e-0000-4000-8000-0000000000c1'
 const RECEIVING: ReceivingRepository = {
   repository: { id: REPO_ID, githubId: 7001, owner: 'csillagu', name: 'tc-repo' },
   pulls: true,
-  markedBy: { accountId: ERIN, username: 'erin' },
-  markedAt: new Date('2026-11-05T10:00:00.000Z'),
 }
 const sent = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown
 
