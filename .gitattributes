@@ -1,0 +1,4 @@
+# The status table at the end of the implementation plan only ever gains rows, one or more per pull
+# request. Branches that each add a row would conflict on the same place; the union merge keeps both
+# rows instead, when a branch is rebased or merged with git.
+docs/implementation-plan.md merge=union
