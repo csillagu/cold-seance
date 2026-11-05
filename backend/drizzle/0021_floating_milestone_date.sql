@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" ADD COLUMN "floating_date" date;--> statement-breakpoint
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_floating_date_only_floating" CHECK ("tasks"."floating_date" is null or "tasks"."milestone_variant" = 'floating');
