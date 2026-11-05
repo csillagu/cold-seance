@@ -621,3 +621,54 @@ export const repositoryReceivingProjects = pgTable(
   },
   (table) => [index('repository_receiving_projects_project_id_idx').on(table.projectId)],
 )
+
+/**
+ * The baselines (SC-009, DD-036): each a named snapshot of every task's planned start and finish
+ * in a project, as they stood when it was saved, kept to compare the plan against later. A project
+ * keeps several, each under a name no other baseline of the project has (FR-153). Who saved one is
+ * `created_by`; the saving is also in the audit log.
+ */
+export const baselines = pgTable(
+  'baselines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    name: text('name').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => accounts.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // On the name's MD5 rather than the name, for the reason given at projects_name_key. The project
+  // is given as an expression too: with it as a plain column next to the expression, drizzle-kit
+  // finds the index in the migrated database different from the schema's (schema-migrations test).
+  (table) => [
+    uniqueIndex('baselines_project_name_key').on(sql`${table.projectId}`, sql`md5(${table.name})`),
+  ],
+)
+
+/**
+ * The dates a baseline holds: one row for each task the project had when the baseline was saved,
+ * with its planned start and finish as they were then (FR-064). A milestone, which takes no time,
+ * holds the day it lay on as both; a task with no planned dates holds none. The rows are never
+ * changed, so later changes to the plan leave the baseline as it was saved.
+ */
+export const baselineTasks = pgTable(
+  'baseline_tasks',
+  {
+    baselineId: uuid('baseline_id')
+      .notNull()
+      .references(() => baselines.id),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id),
+    plannedStart: date('planned_start', { mode: 'string' }),
+    plannedFinish: date('planned_finish', { mode: 'string' }),
+  },
+  (table) => [
+    uniqueIndex('baseline_tasks_key').on(table.baselineId, table.taskId),
+    index('baseline_tasks_task_id_idx').on(table.taskId),
+  ],
+)
