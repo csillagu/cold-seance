@@ -12,6 +12,7 @@ import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
 import { ReceivingProjectService } from './receiving-projects.ts'
+import { RedFlagService } from './red-flags.ts'
 import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
@@ -45,6 +46,8 @@ export interface Services {
   projects: ProjectService
   /** Each repository's one receiving project (SC-111). */
   receivingProjects: ReceivingProjectService
+  /** The red flags currently raised, with when each appeared (SC-043). */
+  redFlags: RedFlagService
   /** The registered GitHub repositories and their admins (SC-019). */
   repositories: RepositoryService
   sessions: SessionService
@@ -98,6 +101,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
     receivingProjects: new ReceivingProjectService(db, audit, projectRoles, projectRepositories),
+    redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),

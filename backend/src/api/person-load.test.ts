@@ -23,8 +23,16 @@ const LOAD = {
       tasks: [{ taskId: TASK, projectId: PROJECT, title: 'T', load: 40 }],
       otherProjects: 60,
       capacity: 100,
+      overloaded: false,
     },
-    { date: '2027-03-02', load: 0, tasks: [], otherProjects: 0, capacity: null },
+    {
+      date: '2027-03-02',
+      load: 0,
+      tasks: [],
+      otherProjects: 0,
+      capacity: null,
+      overloaded: null,
+    },
   ],
 }
 

@@ -424,9 +424,9 @@ describe('test cases through the REST API', () => {
 
   describe('TC-044: two 50% AI tasks on the same days fit one full-time person', () => {
     // Pending: alice's load on each day and the person load view come with the daily person load
-    // aggregator (SC-006) and the person load chart (SC-032); "overloaded" and "red" with the
-    // overload detector (SC-040) and the red flags (SC-042, SC-043). What this SC gives now is the
-    // load each task puts on alice.
+    // aggregator (SC-006) and the person load chart (SC-032). "Not overloaded" and "not red" are
+    // tested in red-flags.test.ts (SC-040, SC-042, SC-043). What this SC gives now is the load
+    // each task puts on alice.
     it('puts 50% on alice from each task, 100% together: her full capacity', async () => {
       const task = {
         aiShare: 50,

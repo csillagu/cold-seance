@@ -17,7 +17,7 @@ const taskLoad = {
 
 const dayLoad = {
   type: 'object',
-  required: ['date', 'load', 'tasks', 'otherProjects', 'capacity'],
+  required: ['date', 'load', 'tasks', 'otherProjects', 'capacity', 'overloaded'],
   properties: {
     date: day,
     load: {
@@ -38,6 +38,12 @@ const dayLoad = {
       description:
         "The person's capacity that day, in percent, 0 on an absence day; null when the caller " +
         "may not read the person's capacity",
+    },
+    overloaded: {
+      type: ['boolean', 'null'],
+      description:
+        'Whether the person is overloaded that day, their load above their capacity; null when ' +
+        "the caller may not read the person's capacity",
     },
   },
 } as const

@@ -4,3 +4,4 @@
 // re-exports are not yet set while a module loads. The migration comes from `npm run db:generate`
 // (SC-073).
 export * from './schema/core.ts'
+export * from './schema/red-flags.ts'

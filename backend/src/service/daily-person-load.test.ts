@@ -43,10 +43,38 @@ describe('dailyLoads', () => {
   it('gives one entry for each day of the span, in order, with no load when there is no task', () => {
     const days = dailyLoads('2027-02-27', '2027-03-02', inputs())
     expect(days).toEqual([
-      { date: '2027-02-27', load: 0, tasks: [], otherProjects: 0, capacity: 100 },
-      { date: '2027-02-28', load: 0, tasks: [], otherProjects: 0, capacity: 100 },
-      { date: '2027-03-01', load: 0, tasks: [], otherProjects: 0, capacity: 100 },
-      { date: '2027-03-02', load: 0, tasks: [], otherProjects: 0, capacity: 100 },
+      {
+        date: '2027-02-27',
+        load: 0,
+        tasks: [],
+        otherProjects: 0,
+        capacity: 100,
+        overloaded: false,
+      },
+      {
+        date: '2027-02-28',
+        load: 0,
+        tasks: [],
+        otherProjects: 0,
+        capacity: 100,
+        overloaded: false,
+      },
+      {
+        date: '2027-03-01',
+        load: 0,
+        tasks: [],
+        otherProjects: 0,
+        capacity: 100,
+        overloaded: false,
+      },
+      {
+        date: '2027-03-02',
+        load: 0,
+        tasks: [],
+        otherProjects: 0,
+        capacity: 100,
+        overloaded: false,
+      },
     ])
   })
 
@@ -130,6 +158,7 @@ describe('dailyLoads', () => {
       tasks: [{ taskId: 'visible', projectId: APOLLO, title: 'Visible task', load: 40 }],
       otherProjects: 65,
       capacity: 100,
+      overloaded: true,
     })
     expect(JSON.stringify(day)).not.toContain('Hidden')
     expect(JSON.stringify(day)).not.toContain(BOREALIS)
@@ -188,6 +217,26 @@ describe('dailyLoads', () => {
       inputs({ capacity: null, absences: [{ from: '2027-03-01', to: '2027-03-01' }] }),
     )
     expect(days.map((day) => day.capacity)).toEqual([null, null])
+    expect(days.map((day) => day.overloaded)).toEqual([null, null])
+  })
+
+  it('marks overloaded each day whose load is above its capacity, and no other (FR-042, SC-040)', () => {
+    const days = dailyLoads(
+      '2027-03-01',
+      '2027-03-04',
+      inputs({
+        capacity: 80,
+        tasks: [task({ load: 80, plannedStart: '2027-03-01', plannedFinish: '2027-03-03' })],
+        absences: [{ from: '2027-03-02', to: '2027-03-02' }],
+      }),
+    )
+    // 80% of 80% is no overload; 80% on an absence day, of capacity 0, is.
+    expect(days.map((day) => [day.load, day.capacity, day.overloaded])).toEqual([
+      [80, 80, false],
+      [80, 0, true],
+      [80, 80, false],
+      [0, 80, false],
+    ])
   })
 
   it('keeps a load of 0% from a task, and loads above 100%', () => {
