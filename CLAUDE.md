@@ -83,14 +83,24 @@ gh pr ready
 
 ### Merging
 
-The user merges PRs. Only merge a PR yourself when the user explicitly asks you to.
+The user merges PRs. Only merge a PR yourself when the user explicitly asks you to. The one standing exception: an agent working a work-graph issue as [`plan/agent-prompt.md`](plan/agent-prompt.md) sets out merges its own PR, once CI has passed on a head rebased onto the latest `main` (the owner's instruction of 2026-11-05).
 
 PRs are merged with a merge commit (not squash or rebase-merge). Before merging, rebase the branch onto the latest `main` so it is up to date:
 
 ```sh
-git fetch origin
-git rebase origin/main
+npm run db:rebase          # fetches origin/main, rebases onto it, regenerates the branch's migration
 git push --force-with-lease
 ```
 
+Do not merge migrations by hand: `db:rebase` drops the branch's migration and generates it again after `main`'s, which is the only safe way (see `backend/scripts/migration-rebase.ts`). A plain `git fetch origin && git rebase origin/main` is fine for a branch that adds no migration.
+
 Use `--force-with-lease`, never plain `--force`, when pushing a rebased branch.
+
+### Keeping parallel branches apart
+
+Several branches are open at once, so keep each change where it collides least:
+
+- New tables go in a schema module of their own, `backend/src/db/schema/<name>.ts`, re-exported from `backend/src/db/schema.ts`. A module imports what it references from the module that holds it, never from `schema.ts`.
+- In a list that every block adds to (the route groups in `backend/src/api/api.ts`, the services in `backend/src/service/services.ts`, imports, the re-exports in `schema.ts`), put the new line in its alphabetical place, not at the end.
+- Put new code in new files rather than growing a shared one.
+- Rows of the status table at the end of `docs/implementation-plan.md` are appended; `.gitattributes` makes git keep both sides' rows on a rebase.
