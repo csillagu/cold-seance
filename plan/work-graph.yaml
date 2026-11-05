@@ -19,6 +19,9 @@
 # The usual split: a backend node tests the service and REST API side, and the frontend node
 # with the screen tests the same TC's browser steps.
 #
+# needs_owner: a question only the owner can answer. The node's issue is created with the label
+# needs-owner, and no agent takes it until the owner answers and removes the label.
+#
 # SC-073 (migrations), SC-026 (REST routes), SC-063 (OpenAPI), SC-028 (image) and SC-029 (Compose)
 # are tracks: every backend node adds its tables and migration, its routes and their OpenAPI
 # description. They are closed in Z01.
@@ -276,6 +279,7 @@ nodes:
     title: Project repository removal
     scs: [SC-117]
     effort: 2
+    needs_owner: 'What becomes of the tasks the project already has from a removed repository (TC-212 expects them to stay)?'
     blocked_by: []
     tcs:
       - { tc: TC-212, part: 'step 1: alice removes tc-repo from Apollo' }
@@ -329,6 +333,7 @@ nodes:
     title: Frontend design
     scs: []
     effort: 0 # no SC holds it yet; not estimated
+    needs_owner: 'What does the design cover, in what form is it made, and should it be an SC?'
     blocked_by: []
     tcs: []
     notes:
