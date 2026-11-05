@@ -134,7 +134,10 @@ export async function readPlan(executor: Executor, projectId: string): Promise<P
 }
 
 /** The global calendar, and the days off of the given people. */
-async function readCalendars(executor: Executor, people: readonly string[]): Promise<Calendars> {
+export async function readCalendars(
+  executor: Executor,
+  people: readonly string[],
+): Promise<Calendars> {
   const [row] = await executor
     .select({ weekendDays: globalCalendar.weekendDays })
     .from(globalCalendar)

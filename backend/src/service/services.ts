@@ -4,6 +4,7 @@ import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
 import { CalendarService } from './calendars.ts'
+import { DailyPersonLoadService } from './daily-person-load.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
@@ -30,6 +31,8 @@ export interface Services {
   audit: AuditLogService
   /** The calendars, capacities and absences (SC-008). */
   calendars: CalendarService
+  /** Each person's load on each day, across all projects (SC-006). */
+  dailyLoad: DailyPersonLoadService
   githubLinks: GitHubLinkService
   groups: GroupService
   /** Which projects pull issues from which repositories, with their requests (SC-110). */
@@ -75,11 +78,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const viewFilter = new ViewReadFilter(projectRoles)
   const groups = new GroupService(db, audit, projectRoles)
   const projectRepositories = new ProjectRepositoryService(db, audit, projectRoles)
+  const calendars = new CalendarService(db, audit, projectRoles)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
-    calendars: new CalendarService(db, audit, projectRoles),
+    calendars,
+    dailyLoad: new DailyPersonLoadService(db, viewFilter, calendars),
     githubLinks: new GitHubLinkService(db, audit),
     groups,
     projectRepositories,
