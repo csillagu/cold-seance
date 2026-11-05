@@ -29,10 +29,14 @@ export const NOT_PULLED_MESSAGE =
  *
  * Not stated, and awaiting the owner's answer: whether a task assigned to a repository can be
  * assigned to another one its project pulls from (it can: the done criterion accepts any such
- * repository), and whether an assignment can be taken back (it is not offered). Assigning a task
- * to the repository it is already assigned to changes nothing. A task keeps its repository when
- * the project stops pulling from it (FR-178). Creating the task's GitHub issue once it is
- * assigned (SRC-168) is the GitHub planning mirror's business (SC-022, SC-060), not this one's.
+ * repository); whether an assignment can be taken back (it is not offered); and whether a
+ * milestone, or a task that is finished or cancelled, can be assigned (they can, like any other
+ * task, since FR-141 names none of them). Assigning a task to the repository it is already
+ * assigned to changes nothing, as long as the project still pulls from it. A task keeps its
+ * repository when the project stops pulling from it (FR-178), but cannot be assigned to it again
+ * from then on, since FR-141 allows only a repository the project pulls from. Creating the task's
+ * GitHub issue once it is assigned (SRC-168) is the GitHub planning mirror's business (SC-022,
+ * SC-060), not this one's.
  */
 export class TaskRepositoryService {
   readonly #db: Database
@@ -68,19 +72,21 @@ export class TaskRepositoryService {
       await this.#roles.permissions.require(caller, found.projectId, 'edit-plan', tx)
       const current = await this.#find(tx, taskId, true)
       // The approval is locked until the assignment is made, so that a withdrawal waits for it.
+      // An id in any case names the same repository; it is stored and compared in lower case.
+      const id = typeof repositoryId === 'string' ? repositoryId.toLowerCase() : undefined
       if (
-        typeof repositoryId !== 'string' ||
-        !(await this.#projectRepositories.pulls(current.projectId, repositoryId, {
+        id === undefined ||
+        !(await this.#projectRepositories.pulls(current.projectId, id, {
           executor: tx,
           lock: true,
         }))
       ) {
         throw new ServiceError('invalid', NOT_PULLED_MESSAGE)
       }
-      if (current.repositoryId === repositoryId) return this.#out(tx, current)
+      if (current.repositoryId === id) return this.#out(tx, current)
       const [updated] = await tx
         .update(tasks)
-        .set({ repositoryId })
+        .set({ repositoryId: id })
         .where(eq(tasks.id, taskId))
         .returning(taskColumns)
       if (!updated) throw new Error('The assigned task was not returned')
@@ -88,7 +94,7 @@ export class TaskRepositoryService {
         action: 'task.repository-assigned',
         subject: { type: 'task', id: taskId },
         projectId: current.projectId,
-        details: { repositoryId, previous: current.repositoryId },
+        details: { repositoryId: id, previous: current.repositoryId },
       })
       return this.#out(tx, updated)
     })

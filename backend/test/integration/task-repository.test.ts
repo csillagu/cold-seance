@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
-import { auditLog, tasks } from '../../src/db/schema.ts'
+import { auditLog, projectRepositoryRequests, tasks } from '../../src/db/schema.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import type { ServiceError } from '../../src/service/errors.ts'
 import type { RegisteredRepository } from '../../src/service/repositories.ts'
@@ -181,6 +181,83 @@ describe('the task repository assignment', () => {
       await grantRole(x.db, bob, projectId, 'read-write')
 
       expect((await assign(bob, taskId, repo.id)).repositoryId).toBe(repo.id)
+    })
+
+    it('takes an id in upper case as the same repository, recording nothing when unchanged', async () => {
+      const projectId = await project()
+      const repo = await pulledBy(projectId)
+      const taskId = await taskIn(projectId)
+
+      expect((await assign(alice, taskId, repo.id.toUpperCase())).repositoryId).toBe(repo.id)
+      expect((await assign(alice, taskId, repo.id.toUpperCase())).repositoryId).toBe(repo.id)
+      expect((await entriesFor(taskId)).map((entry) => entry.details)).toEqual([
+        { repositoryId: repo.id, previous: null },
+      ])
+    })
+
+    it('can assign a milestone, and a finished or cancelled task, like any other', async () => {
+      const projectId = await project()
+      const repo = await pulledBy(projectId)
+      const milestone = await services.tasks.createTask(by(alice), projectId, {
+        title: 'Release',
+        milestone: { variant: 'floating' },
+      })
+      const done = await taskIn(projectId)
+      await services.taskStatus.setStatus(by(alice), done, 'in-progress')
+      await services.taskStatus.setStatus(by(alice), done, 'done')
+      const cancelled = await taskIn(projectId)
+      await services.taskCancellation.cancel(by(alice), cancelled)
+
+      for (const taskId of [milestone.id, done, cancelled]) {
+        expect((await assign(alice, taskId, repo.id)).repositoryId).toBe(repo.id)
+      }
+    })
+
+    it('waits for a withdrawal in progress, and is then refused', async () => {
+      const projectId = await project()
+      const repo = await repositoryOf(bob)
+      const request = await services.projectRepositories.requestRepository(
+        by(alice),
+        projectId,
+        repo.id,
+      )
+      await services.projectRepositories.approveRequest(by(bob), request.id)
+      const taskId = await taskIn(projectId)
+      let release = () => {}
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let locked = () => {}
+      const lockedYet = new Promise<void>((resolve) => {
+        locked = resolve
+      })
+      // A withdrawal caught between locking the approval and committing, as #decide makes it.
+      const withdrawing = x.db.transaction(async (tx) => {
+        await tx
+          .select()
+          .from(projectRepositoryRequests)
+          .where(eq(projectRepositoryRequests.id, request.id))
+          .for('update')
+        await tx
+          .update(projectRepositoryRequests)
+          .set({ state: 'withdrawn', withdrawnBy: bob.id, withdrawnAt: new Date() })
+          .where(eq(projectRepositoryRequests.id, request.id))
+        locked()
+        await held
+      })
+      await lockedYet
+      let settled = false
+      const assigning = assign(alice, taskId, repo.id).finally(() => {
+        settled = true
+      })
+      // Kept from rejecting unhandled while it waits.
+      assigning.catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      expect(settled).toBe(false)
+      release()
+      await withdrawing
+      await expect(assigning).rejects.toEqual(notPulled)
+      expect(await storedRepository(taskId)).toBeNull()
     })
 
     it('keeps the assignment when the project stops pulling from the repository (FR-178)', async () => {
@@ -432,8 +509,6 @@ describe('test cases through the REST API', () => {
       })
       expect(added.statusCode).toBe(201)
       expect(added.json()).toMatchObject({ state: 'approved' })
-      // A second registered repository Apollo does not pull from, for the negative assertion.
-      const elsewhere = await registeredBy(alice, 'csillagu/tc-elsewhere')
       const t = await taskIn(alice, apollo, 'T')
       expect(t.repositoryId).toBeNull()
 
@@ -441,10 +516,9 @@ describe('test cases through the REST API', () => {
       const assigned = await assign(alice, t.id, tcRepo)
       expect(assigned.statusCode).toBe(200)
 
-      // Step 2: read T. It is assigned to tc-repo, and to no other repository.
+      // Step 2: read T. It is assigned to tc-repo, and so to no other: a task has one repository.
       const read2 = await read(alice, t.id)
       expect(read2.repositoryId).toBe(tcRepo)
-      expect(read2.repositoryId).not.toBe(elsewhere)
     })
   })
 
