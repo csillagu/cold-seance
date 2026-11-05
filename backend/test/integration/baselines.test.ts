@@ -137,9 +137,11 @@ describe('the baseline snapshots', () => {
       // Both attempts are rejected.
       expect(byBob.statusCode).toBe(403)
       expect(byCarol.statusCode).toBe(403)
-      expect(byBob.json()).toMatchObject({
-        message: "Only the project's read-write members and admins can save a baseline",
-      })
+      for (const response of [byBob, byCarol]) {
+        expect(response.json()).toMatchObject({
+          message: "Only the project's read-write members and admins can save a baseline",
+        })
+      }
 
       // Step 3, negative: Apollo has no baselines.
       expect(await list(alice, apollo)).toEqual([])

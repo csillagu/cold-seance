@@ -124,17 +124,19 @@ export class BaselineService {
     projectId: string,
     baseline: { name: string },
   ): Promise<Baseline> {
+    // The name once the role allows the save, so that it tells nothing to someone who may not.
+    let name = ''
     // The unique index on names decides, so two concurrent saves of one name cannot both succeed.
     try {
       return await this.#db.transaction(async (tx) => {
         const role = await this.#roles.roleOf(caller.accountId, projectId, tx)
         if (role === undefined) throw notVisible()
         if (!allows(role, 'edit-plan')) throw new ServiceError('forbidden', SAVE_REFUSAL)
-        return this.#save(tx, caller, projectId, baselineName(baseline.name))
+        name = baselineName(baseline.name)
+        return this.#save(tx, caller, projectId, name)
       })
     } catch (error) {
       if (violates(error, BASELINE_NAME_INDEX)) {
-        const name = baselineName(baseline.name)
         throw new ServiceError('conflict', `This project already has a baseline named ${name}`)
       }
       throw error
