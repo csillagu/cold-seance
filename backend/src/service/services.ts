@@ -3,6 +3,7 @@ import type { RepositoryReach } from '../github/repository-reach.ts'
 import { AccountService } from './accounts.ts'
 import { ApiTokenService } from './api-tokens.ts'
 import { AuditLogService } from './audit.ts'
+import { BaselineService } from './baselines.ts'
 import { CalendarService } from './calendars.ts'
 import { DailyPersonLoadService } from './daily-person-load.ts'
 import { GitHubLinkService } from './github-links.ts'
@@ -30,6 +31,8 @@ export interface Services {
   accounts: AccountService
   apiTokens: ApiTokenService
   audit: AuditLogService
+  /** The named snapshots of a project's planned dates (SC-009). */
+  baselines: BaselineService
   /** The calendars, capacities and absences (SC-008). */
   calendars: CalendarService
   /** Each person's load on each day, across all projects (SC-006). */
@@ -86,6 +89,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
     audit,
+    baselines: new BaselineService(db, audit, projectRoles),
     calendars,
     dailyLoad: new DailyPersonLoadService(db, viewFilter, calendars),
     githubLinks: new GitHubLinkService(db, audit),

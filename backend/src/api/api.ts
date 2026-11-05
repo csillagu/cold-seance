@@ -3,6 +3,7 @@ import type { Services } from '../service/services.ts'
 import { accountRoutes } from './accounts.ts'
 import { apiTokenRoutes } from './api-tokens.ts'
 import { auditLogRoutes } from './audit.ts'
+import { baselineRoutes, projectBaselineRoutes } from './baselines.ts'
 import { availabilityRoutes, globalCalendarRoutes } from './calendars.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
@@ -55,6 +56,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: availabilityRoutes },
   { prefix: '/accounts', routes: personLoadRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
+  { prefix: '/baselines', routes: baselineRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
   { prefix: '/projects', routes: projectRoutes },
@@ -63,6 +65,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/projects', routes: receivingProjectRoutes },
   { prefix: '/projects', routes: violationRoutes },
+  { prefix: '/projects', routes: projectBaselineRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/repository-requests', routes: repositoryRequestRoutes },
   { prefix: '/tasks', routes: taskRoutes },
