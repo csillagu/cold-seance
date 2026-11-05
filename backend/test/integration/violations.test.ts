@@ -140,7 +140,7 @@ describe('the milestone and dependency violation detector', () => {
       expect([after.plannedStart, after.plannedFinish]).toEqual(['2027-03-11', '2027-03-12'])
     })
 
-    it('TC-217: a cross-project conflict is red to the owners of both projects', async () => {
+    it('TC-217: a cross-project conflict is red on a Gantt covering both projects', async () => {
       // The personal Gantt views covering both projects are the saved views' (SC-020); here each
       // person asks for the violations of each of the two projects their view would cover.
       const borealis = await seedProject(x.db, bob, 'Borealis')
@@ -332,6 +332,28 @@ describe('the milestone and dependency violation detector', () => {
       expect(found.map((v) => [v.task.id, v.blocker.id, v.blockerFinish])).toEqual([
         [launch, late, '2027-03-12'],
         [launch, later, '2027-03-16'],
+      ])
+    })
+
+    it('reports a milestone pushed through a chain of work and a parent spanning its subtasks', async () => {
+      // A pushes B, which the parent P spans, and P blocks the milestone.
+      const a = await create(alice, apollo, {
+        title: 'A',
+        plannedStart: '2027-03-01',
+        durationWorkingDays: 5,
+      })
+      const p = await create(alice, apollo, { title: 'P' })
+      const b = await create(alice, apollo, { title: 'B', durationWorkingDays: 3 })
+      await services.taskRelations.setParent(by(alice), b, p)
+      await blockedBy(alice, b, a)
+      const launch = await create(alice, apollo, { title: 'L', milestone: fixed('2027-03-12') })
+      await blockedBy(alice, launch, p)
+      expect(await of(alice, apollo)).toEqual([])
+
+      await services.tasks.updateTask(by(alice), a, { durationWorkingDays: 8 })
+      // A now finishes 2027-03-10, B runs 2027-03-11 to 2027-03-15, and P spans it.
+      expect(await of(alice, apollo)).toMatchObject([
+        { task: { id: launch }, blocker: { id: p }, blockerFinish: '2027-03-15' },
       ])
     })
 
