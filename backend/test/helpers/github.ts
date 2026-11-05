@@ -1,7 +1,8 @@
 import { generateKeyPairSync } from 'node:crypto'
 import type { GitHubAppConfig } from '../../src/config/config.ts'
-import { createGitHubClient } from '../../src/github/client.ts'
+import { createGitHubClient, type GitHubClient } from '../../src/github/client.ts'
 import { gitHubRepositoryReach, type RepositoryReach } from '../../src/github/repository-reach.ts'
+import { fakeIssues, type FakeIssues } from './github-issues.ts'
 
 const API_URL = 'https://github.test'
 
@@ -26,10 +27,16 @@ export interface FakeGitHub {
   /** Creates `owner/name` on GitHub, with the tool's App installed on it unless told otherwise. */
   createRepository(fullName: string, options?: { installed?: boolean }): FakeRepository
   uninstall(fullName: string): void
+  /** Installs the tool's App on a repository it was uninstalled from. */
+  install(fullName: string): void
   /** Renames a repository on GitHub; it keeps its id, and its old name then names nothing. */
   rename(fullName: string, newFullName: string): void
   /** What the tool asks GitHub through the App, as the GitHub client would call it. */
   reach: RepositoryReach
+  /** The GitHub client the tool would build, calling this fake. */
+  client: () => GitHubClient
+  /** The repositories' issues, which the tool reaches as it reaches the repositories. */
+  issues: FakeIssues
   /** Requests made to it, as `METHOD /path`. */
   requests: string[]
 }
@@ -48,6 +55,7 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
   const installations = new Map<number, string>()
   const tokens = new Map<string, string>()
   const requests: string[] = []
+  const issues = fakeIssues((key) => repositories.get(key), API_URL)
 
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), {
@@ -80,6 +88,23 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
       tokens.set(token, key)
       return json(201, { token, expires_at: new Date(Date.now() + 3_600_000).toISOString() })
     }
+    const below = /^\/repos\/([^/]+)\/([^/]+)(\/.+)$/.exec(path)
+    if (below) {
+      const key = `${below[1]}/${below[2]}`.toLowerCase()
+      const bearer = auth.replace(/^Bearer /, '')
+      const granted = bearer === PAT ? key : tokens.get(bearer)
+      if (!repositories.has(key) || granted !== key || !installed.has(key)) {
+        return json(404, { message: 'Not Found' })
+      }
+      const text = typeof init?.body === 'string' ? init.body : undefined
+      const answer = issues.handle(
+        method,
+        key,
+        below[3] ?? '',
+        text === undefined ? undefined : JSON.parse(text),
+      )
+      if (answer !== undefined) return answer
+    }
     const repository = /^\/repos\/([^/]+)\/([^/]+)$/.exec(path)
     if (method === 'GET' && repository) {
       const key = `${repository[1]}/${repository[2]}`.toLowerCase()
@@ -110,7 +135,9 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
     via === 'app'
       ? { apps: { readIssues: app, writeIssues: app, projectsStatus: app }, tokens: {} }
       : { apps: {}, tokens: { readIssues: PAT, writeIssues: PAT, projectsStatus: PAT } }
-  const reach = gitHubRepositoryReach(() => createGitHubClient(github, { apiUrl: API_URL, fetch }))
+  let client: GitHubClient | undefined
+  const clientOf = () => (client ??= createGitHubClient(github, { apiUrl: API_URL, fetch }))
+  const reach = gitHubRepositoryReach(clientOf)
 
   return {
     createRepository(fullName, created = {}) {
@@ -124,6 +151,9 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
     uninstall(fullName) {
       installed.delete(fullName.toLowerCase())
     },
+    install(fullName) {
+      installed.add(fullName.toLowerCase())
+    },
     rename(fullName, newFullName) {
       const key = fullName.toLowerCase()
       const repo = repositories.get(key)
@@ -135,6 +165,8 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
       if (installed.delete(key)) installed.add(newKey)
     },
     reach,
+    client: clientOf,
+    issues,
     requests,
   }
 }

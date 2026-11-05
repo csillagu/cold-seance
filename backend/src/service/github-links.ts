@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
-import { accounts } from '../db/schema.ts'
+import { accounts, taskAssignees } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
 import { ServiceError } from './errors.ts'
+import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 
 /** A person's account in the tool and the GitHub account it is linked to, if any. */
@@ -33,9 +34,20 @@ export class GitHubLinkService {
   readonly #db: Database
   readonly #audit: AuditLogService
 
-  constructor(db: Database, audit: AuditLogService) {
+  readonly #changes: PlanningChanges
+
+  /**
+   * `changes` is told of the tasks assigned to a person whose link changed, whose issues' GitHub
+   * assignees change with it (SC-022, FR-090).
+   */
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    changes: PlanningChanges = NO_PLANNING_CHANGES,
+  ) {
     this.#db = db
     this.#audit = audit
+    this.#changes = changes
   }
 
   /**
@@ -53,8 +65,9 @@ export class GitHubLinkService {
         'A GitHub account name has at most 39 letters, digits and single hyphens, and starts and ends with a letter or digit',
       )
     }
+    let assigned: string[] = []
     try {
-      return await this.#db.transaction(async (tx) => {
+      const linked = await this.#db.transaction(async (tx) => {
         const [previous] = await tx
           .select({ githubLogin: accounts.githubLogin })
           .from(accounts)
@@ -68,8 +81,15 @@ export class GitHubLinkService {
           subject: { type: 'account', id: accountId },
           details: { githubLogin, previous: previous.githubLogin },
         })
+        const rows = await tx
+          .select({ taskId: taskAssignees.taskId })
+          .from(taskAssignees)
+          .where(eq(taskAssignees.accountId, accountId))
+        assigned = rows.map((row) => row.taskId)
         return { accountId, githubLogin }
       })
+      this.#changes.changed(assigned)
+      return linked
     } catch (error) {
       if (violates(error, GITHUB_LOGIN_INDEX)) {
         throw new ServiceError(

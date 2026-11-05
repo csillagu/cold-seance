@@ -4,6 +4,7 @@ import { taskBlockedBy, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
+import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { refreshRedFlags } from './red-flags.ts'
@@ -99,13 +100,17 @@ export class TaskRelationService {
   readonly #roles: ProjectRoleService
   readonly #filter: ViewReadFilter
   readonly #scheduling: PlanScheduling
+  readonly #changes: PlanningChanges
 
+  /** `changes` is told of each task whose parent or blockers changed (SC-022). */
   constructor(
     db: Database,
     audit: AuditLogService,
     roles: ProjectRoleService,
     filter: ViewReadFilter,
+    changes: PlanningChanges = NO_PLANNING_CHANGES,
   ) {
+    this.#changes = changes
     this.#db = db
     this.#audit = audit
     this.#roles = roles
@@ -228,7 +233,8 @@ export class TaskRelationService {
    * what was sent; then the relations lock is taken and the task read afresh, so that the change
    * is checked against the relations as they are. The change answers the tasks it touched the
    * dates of, which are then scheduled again with what depends on them, under the project's plan
-   * lock (SC-004). Answers the task's relations after the change.
+   * lock (SC-004). Answers the task's relations after the change, once it is committed and the
+   * task's change has been told to the GitHub planning mirror (SC-022).
    */
   async #change(
     caller: Caller,
@@ -236,7 +242,7 @@ export class TaskRelationService {
     action: string,
     apply: (tx: Transaction, task: Found) => Promise<string[]>,
   ): Promise<TaskRelations> {
-    return this.#db.transaction(async (tx) => {
+    const relations = await this.#db.transaction(async (tx) => {
       const before = await this.#find(taskId, tx)
       // A task never changes project, so the check still holds after the lock.
       await this.#roles.permissions.require(caller, before.projectId, 'edit-plan', tx)
@@ -251,6 +257,8 @@ export class TaskRelationService {
       await refreshRedFlags(tx)
       return this.#relationsOf(caller, tx, await this.#find(taskId, tx))
     })
+    this.#changes.changed([relations.taskId])
+    return relations
   }
 
   /** The task `parentId` names, as a parent of `task` must be: a task of the same project. */
