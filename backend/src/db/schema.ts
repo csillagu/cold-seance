@@ -309,6 +309,13 @@ export const tasks = pgTable(
      * by their account's id. Null when the task has none; a milestone never has one (FR-192).
      */
     eligibility: jsonb('eligibility').$type<Eligibility>(),
+    /**
+     * The registered repository the task is assigned to (FR-141, SC-036), or null while it is
+     * assigned to none. The task repository assignment sets it, only to a repository the task's
+     * project pulls issues from when it is set; a later withdrawal of that approval leaves it as it
+     * is (FR-178).
+     */
+    repositoryId: uuid('repository_id').references((): AnyPgColumn => repositories.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

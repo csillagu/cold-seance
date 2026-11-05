@@ -34,6 +34,7 @@ const TASK: Task = {
   withoutReadAccess: [],
   actualStart: null,
   actualFinish: null,
+  repositoryId: null,
   githubIssue: null,
 }
 const url = `/api/tasks/${TASK.id}/cancel`

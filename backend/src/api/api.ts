@@ -14,7 +14,13 @@ import { projectRoutes } from './projects.ts'
 import { repositoryRoutes } from './repositories.ts'
 import { sessionRoutes } from './session.ts'
 import { taskRelationRoutes } from './task-relations.ts'
-import { projectTaskRoutes, taskCancellationRoutes, taskRoutes, taskStatusRoutes } from './tasks.ts'
+import {
+  projectTaskRoutes,
+  taskCancellationRoutes,
+  taskRepositoryRoutes,
+  taskRoutes,
+  taskStatusRoutes,
+} from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
 
 /** Where the REST API is served. */
@@ -57,6 +63,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/tasks', routes: taskRelationRoutes },
   { prefix: '/tasks', routes: taskStatusRoutes },
   { prefix: '/tasks', routes: taskCancellationRoutes },
+  { prefix: '/tasks', routes: taskRepositoryRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
   { prefix: '/session', routes: sessionRoutes },
 ]

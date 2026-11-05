@@ -89,6 +89,7 @@ describe('milestones in the task service', () => {
         withoutReadAccess: [],
         actualStart: null,
         actualFinish: null,
+        repositoryId: null,
         githubIssue: null,
       })
       expect(await stored(task.id)).toMatchObject({
