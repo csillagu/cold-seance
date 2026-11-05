@@ -781,8 +781,32 @@ describe('the test cases', () => {
     })
     expect(set.statusCode).toBe(200)
     expect((await globalOf(alice)).weekendDays).toEqual(['friday', 'saturday'])
-    // Step 2 and the expected dates of A and B wait for the scheduler (SC-004), which places
-    // tasks by the weekend read here.
+
+    // Step 2: alice creates A and B, B blocked by A, and reads them (SC-004).
+    const apollo = (await request(alice, 'POST', '/api/projects', { name: 'Apollo' })).json().id
+    const a = await request(alice, 'POST', `/api/projects/${apollo}/tasks`, {
+      title: 'A',
+      plannedStart: '2027-03-03',
+      durationWorkingDays: 2,
+    })
+    const b = await request(alice, 'POST', `/api/projects/${apollo}/tasks`, {
+      title: 'B',
+      durationWorkingDays: 1,
+    })
+    const blocked = await request(alice, 'POST', `/api/tasks/${b.json().id}/blocked-by`, {
+      blockerId: a.json().id,
+    })
+    expect([a.statusCode, b.statusCode, blocked.statusCode]).toEqual([201, 201, 200])
+    const read = async (id: string) => (await request(alice, 'GET', `/api/tasks/${id}`)).json()
+    expect(await read(a.json().id)).toMatchObject({
+      plannedStart: '2027-03-03',
+      plannedFinish: '2027-03-04',
+    })
+    // B is on Sunday 2027-03-07: no work falls on Friday 2027-03-05 or Saturday 2027-03-06.
+    expect(await read(b.json().id)).toMatchObject({
+      plannedStart: '2027-03-07',
+      plannedFinish: '2027-03-07',
+    })
   })
 
   it("TC-222: a system admin changes another person's capacity, absences and calendar", async () => {

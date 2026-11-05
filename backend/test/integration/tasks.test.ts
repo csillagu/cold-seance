@@ -133,20 +133,22 @@ describe('the task service', () => {
     })
 
     it('takes the extremes of each range', async () => {
+      // The longest duration on a task with no start, which the scheduler cannot place past
+      // 9999-12-31; a start and finish on the same day on a task with no duration (SC-004).
       const task = await create({
         title: 'Edges',
-        plannedStart: '2027-02-28',
-        plannedFinish: '2027-02-28',
         durationWorkingDays: MAX_DURATION_WORKING_DAYS,
         effort: 0.5,
         aiShare: 100,
       })
       expect(task).toMatchObject({
-        plannedFinish: '2027-02-28',
         durationWorkingDays: MAX_DURATION_WORKING_DAYS,
         effort: 0.5,
         aiShare: 100,
       })
+      expect(
+        await create({ title: 'Day', plannedStart: '2027-03-01', plannedFinish: '2027-03-01' }),
+      ).toMatchObject({ plannedStart: '2027-03-01', plannedFinish: '2027-03-01' })
       expect(await create({ title: 'Leap', plannedStart: '2028-02-29', effort: 0 })).toMatchObject({
         plannedStart: '2028-02-29',
         effort: 0,
@@ -331,18 +333,22 @@ describe('the task service', () => {
         description: 'Tables and keys',
         durationWorkingDays: 5,
       })
+      // The finish follows the new duration (FR-144, SC-004): 2027-03-04 plus 5 working days.
       expect(updated).toEqual({
         ...task,
         title: 'Draft the schema',
         description: 'Tables and keys',
         durationWorkingDays: 5,
+        plannedFinish: '2027-03-10',
       })
       expect(await services.tasks.getTask(by(alice), task.id)).toEqual(updated)
     })
 
     it('clears a field given as null, so a task can be made unscheduled', async () => {
+      // The finish the scheduler derived is a planned date like the start, so it is cleared too.
       const updated = await services.tasks.updateTask(by(alice), task.id, {
         plannedStart: null,
+        plannedFinish: null,
         durationWorkingDays: null,
         effort: null,
         aiShare: null,
@@ -398,7 +404,11 @@ describe('the task service', () => {
     })
 
     it('refuses a finish before the start, whether the start or the finish is changed', async () => {
-      await services.tasks.updateTask(by(alice), task.id, { plannedFinish: '2027-03-08' })
+      // A task with no duration, whose finish is its own and not derived (FR-144, SC-004).
+      await services.tasks.updateTask(by(alice), task.id, {
+        durationWorkingDays: null,
+        plannedFinish: '2027-03-08',
+      })
       await refused(
         services.tasks.updateTask(by(alice), task.id, { plannedStart: '2027-03-09' }),
         'invalid',
@@ -565,16 +575,15 @@ describe('test cases through the REST API', () => {
       expect(read.statusCode).toBe(200)
       const task = read.json<Record<string, unknown>>()
       // "A planned finish": derived from the start and duration by the scheduler (FR-144,
-      // SC-004), so only its field is asserted until it lands. Pending, see below.
-      expect(task).toHaveProperty('plannedFinish')
-      const { plannedFinish: _derived, ...given } = task
-      expect(given).toEqual({
+      // SC-004), three working days from Monday 2027-03-01.
+      expect(task).toEqual({
         id,
         projectId: apollo,
         title: 'Write install guide',
         description: 'Steps for a fresh install',
         status: expect.any(String),
         plannedStart: '2027-03-01',
+        plannedFinish: '2027-03-03',
         durationWorkingDays: 3,
         effort: 5,
         aiShare: 0,
@@ -595,9 +604,6 @@ describe('test cases through the REST API', () => {
       // Negative: no other task is created in Apollo.
       expect(await tasksOfApollo()).toHaveLength(1)
     })
-
-    // Pending: TC-001's derived planned finish comes with the scheduler (FR-144, SC-004). This test
-    // grows to cover it when that lands.
   })
 
   describe("TC-002: a task's duration is held in whole working days", () => {
@@ -611,7 +617,12 @@ describe('test cases through the REST API', () => {
       const { id } = created.json<{ id: string }>()
 
       const read = await readTask(id)
-      expect(read.json()).toMatchObject({ durationWorkingDays: 3, plannedStart: '2027-03-04' })
+      // Three working days, Thursday, Friday and Monday, not three calendar days (FR-144, SC-004).
+      expect(read.json()).toMatchObject({
+        durationWorkingDays: 3,
+        plannedStart: '2027-03-04',
+        plannedFinish: '2027-03-08',
+      })
 
       const fractional = await app.inject({
         method: 'PATCH',
@@ -664,9 +675,6 @@ describe('test cases through the REST API', () => {
       )
       expect(properties.filter((name) => /duration/i.test(name))).toEqual(['durationWorkingDays'])
     })
-
-    // Pending: TC-002's planned finish 2027-03-08, three working days from Thursday 2027-03-04, is
-    // derived by the scheduler (FR-144, SC-004) over the global calendar (SC-008).
   })
 
   describe('TC-003: a task without planned dates is kept as unscheduled in its project', () => {
