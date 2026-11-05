@@ -1,5 +1,5 @@
 {
-  "id": "6eacc162-8dd2-4db4-b1e7-1db6b100c167",
+  "id": "d45eac30-e97f-4ff7-ae12-7dc9b31169c6",
   "prevId": "045e27a5-0ff8-40bb-878a-a5682cd95732",
   "version": "7",
   "dialect": "postgresql",
@@ -1046,11 +1046,11 @@
       "checkConstraints": {
         "project_repository_requests_decided": {
           "name": "project_repository_requests_decided",
-          "value": "(\"project_repository_requests\".\"state\" = 'requested') = (\"project_repository_requests\".\"decided_by\" is null and \"project_repository_requests\".\"decided_at\" is null)"
+          "value": "(\"project_repository_requests\".\"state\" = 'requested') = (\"project_repository_requests\".\"decided_by\" is null) and (\"project_repository_requests\".\"decided_by\" is null) = (\"project_repository_requests\".\"decided_at\" is null)"
         },
         "project_repository_requests_withdrawn": {
           "name": "project_repository_requests_withdrawn",
-          "value": "(\"project_repository_requests\".\"state\" = 'withdrawn') = (\"project_repository_requests\".\"withdrawn_by\" is not null and \"project_repository_requests\".\"withdrawn_at\" is not null)"
+          "value": "(\"project_repository_requests\".\"state\" = 'withdrawn') = (\"project_repository_requests\".\"withdrawn_by\" is not null) and (\"project_repository_requests\".\"withdrawn_by\" is null) = (\"project_repository_requests\".\"withdrawn_at\" is null)"
         }
       },
       "isRLSEnabled": false

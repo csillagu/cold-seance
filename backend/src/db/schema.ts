@@ -577,11 +577,11 @@ export const projectRepositoryRequests = pgTable(
     index('project_repository_requests_repository_id_idx').on(table.repositoryId),
     check(
       'project_repository_requests_decided',
-      sql`(${table.state} = 'requested') = (${table.decidedBy} is null and ${table.decidedAt} is null)`,
+      sql`(${table.state} = 'requested') = (${table.decidedBy} is null) and (${table.decidedBy} is null) = (${table.decidedAt} is null)`,
     ),
     check(
       'project_repository_requests_withdrawn',
-      sql`(${table.state} = 'withdrawn') = (${table.withdrawnBy} is not null and ${table.withdrawnAt} is not null)`,
+      sql`(${table.state} = 'withdrawn') = (${table.withdrawnBy} is not null) and (${table.withdrawnBy} is null) = (${table.withdrawnAt} is null)`,
     ),
   ],
 )

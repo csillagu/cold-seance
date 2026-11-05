@@ -112,9 +112,11 @@ const WRONG_STATE: Record<Decision, string> = {
  * log in the same transaction, in the project's part of it (FR-116).
  *
  * A repository that is not registered has no admin and no id in the tool, so it cannot be asked
- * for (FR-168). A rejected request, or a withdrawn approval, stays as it is; the project may ask
- * again, which makes a new request. Whether the requester may take back a request, or the project
- * remove a repository itself, is not stated, so neither is offered.
+ * for (FR-168). A rejected request, or a withdrawn approval, stays as it is. Not stated, and
+ * awaiting the owner's answer: whether the project may then ask again (it may, as a new request);
+ * whether asking again while a request waits or the repository is added is refused (it is, as a
+ * conflict); whether the requester may take back a request, or the project remove a repository
+ * itself (neither is offered).
  */
 export class ProjectRepositoryService {
   readonly #db: Database
@@ -160,6 +162,9 @@ export class ProjectRepositoryService {
               .select({ owner: repositories.owner, name: repositories.name })
               .from(repositories)
               .where(eq(repositories.id, repositoryId))
+              // Locked before the caller's admin row, in the order removing an admin locks them,
+              // so that the two cannot deadlock.
+              .for('key share')
           : []
         if (!repository) {
           throw new ServiceError(
@@ -259,7 +264,9 @@ export class ProjectRepositoryService {
 
   /**
    * Every request the project has made for a repository, and what became of it, newest first, so
-   * its members see which are still waiting. Read like the project's repositories.
+   * its members see which are still waiting (TC-249, TC-250) and the admin sees the outcome of
+   * asking (SC-081). Who may read them is not stated; they are read like the project's
+   * repositories, by every role in it, which awaits the owner's confirmation.
    */
   async listProjectRequests(caller: Caller, projectId: string): Promise<RepositoryRequest[]> {
     await this.#roles.permissions.require(caller, projectId, 'read')
@@ -269,8 +276,9 @@ export class ProjectRepositoryService {
   /**
    * The requests for the repositories the caller is an admin of, newest first, or only those in
    * the state `state`: what they are to approve, reject or withdraw. A repository's admins see
-   * every project's request for it, whether or not they hold a role in the project, since they
-   * decide on it.
+   * every project's request for it, with the project's name, whether or not they hold a role in
+   * the project, since they decide on it (UC-034, TC-249). That this lets them see a project
+   * otherwise not visible to them (FR-017) is not stated, and awaits the owner's confirmation.
    */
   async listAdminRequests(caller: Caller, state?: string): Promise<RepositoryRequest[]> {
     if (state !== undefined && !isState(state)) {

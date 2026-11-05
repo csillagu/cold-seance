@@ -234,6 +234,42 @@ describe('the project repository service', () => {
       expect(failure?.reason).toBeInstanceOf(ServiceError)
     })
 
+    it('refuses as a conflict a request that loses the race to one made at the same moment', async () => {
+      const repo = await repositoryOf(bob)
+      const projectId = await project()
+      // Another transaction has made an open request, not yet committed: the service's own check
+      // does not see it, so its insert meets the unique index and waits for the other to commit.
+      let commit = () => {}
+      const committing = new Promise<void>((resolve) => {
+        commit = resolve
+      })
+      let inserted = () => {}
+      const insertedYet = new Promise<void>((resolve) => {
+        inserted = resolve
+      })
+      const other = x.db.transaction(async (tx) => {
+        await tx
+          .insert(projectRepositoryRequests)
+          .values({ projectId, repositoryId: repo.id, state: 'requested', requestedBy: alice.id })
+        inserted()
+        await committing
+      })
+      await insertedYet
+      const losing = service.requestRepository(by(alice), projectId, repo.id).then(
+        () => undefined,
+        (e: unknown) => e,
+      )
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      commit()
+      await other
+      const error = await losing
+      expect(error).toBeInstanceOf(ServiceError)
+      expect(error).toMatchObject({
+        kind: 'conflict',
+        message: 'This project already has this repository, or a request for it waiting',
+      })
+    })
+
     it('lets the project ask again once a request was rejected or an approval withdrawn', async () => {
       const repo = await repositoryOf(bob)
       const projectId = await project()
@@ -308,6 +344,9 @@ describe('the project repository service', () => {
     })
 
     it('lets an admin withdraw an approval; the project stops pulling and keeps its tasks', async () => {
+      // The task has no repository or GitHub issue yet: assigning one (SC-036) and the issue link
+      // (SC-022) are not built, so FR-178's "every field and its link unchanged" is checked only
+      // for the fields a task has now. This module never touches tasks.
       const { repo, projectId, request } = await waiting()
       await service.approveRequest(by(bob), request.id)
       const task = await services.tasks.createTask(by(alice), projectId, { title: 'Old' })
@@ -389,6 +428,38 @@ describe('the project repository service', () => {
       const { request } = await waiting()
       await service.approveRequest({ accountId: bob.id, channel: 'mcp' }, request.id)
       expect((await entriesFor(request.id)).at(-1)?.channels).toEqual(['mcp'])
+    })
+  })
+
+  describe('the table’s checks', () => {
+    it.each([
+      ['an approval without its decider', { state: 'approved', decided: 'at' }],
+      ['an approval without its time', { state: 'approved', decided: 'by' }],
+      ['a waiting request with a decider', { state: 'requested', decided: 'by' }],
+      ['a withdrawal without its time', { state: 'withdrawn', decided: 'both', withdrawn: 'by' }],
+      ['an approval with a withdrawer', { state: 'approved', decided: 'both', withdrawn: 'by' }],
+    ] as const)('refuses %s', async (_, fields) => {
+      const repo = await repositoryOf(bob)
+      const projectId = await project()
+      const decided: string = fields.decided
+      const withdrawn: string = 'withdrawn' in fields ? fields.withdrawn : 'none'
+      const insert = x.db.insert(projectRepositoryRequests).values({
+        projectId,
+        repositoryId: repo.id,
+        requestedBy: alice.id,
+        state: fields.state,
+        decidedBy: decided === 'by' || decided === 'both' ? alice.id : null,
+        decidedAt: decided === 'at' || decided === 'both' ? new Date() : null,
+        withdrawnBy: withdrawn === 'by' ? alice.id : null,
+      })
+      // 23514: a check constraint is violated.
+      await expect(insert).rejects.toMatchObject({ cause: { code: '23514' } })
+      expect(
+        await x.db
+          .select()
+          .from(projectRepositoryRequests)
+          .where(eq(projectRepositoryRequests.projectId, projectId)),
+      ).toEqual([])
     })
   })
 
@@ -526,6 +597,17 @@ describe('test cases through the REST API', () => {
     expect(response.statusCode).toBe(201)
     return response.json<RegisteredRepository>().id
   }
+  /** A project created through the API by `creator`, as the test cases' "created by" says. */
+  async function createdBy(creator: Seeded, name: string): Promise<string> {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(creator),
+      payload: { name },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
   const ask = (account: Seeded, projectId: string, repositoryId: string) =>
     app.inject({
       method: 'POST',
@@ -589,7 +671,7 @@ describe('test cases through the REST API', () => {
   describe('TC-210: a project admin adds a repository the project pulls issues from, once approved', () => {
     it('adds tc-repo to Apollo only once bob approves, and gives bob no role in Apollo', async () => {
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
 
       // Step 1: as alice, set tc-repo as a repository Apollo pulls issues from.
       const asked = await ask(alice, apollo, repoId)
@@ -621,7 +703,7 @@ describe('test cases through the REST API', () => {
         payload: { accountId: carol.id },
       })
       expect(added.statusCode).toBe(200)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
 
       // Step 1: as alice, ask to add tc-repo to Apollo to pull its issues.
       const asked = await ask(alice, apollo, repoId)
@@ -644,7 +726,7 @@ describe('test cases through the REST API', () => {
       // not built yet: this checks what SC-110 decides, that the repository is added to Apollo,
       // for seeding as for pulling, only after bob's approval.
       const repoId = await registeredBy(bob, 'csillagu/tc-seed')
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
 
       // Step 1: as alice, ask to seed Apollo from tc-seed.
       const asked = await ask(alice, apollo, repoId)
@@ -664,7 +746,7 @@ describe('test cases through the REST API', () => {
   describe('TC-247: an unregistered repository cannot be added to a project', () => {
     it('rejects tc-repo, which has no id in the tool, and does not register it', async () => {
       github.createRepository('csillagu/tc-repo')
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
 
       // tc-repo is not offered: the registry, from which a repository is chosen, does not have it.
       const offered = await app.inject({
@@ -689,7 +771,7 @@ describe('test cases through the REST API', () => {
   describe('TC-249: an admin of both the repository and the project adds it without approval', () => {
     it('adds tc-repo to Apollo at once, with no approval pending', async () => {
       const repoId = await registeredBy(alice)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
 
       // Step 1: as alice, add tc-repo to Apollo to pull its issues.
       const added = await ask(alice, apollo, repoId)
@@ -708,7 +790,7 @@ describe('test cases through the REST API', () => {
   describe("TC-250: a repository admin rejects a project's request", () => {
     it('rejects the request; tc-repo stays out of Apollo and cannot be approved', async () => {
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
       const asked = await ask(alice, apollo, repoId)
       const requestId = asked.json<RepositoryRequest>().id
 
@@ -734,7 +816,7 @@ describe('test cases through the REST API', () => {
       // Old is a task of Apollo without them, and whether `New` can be assigned to tc-repo is
       // checked as what SC-036 will ask, whether Apollo still pulls from it.
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
       const asked = await ask(alice, apollo, repoId)
       const requestId = asked.json<RepositoryRequest>().id
       expect((await decide(bob, requestId, 'approve')).statusCode).toBe(200)
@@ -763,7 +845,7 @@ describe('test cases through the REST API', () => {
       // GitHub (SC-023) are not built yet: this checks that the withdrawal is recorded so that
       // Apollo no longer pulls from tc-repo, which is what the inbound handler will ask.
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
       const asked = await ask(alice, apollo, repoId)
       const requestId = asked.json<RepositoryRequest>().id
       expect((await decide(bob, requestId, 'approve')).statusCode).toBe(200)
@@ -783,7 +865,7 @@ describe('test cases through the REST API', () => {
     it('refuses a non-admin of the project with 403, and a caller with no role with 403 Not Visible', async () => {
       const carol = await seedAccount(x.db, { username: 'carol' })
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
       await grantRole(x.db, carol, apollo, 'read-write')
       expect((await ask(carol, apollo, repoId)).statusCode).toBe(403)
       const hidden = await ask(bob, apollo, repoId)
@@ -793,7 +875,7 @@ describe('test cases through the REST API', () => {
 
     it('refuses a decision by someone who is not the repository’s admin with 403', async () => {
       const repoId = await registeredBy(bob)
-      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const apollo = await createdBy(alice, 'Apollo')
       const requestId = (await ask(alice, apollo, repoId)).json<RepositoryRequest>().id
       expect((await decide(alice, requestId, 'approve')).statusCode).toBe(403)
       expect((await decide(alice, requestId, 'reject')).statusCode).toBe(403)

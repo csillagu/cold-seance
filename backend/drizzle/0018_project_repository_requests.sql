@@ -10,8 +10,8 @@ CREATE TABLE "project_repository_requests" (
 	"decided_at" timestamp with time zone,
 	"withdrawn_by" uuid,
 	"withdrawn_at" timestamp with time zone,
-	CONSTRAINT "project_repository_requests_decided" CHECK (("project_repository_requests"."state" = 'requested') = ("project_repository_requests"."decided_by" is null and "project_repository_requests"."decided_at" is null)),
-	CONSTRAINT "project_repository_requests_withdrawn" CHECK (("project_repository_requests"."state" = 'withdrawn') = ("project_repository_requests"."withdrawn_by" is not null and "project_repository_requests"."withdrawn_at" is not null))
+	CONSTRAINT "project_repository_requests_decided" CHECK (("project_repository_requests"."state" = 'requested') = ("project_repository_requests"."decided_by" is null) and ("project_repository_requests"."decided_by" is null) = ("project_repository_requests"."decided_at" is null)),
+	CONSTRAINT "project_repository_requests_withdrawn" CHECK (("project_repository_requests"."state" = 'withdrawn') = ("project_repository_requests"."withdrawn_by" is not null) and ("project_repository_requests"."withdrawn_by" is null) = ("project_repository_requests"."withdrawn_at" is null))
 );
 --> statement-breakpoint
 ALTER TABLE "project_repository_requests" ADD CONSTRAINT "project_repository_requests_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
