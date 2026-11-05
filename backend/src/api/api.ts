@@ -11,6 +11,7 @@ import { openApiDescription } from './openapi.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRepositoryRoutes, repositoryRequestRoutes } from './project-repositories.ts'
 import { projectRoutes } from './projects.ts'
+import { receivingProjectRoutes } from './receiving-projects.ts'
 import { repositoryRoutes } from './repositories.ts'
 import { sessionRoutes } from './session.ts'
 import { taskRelationRoutes } from './task-relations.ts'
@@ -57,6 +58,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
   { prefix: '/projects', routes: projectRepositoryRoutes },
+  { prefix: '/projects', routes: receivingProjectRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/repository-requests', routes: repositoryRequestRoutes },
   { prefix: '/tasks', routes: taskRoutes },
