@@ -8,6 +8,7 @@ import { CalendarService } from './calendars.ts'
 import { DailyPersonLoadService } from './daily-person-load.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
+import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
@@ -73,6 +74,11 @@ export interface ServiceOptions {
    * every registration as GitHub being unavailable.
    */
   github?: RepositoryReach
+  /**
+   * Told of each task whose planning, as it is mirrored to GitHub, changed: the GitHub planning
+   * mirror (SC-022). Without it, nothing is mirrored.
+   */
+  planningChanges?: PlanningChanges
 }
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -88,6 +94,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const groups = new GroupService(db, audit, projectRoles)
   const projectRepositories = new ProjectRepositoryService(db, audit, projectRoles)
   const calendars = new CalendarService(db, audit, projectRoles)
+  const changes = options.planningChanges
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -95,7 +102,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     baselines: new BaselineService(db, audit, projectRoles),
     calendars,
     dailyLoad: new DailyPersonLoadService(db, viewFilter, calendars),
-    githubLinks: new GitHubLinkService(db, audit),
+    githubLinks: new GitHubLinkService(db, audit, changes),
     groups,
     projectRepositories,
     projectRoles,
@@ -104,9 +111,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
-    tasks: new TaskService(db, audit, projectRoles),
-    taskCancellation: new TaskCancellationService(db, audit, projectRoles),
-    taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter),
+    tasks: new TaskService(db, audit, projectRoles, changes),
+    taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),
+    taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter, changes),
     taskRepository: new TaskRepositoryService(db, audit, projectRoles, projectRepositories),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     viewFilter,

@@ -5,6 +5,7 @@ import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
+import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { refreshRedFlags } from './red-flags.ts'
@@ -67,12 +68,20 @@ export class TaskCancellationService {
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #scheduling: PlanScheduling
+  readonly #changes: PlanningChanges
 
-  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
+  /** `changes` is told of the tasks whose blockers a cancellation passed on (SC-022). */
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    roles: ProjectRoleService,
+    changes: PlanningChanges = NO_PLANNING_CHANGES,
+  ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
     this.#scheduling = new PlanScheduling(audit)
+    this.#changes = changes
   }
 
   /**
@@ -83,7 +92,8 @@ export class TaskCancellationService {
    * another project.
    */
   async cancel(caller: Caller, taskId: string): Promise<Task> {
-    return this.#db.transaction(async (tx) => {
+    let passedOn: string[] = []
+    const cancelled = await this.#db.transaction(async (tx) => {
       // Whoever may not cancel the task is refused before the relations lock, which is one for the
       // whole tool, so that they cannot hold it up; the check is made again once the task is
       // locked, against what it is then. A task never changes project.
@@ -120,6 +130,7 @@ export class TaskCancellationService {
       for (const task of blocked) {
         await this.#passOn(tx, caller, current.id, task, blockers)
       }
+      passedOn = blocked.map((task) => task.id)
       await this.#scheduling.reschedule(
         tx,
         caller,
@@ -130,6 +141,8 @@ export class TaskCancellationService {
       await refreshRedFlags(tx)
       return this.#out(tx, updated)
     })
+    this.#changes.changed(passedOn)
+    return cancelled
   }
 
   /**

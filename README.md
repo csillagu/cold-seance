@@ -122,6 +122,10 @@ The backend calls GitHub only through the GitHub client (SC-106, `backend/src/gi
 
 A classic token without the scope a call needs may be answered with a 404 rather than a 403 on a repository it can read; the client then reports a `GitHubRequestError` with status 404, not that the token cannot reach the repository.
 
+### GitHub planning mirror
+
+The GitHub planning mirror (SC-022, `backend/src/github/planning-mirror.ts`) keeps the planning of each task's linked issue (the `task_issues` table) identical to the task (FR-089): its assignees, leaving off people with no linked GitHub account (FR-090); its parent, as the issue's parent issue; its blockers, as the issue's blocked-by relations; and a fixed-date milestone's date, as the due date of a GitHub milestone of its own that the issue is in, titled after the task and its issue number. A relation with a task that has no issue is left off GitHub, and one GitHub holds that the tool does not is removed. The service layer tells it of each change once it is committed, and it mirrors the changed tasks one at a time in the background; what fails is logged, for the re-check to put right (DD-051). The issues of tasks a project kept after its approval for their repository was withdrawn are left alone (FR-182).
+
 ### Database schema
 
 The schema is TypeScript in `backend/src/db/schema.ts` (DD-057). Each backend block adds its tables there, exported, since drizzle-kit sees only exported tables. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`, together with the change: a migration exists only as the change of the schema it is generated from, so write none by hand and edit none that is committed. If drizzle-kit asks whether a column or table was renamed, it needs a terminal to answer in.

@@ -12,6 +12,7 @@ import {
 } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
+import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
 import type { Caller } from './caller.ts'
 import { isDate } from './dates.ts'
 import { ServiceError } from './errors.ts'
@@ -248,13 +249,21 @@ export class TaskService {
   readonly #roles: ProjectRoleService
   readonly #assignments: TaskAssignments
   readonly #scheduling: PlanScheduling
+  readonly #changes: PlanningChanges
 
-  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
+  /** `changes` is told of each task whose assignees or fixed date an edit changed (SC-022). */
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    roles: ProjectRoleService,
+    changes: PlanningChanges = NO_PLANNING_CHANGES,
+  ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
     this.#assignments = new TaskAssignments(roles)
     this.#scheduling = new PlanScheduling(audit)
+    this.#changes = changes
   }
 
   /**
@@ -322,7 +331,8 @@ export class TaskService {
    * tasks that depend on it again (SC-004).
    */
   async updateTask(caller: Caller, taskId: string, changes: TaskInput): Promise<Task> {
-    return this.#db.transaction(async (tx) => {
+    let mirrored = false
+    const task = await this.#db.transaction(async (tx) => {
       // The role is checked before the task is locked, so that someone who may not edit it
       // cannot hold it up; then the plan and the task are locked, so that two edits of one task
       // cannot each check against what the other changes, and the scheduling sees every change of
@@ -364,6 +374,7 @@ export class TaskService {
       // The scheduler can set back what the edit gave, such as the start of a task its blockers
       // set: then nothing changed.
       if (changed.length === 0) return this.#out(tx, updated)
+      mirrored = changed.some((field) => MIRRORED_FIELDS.has(field))
       await this.#audit.record(tx, caller, {
         action: 'task.updated',
         subject: { type: 'task', id: taskId },
@@ -372,6 +383,8 @@ export class TaskService {
       })
       return this.#out(tx, updated)
     })
+    if (mirrored) this.#changes.changed([taskId])
+    return task
   }
 
   /**
@@ -518,6 +531,9 @@ function only<F extends TaskFields & Assignment>(
 ): Record<string, unknown> {
   return Object.fromEntries(keys.map((key) => [key, fields[key]]))
 }
+
+/** The fields whose change the GitHub planning mirror carries to the task's issue (SC-022). */
+const MIRRORED_FIELDS: ReadonlySet<string> = new Set(['assignees', 'milestoneDate'])
 
 /** The fields whose change schedules the task again (SC-004). */
 const SCHEDULED_FIELDS: ReadonlySet<string> = new Set([

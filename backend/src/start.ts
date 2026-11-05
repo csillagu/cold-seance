@@ -6,7 +6,8 @@ import { loadConfig, type Config, type LoadConfigOptions } from './config/config
 import { createDatabase, type Database } from './db/client.ts'
 import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
-import { createGitHubClient } from './github/client.ts'
+import { createGitHubClient, type GitHubClient } from './github/client.ts'
+import { GitHubPlanningMirror } from './github/planning-mirror.ts'
 import { gitHubRepositoryReach } from './github/repository-reach.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
 import { createServices } from './service/services.ts'
@@ -49,11 +50,22 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   }
   const frontendDir = options.frontendDir ?? defaultFrontendDir
   const servesFrontend = hasFrontend(frontendDir)
-  // The GitHub client is built when the tool first asks GitHub something (SC-106, SC-019).
-  const services = createServices(db, {
-    github: gitHubRepositoryReach(() => createGitHubClient(config.github)),
+  // The GitHub client is built when the tool first asks GitHub something (SC-106, SC-019), once
+  // for the registry and the planning mirror together.
+  let client: GitHubClient | undefined
+  const github = () => (client ??= createGitHubClient(config.github))
+  // The mirror's failures are logged; the re-check puts them right (SC-022, DD-051). The app's log
+  // is there by the time the mirror first runs, after a request has changed a task.
+  let app: FastifyInstance | undefined
+  const planningMirror = new GitHubPlanningMirror(db, github, {
+    onError: (error, taskId) =>
+      app?.log.error({ err: error, taskId }, "A task's planning could not be mirrored to GitHub"),
   })
-  const app = buildApp(
+  const services = createServices(db, {
+    github: gitHubRepositoryReach(github),
+    planningChanges: planningMirror,
+  })
+  app = buildApp(
     options.server,
     // Each channel's own way of saying who makes a request: the API tokens (SC-055) and the
     // browser's session cookie (SC-107). A token is asked first, so a token that does not work is
@@ -71,6 +83,8 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   // Vite serves it; in the Docker image the frontend is always there.
   if (!servesFrontend) app.log.warn(`No built frontend in ${frontendDir}; only the API is served`)
   if (firstAdmin === 'created') app.log.info('The first system admin was created')
+  // What the mirror is doing is finished before the database pool closes.
+  app.addHook('onClose', () => planningMirror.idle())
   app.addHook('onClose', close)
   return { config, db, app }
 }
