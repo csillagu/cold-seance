@@ -19,6 +19,7 @@ import { TaskRepositoryService } from './task-repository.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
 import { ViewReadFilter } from './view-filter.ts'
+import { ViolationService } from './violations.ts'
 
 /**
  * The one service layer (DD-039): every module of it, over one database. The REST API, and later
@@ -53,6 +54,8 @@ export interface Services {
   taskStatus: TaskStatusService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
+  /** The violations shown in red at milestones and dependencies (SC-007). */
+  violations: ViolationService
 }
 
 /** What the service layer can be given besides its database. */
@@ -99,5 +102,6 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     taskRepository: new TaskRepositoryService(db, audit, projectRoles, projectRepositories),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     viewFilter,
+    violations: new ViolationService(db, projectRoles),
   }
 }
