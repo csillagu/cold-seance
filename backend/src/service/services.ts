@@ -9,6 +9,7 @@ import { GroupService, groupRoles } from './groups.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ReceivingProjectService } from './receiving-projects.ts'
 import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
@@ -35,6 +36,8 @@ export interface Services {
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** Each repository's one receiving project (SC-111). */
+  receivingProjects: ReceivingProjectService
   /** The registered GitHub repositories and their admins (SC-019). */
   repositories: RepositoryService
   sessions: SessionService
@@ -82,6 +85,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
+    receivingProjects: new ReceivingProjectService(db, audit, projectRoles, projectRepositories),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
     tasks: new TaskService(db, audit, projectRoles),
