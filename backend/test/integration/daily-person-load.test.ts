@@ -521,8 +521,9 @@ describe('test cases through the REST API', () => {
         ['2027-03-02', 0, 10],
         ['2027-03-03', 100, 10],
       ])
-      // Marking alice overloaded on 2027-03-02 (load above capacity), and not on the other days,
-      // is FR-042's, which SC-040 delivers; it is pending there.
+      // alice is marked overloaded on 2027-03-02, her load above her capacity, and on no other day
+      // (FR-042, SC-040).
+      expect(load.days.map((d) => d.overloaded)).toEqual([false, true, false])
     })
   })
 })

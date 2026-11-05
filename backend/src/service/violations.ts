@@ -1,4 +1,4 @@
-import { and, asc, eq, ne, or } from 'drizzle-orm'
+import { and, asc, eq, ne, or, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { Database, Executor } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
@@ -129,9 +129,24 @@ function endColumns(table: typeof blocked | typeof blocker) {
  * milestones, of its tasks that depend on another project's milestone, and of other projects'
  * tasks that depend on one of its milestones (FR-147). A cancelled task is out of the plan, so
  * a dependency of one is not checked. In the order the dependent tasks were created, then the
- * order the relations were made. For the red flag register (SC-043) as well as the service below.
+ * order the relations were made.
  */
 export async function violationsIn(executor: Executor, projectId: string): Promise<Violation[]> {
+  return violationsWhere(
+    executor,
+    or(eq(blocked.projectId, projectId), eq(blocker.projectId, projectId)),
+  )
+}
+
+/**
+ * Every violation in every project, in the order `violationsIn` gives them: for the red flag
+ * register (SC-043).
+ */
+export async function everyViolation(executor: Executor): Promise<Violation[]> {
+  return violationsWhere(executor, undefined)
+}
+
+async function violationsWhere(executor: Executor, scope: SQL | undefined): Promise<Violation[]> {
   const rows = await executor
     .select({ task: endColumns(blocked), blocker: endColumns(blocker) })
     .from(taskBlockedBy)
@@ -139,7 +154,7 @@ export async function violationsIn(executor: Executor, projectId: string): Promi
     .innerJoin(blocker, eq(blocker.id, taskBlockedBy.blockerId))
     .where(
       and(
-        or(eq(blocked.projectId, projectId), eq(blocker.projectId, projectId)),
+        scope,
         or(eq(blocked.milestoneVariant, 'fixed-date'), ne(blocked.projectId, blocker.projectId)),
         ne(blocked.status, 'cancelled'),
         ne(blocker.status, 'cancelled'),

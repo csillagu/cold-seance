@@ -11,6 +11,7 @@ import {
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
+import { refreshRedFlags } from './red-flags.ts'
 import { isSystemAdmin, isUuid } from './system-admins.ts'
 import { isDate } from './tasks.ts'
 import { DEFAULT_WEEKEND_DAYS } from './working-days.ts'
@@ -159,6 +160,7 @@ export class CalendarService {
           subject: { type: 'global-calendar', id: 'global' },
           details,
         })
+        await refreshRedFlags(tx)
       }
       return readGlobalCalendar(tx)
     })
@@ -222,6 +224,7 @@ export class CalendarService {
           subject: { type: 'account', id: accountId },
           details,
         })
+        await refreshRedFlags(tx)
       }
       return { accountId, holidays: await readPersonalHolidays(tx, accountId) }
     })
@@ -274,6 +277,7 @@ export class CalendarService {
           subject: { type: 'account', id: accountId },
           details: { capacity, previous: previous.capacity },
         })
+        await refreshRedFlags(tx)
       }
       return { accountId, capacity }
     })
@@ -319,6 +323,7 @@ export class CalendarService {
         subject: { type: 'absence', id: created.id },
         details: { accountId, from, to },
       })
+      await refreshRedFlags(tx)
       return created
     })
   }
@@ -338,6 +343,7 @@ export class CalendarService {
         subject: { type: 'absence', id: removed.id },
         details: { accountId, from: removed.from, to: removed.to },
       })
+      await refreshRedFlags(tx)
     })
   }
 

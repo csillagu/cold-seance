@@ -3,12 +3,13 @@ import type { Database } from '../db/client.ts'
 import { absences, accounts, taskAssignees, tasks } from '../db/schema.ts'
 import { assigneesColumn } from './assignment.ts'
 import type { Caller } from './caller.ts'
+import { isDate } from './dates.ts'
 import { ServiceError } from './errors.ts'
 import { readCalendars } from './plan-scheduling.ts'
+import { isOverloaded } from './overloads.ts'
 import { taskPersonLoad } from './person-load.ts'
 import { type Calendars, forbiddenDatesOf } from './scheduler.ts'
 import { isUuid } from './system-admins.ts'
-import { isDate } from './tasks.ts'
 import { fromDay, toDay } from './working-days.ts'
 import type { ViewReadFilter } from './view-filter.ts'
 
@@ -36,6 +37,12 @@ export interface DayLoad {
    * otherwise; `null` for a viewer who may not read the person's capacity.
    */
   capacity: number | null
+  /**
+   * Whether the person is overloaded that day: their load is above their capacity (FR-042,
+   * SC-040). `null` for a viewer who may not read the person's capacity, as it would tell them
+   * something of it.
+   */
+  overloaded: boolean | null
 }
 
 /** A person's load over a span of days. */
@@ -83,7 +90,8 @@ export interface LoadInputs {
  * them that are not its forbidden dates (the owner's decision of 2026-11-05), and on each it puts
  * its whole percentage, or the person's override, on the person (FR-034). The tasks behind the
  * load are given for the projects in `readable`, and the rest only as a percentage (FR-046). The
- * person's capacity is 0 on each day of their absences (FR-151).
+ * person's capacity is 0 on each day of their absences (FR-151). Each day on which the load is above
+ * the capacity is marked overloaded (FR-042, SC-040), if the capacity is given.
  */
 export function dailyLoads(from: string, to: string, inputs: LoadInputs): DayLoad[] {
   const first = toDay(from)
@@ -96,6 +104,7 @@ export function dailyLoads(from: string, to: string, inputs: LoadInputs): DayLoa
       tasks: [],
       otherProjects: 0,
       capacity: inputs.capacity,
+      overloaded: null,
     })
   }
   /** The entries of the days from `start` to `finish` inside the span, each with its day. */
@@ -127,6 +136,9 @@ export function dailyLoads(from: string, to: string, inputs: LoadInputs): DayLoa
     for (const absence of inputs.absences) {
       for (const { entry } of within(absence.from, absence.to)) entry.capacity = 0
     }
+  }
+  for (const entry of days) {
+    if (entry.capacity !== null) entry.overloaded = isOverloaded(entry.load, entry.capacity)
   }
   return days
 }

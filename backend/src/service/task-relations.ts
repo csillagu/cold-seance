@@ -6,6 +6,7 @@ import type { Caller } from './caller.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import { ServiceError } from './errors.ts'
 import type { ProjectRoleService } from './project-roles.ts'
+import { refreshRedFlags } from './red-flags.ts'
 import { isUuid } from './system-admins.ts'
 import type { ViewReadFilter } from './view-filter.ts'
 
@@ -247,6 +248,7 @@ export class TaskRelationService {
         action,
         taskId: task.id,
       })
+      await refreshRedFlags(tx)
       return this.#relationsOf(caller, tx, await this.#find(taskId, tx))
     })
   }

@@ -13,6 +13,7 @@ import {
 import type { AuditLogService } from './audit.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import type { Caller } from './caller.ts'
+import { isDate } from './dates.ts'
 import { ServiceError } from './errors.ts'
 import type { TaskStatus } from './permissions.ts'
 import {
@@ -22,6 +23,7 @@ import {
   validAiOnlyLoad,
 } from './person-load.ts'
 import type { ProjectRoleService } from './project-roles.ts'
+import { refreshRedFlags } from './red-flags.ts'
 import { isUuid } from './system-admins.ts'
 import { toDay } from './working-days.ts'
 
@@ -289,6 +291,7 @@ export class TaskService {
       await this.#assignments.store(tx, created.id, assignment)
       const cause = { action: 'task.created', taskId: created.id }
       await this.#scheduling.reschedule(tx, caller, projectId, [created.id], cause, created.id)
+      await refreshRedFlags(tx)
       const scheduled = await this.#find(created.id, tx, false)
       await this.#audit.record(tx, caller, {
         action: 'task.created',
@@ -353,6 +356,7 @@ export class TaskService {
         const cause = { action: 'task.updated', taskId }
         await this.#scheduling.reschedule(tx, caller, current.projectId, [taskId], cause, taskId)
       }
+      await refreshRedFlags(tx)
       const updated = await this.#find(taskId, tx, false)
       const changed = [...FIELDS, ...ASSIGNMENT_FIELDS].filter(
         (field) => !same(updated[field], current[field]),
@@ -723,18 +727,4 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-/** Whether `value` is a calendar date, `YYYY-MM-DD`, from year 1 to 9999. */
-export function isDate(value: unknown): value is string {
-  if (typeof value !== 'string') return false
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return false
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  if (year < 1) return false
-  const date = new Date(0)
-  date.setUTCFullYear(year, month - 1, day)
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  )
-}
+export { isDate }
