@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { taskIssues } from '../../src/db/schema.ts'
@@ -14,10 +15,10 @@ import { grantRole } from '../helpers/projects.ts'
 
 // The GitHub planning mirror (SC-022) against a real PostgreSQL and a fake GitHub: the test cases
 // of FR-089 and FR-090 through the REST API, then the mirror's edges through the service layer.
-// The GitHub issue creator (SC-060) is not built yet, so each task's issue is opened on the fake
-// GitHub and linked to the task here, as the test cases' "so it has issue #1" describes. Each
-// change is mirrored at once, in the background; the tests wait for the mirror to be idle, well
-// within the hour the test cases allow.
+// Each task gets its issue as the test cases' "so it has issue #1" describes: it is assigned to the
+// repository, and the GitHub issue creator (SC-060) opens it. Each change is mirrored at once, in
+// the background; the tests wait for the mirror to be idle, well within the hour the test cases
+// allow.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -48,6 +49,14 @@ async function deploy(): Promise<Deployment> {
   const alice = await seedAccount(x.db, { username: 'alice' })
   const bob = await seedAccount(x.db, { username: 'bob' })
   return { x, github, mirror, services, app, errors, alice, bob }
+}
+
+/** The issue the GitHub issue creator (SC-060) opened for the task, once the mirror is idle. */
+async function issueOf(d: Deployment, taskId: string, fullName: string): Promise<FakeIssue> {
+  await d.mirror.idle()
+  const [link] = await d.x.db.select().from(taskIssues).where(eq(taskIssues.taskId, taskId))
+  if (!link) throw new Error('The task has no issue')
+  return d.github.issues.issue(fullName, link.number)
 }
 
 describe('test cases through the REST API', () => {
@@ -116,11 +125,7 @@ describe('test cases through the REST API', () => {
       payload: { repositoryId: repo },
     })
     expect(assigned.statusCode).toBe(200)
-    const issue = d.github.issues.createIssue('csillagu/tc-repo')
-    await d.x.db
-      .insert(taskIssues)
-      .values({ taskId: task.id, repositoryId: repo, number: issue.number, githubId: issue.id })
-    return { task, issue }
+    return { task, issue: await issueOf(d, task.id, 'csillagu/tc-repo') }
   }
 
   const linkGitHub = (account: Seeded, login: string) =>
@@ -321,14 +326,7 @@ describe('the GitHub planning mirror', () => {
       ...fields,
     })
     await d.services.taskRepository.assignRepository(by(d.alice), task.id, setup.repo.id)
-    const issue = d.github.issues.createIssue(setup.full)
-    await d.x.db.insert(taskIssues).values({
-      taskId: task.id,
-      repositoryId: setup.repo.id,
-      number: issue.number,
-      githubId: issue.id,
-    })
-    return { id: task.id, issue }
+    return { id: task.id, issue: await issueOf(d, task.id, setup.full) }
   }
 
   it('takes a subtask off its parent issue when it is no longer a subtask', async () => {
@@ -441,6 +439,8 @@ describe('the GitHub planning mirror', () => {
       s.projectId,
     )
     await d.services.projectRepositories.withdrawApproval(by(d.alice), request?.id ?? '')
+    // What the creator and the mirror asked when the issue was opened is not of this test.
+    d.github.requests.length = 0
 
     await d.services.tasks.updateTask(by(d.alice), kept.id, { assignees: [d.alice.id] })
     await d.mirror.mirrorAll()

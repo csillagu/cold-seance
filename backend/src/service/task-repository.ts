@@ -5,6 +5,7 @@ import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
+import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
 import type { ProjectRepositoryService } from './project-repositories.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
@@ -35,8 +36,10 @@ export const NOT_PULLED_MESSAGE =
  * assigned to changes nothing, as long as the project still pulls from it. A task keeps its
  * repository when the project stops pulling from it (FR-178), but cannot be assigned to it again
  * from then on, since FR-141 allows only a repository the project pulls from. Creating the task's
- * GitHub issue once it is assigned (SRC-168) is the GitHub planning mirror's business (SC-022,
- * SC-060), not this one's.
+ * GitHub issue once it is assigned (SRC-168, FR-088) is the GitHub issue creator's business
+ * (SC-060), which it tells of each assignment once committed, through the planning mirror.
+ * A task that has an issue already keeps it when assigned to another repository; no second issue
+ * is created.
  */
 export class TaskRepositoryService {
   readonly #db: Database
@@ -44,18 +47,22 @@ export class TaskRepositoryService {
   readonly #roles: ProjectRoleService
   readonly #projectRepositories: ProjectRepositoryService
   readonly #assignments: TaskAssignments
+  readonly #changes: PlanningChanges
 
+  /** `changes` is told of each task assigned to a repository, for its issue (SC-060). */
   constructor(
     db: Database,
     audit: AuditLogService,
     roles: ProjectRoleService,
     projectRepositories: ProjectRepositoryService,
+    changes: PlanningChanges = NO_PLANNING_CHANGES,
   ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
     this.#projectRepositories = projectRepositories
     this.#assignments = new TaskAssignments(roles)
+    this.#changes = changes
   }
 
   /**
@@ -65,7 +72,7 @@ export class TaskRepositoryService {
    * and as invalid unless the task's project pulls issues from the repository.
    */
   async assignRepository(caller: Caller, taskId: string, repositoryId: unknown): Promise<Task> {
-    return this.#db.transaction(async (tx) => {
+    const assigned = await this.#db.transaction(async (tx) => {
       // The role is checked before the task is locked, so that someone who may not assign it
       // cannot hold it up; a task never changes project, so the check still holds once it is.
       const found = await this.#find(tx, taskId, false)
@@ -98,6 +105,8 @@ export class TaskRepositoryService {
       })
       return this.#out(tx, updated)
     })
+    this.#changes.changed([taskId])
+    return assigned
   }
 
   #out(executor: Executor, row: TaskRow): Promise<Task> {

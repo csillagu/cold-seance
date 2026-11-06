@@ -60,8 +60,9 @@ const linked = { id: tasks.id, projectId: tasks.projectId } as const
  * the same transaction (SC-004).
  *
  * What else cancelling does is the business of the modules that read a task's status: freeing its
- * load (FR-127, SC-006), showing it in a column for cancelled tasks (FR-129) and closing its GitHub
- * issue as not planned (FR-130, SC-061).
+ * load (FR-127, SC-006) and showing it in a column for cancelled tasks (FR-129). Closing its GitHub
+ * issue as not planned (FR-130) is the not-planned closer's (SC-061), which it tells of the
+ * cancellation once committed, through the planning mirror.
  */
 export class TaskCancellationService {
   readonly #db: Database
@@ -70,7 +71,10 @@ export class TaskCancellationService {
   readonly #scheduling: PlanScheduling
   readonly #changes: PlanningChanges
 
-  /** `changes` is told of the tasks whose blockers a cancellation passed on (SC-022). */
+  /**
+   * `changes` is told of the cancelled task (SC-061) and of the tasks whose blockers a
+   * cancellation passed on (SC-022).
+   */
   constructor(
     db: Database,
     audit: AuditLogService,
@@ -92,7 +96,9 @@ export class TaskCancellationService {
    * another project.
    */
   async cancel(caller: Caller, taskId: string): Promise<Task> {
-    let passedOn: string[] = []
+    // The cancelled task, for its issue to be closed as not planned (SC-061), and the tasks its
+    // blockers were passed on to, for their blocked-by relations.
+    let changed: string[] = []
     const cancelled = await this.#db.transaction(async (tx) => {
       // Whoever may not cancel the task is refused before the relations lock, which is one for the
       // whole tool, so that they cannot hold it up; the check is made again once the task is
@@ -130,7 +136,7 @@ export class TaskCancellationService {
       for (const task of blocked) {
         await this.#passOn(tx, caller, current.id, task, blockers)
       }
-      passedOn = blocked.map((task) => task.id)
+      changed = [current.id, ...blocked.map((task) => task.id)]
       await this.#scheduling.reschedule(
         tx,
         caller,
@@ -141,7 +147,7 @@ export class TaskCancellationService {
       await refreshRedFlags(tx)
       return this.#out(tx, updated)
     })
-    this.#changes.changed(passedOn)
+    this.#changes.changed(changed)
     return cancelled
   }
 
