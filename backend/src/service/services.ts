@@ -6,6 +6,7 @@ import { AuditLogService } from './audit.ts'
 import { BaselineService } from './baselines.ts'
 import { CalendarService } from './calendars.ts'
 import { DailyPersonLoadService } from './daily-person-load.ts'
+import { GanttExportService } from './gantt-export.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
 import type { PlanningChanges } from './planning-changes.ts'
@@ -39,6 +40,8 @@ export interface Services {
   calendars: CalendarService
   /** Each person's load on each day, across all projects (SC-006). */
   dailyLoad: DailyPersonLoadService
+  /** A project's Gantt exported as a Mermaid gantt chart for GitHub markdown (SC-021). */
+  ganttExport: GanttExportService
   githubLinks: GitHubLinkService
   groups: GroupService
   /** Which projects pull issues from which repositories, with their requests (SC-110). */
@@ -102,6 +105,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     baselines: new BaselineService(db, audit, projectRoles),
     calendars,
     dailyLoad: new DailyPersonLoadService(db, viewFilter, calendars),
+    ganttExport: new GanttExportService(db, projectRoles),
     githubLinks: new GitHubLinkService(db, audit, changes),
     groups,
     projectRepositories,

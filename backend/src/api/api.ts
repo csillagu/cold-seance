@@ -7,6 +7,7 @@ import { baselineRoutes, projectBaselineRoutes } from './baselines.ts'
 import { availabilityRoutes, globalCalendarRoutes } from './calendars.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
+import { ganttExportRoutes } from './gantt-export.ts'
 import { groupRoutes } from './groups.ts'
 import { openApiDescription } from './openapi.ts'
 import { personLoadRoutes } from './person-load.ts'
@@ -60,6 +61,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/baselines', routes: baselineRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
+  { prefix: '/projects', routes: ganttExportRoutes },
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
