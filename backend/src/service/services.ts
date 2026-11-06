@@ -22,6 +22,7 @@ import { TaskRelationService } from './task-relations.ts'
 import { TaskRepositoryService } from './task-repository.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
+import { VarianceService } from './variance.ts'
 import { ViewReadFilter } from './view-filter.ts'
 import { ViolationService } from './violations.ts'
 
@@ -62,6 +63,8 @@ export interface Services {
   /** Which repository a task is assigned to (SC-036). */
   taskRepository: TaskRepositoryService
   taskStatus: TaskStatusService
+  /** Each task's variance against a baseline, computed when asked (SC-044). */
+  variance: VarianceService
   /** The filter every view passes the tasks it would show through (SC-050). */
   viewFilter: ViewReadFilter
   /** The violations shown in red at milestones and dependencies (SC-007). */
@@ -120,6 +123,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter, changes),
     taskRepository: new TaskRepositoryService(db, audit, projectRoles, projectRepositories),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
+    variance: new VarianceService(db, projectRoles),
     viewFilter,
     violations: new ViolationService(db, projectRoles),
   }

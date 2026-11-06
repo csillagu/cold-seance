@@ -26,7 +26,7 @@ Verify that variance is computed per task and per milestone as the current plan 
 
 - Baseline `v1` itself is unchanged.
 
-These dates stay within one working week so that calendar days and working days give the same figure. Not stated: which of the two variance is counted in.
+These dates stay within one working week, so calendar days and working days give the same figure. Variance is counted in working days of the global calendar (FR-066).
 
 ## Cleanup
 

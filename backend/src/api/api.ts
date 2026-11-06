@@ -27,6 +27,7 @@ import {
   taskStatusRoutes,
 } from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
+import { varianceRoutes } from './variance.ts'
 import { violationRoutes } from './violations.ts'
 
 /** Where the REST API is served. */
@@ -59,6 +60,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/accounts', routes: personLoadRoutes },
   { prefix: '/audit-log', routes: auditLogRoutes },
   { prefix: '/baselines', routes: baselineRoutes },
+  { prefix: '/baselines', routes: varianceRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
   { prefix: '/projects', routes: ganttExportRoutes },
