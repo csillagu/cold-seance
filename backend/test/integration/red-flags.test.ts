@@ -467,8 +467,8 @@ describe('TC-031: a red overload flag clears once the overload is gone', () => {
 })
 
 describe('TC-044: two 50% AI tasks on the same days fit one full-time person', () => {
-  // The rest of the test case, alice's load per day, is in person-load.test.ts. Pending: the
-  // person load view is the person load chart's (SC-032).
+  // The rest of the test case, the load each task puts on alice, is in person-load.test.ts.
+  // Pending: the person load view is the person load chart's (SC-032).
   it('leaves alice not overloaded on any day of the week, and neither task red', async () => {
     const apollo = await seedProject(x.db, alice, 'Apollo')
     const task = {

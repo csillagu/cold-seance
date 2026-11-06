@@ -59,7 +59,7 @@ describe('test cases of the roles on tasks through the REST API', () => {
     x.db.update(tasks).set(fields).where(eq(tasks.id, id))
 
   describe('TC-155: every edit from a read-only member is rejected', () => {
-    it("rejects bob's rename, start, new task and assignment, leaving T as it was", async () => {
+    it("rejects bob's rename, start, new task, cancellation and assignment, leaving T as it was", async () => {
       const bob = await seedAccount(x.db, { username: 'bob' })
       await grantRole(x.db, bob, apollo, 'read-only')
       const t = await createTask({ title: 'Draft' })
@@ -68,6 +68,7 @@ describe('test cases of the roles on tasks through the REST API', () => {
         await request(bob, 'PATCH', `/tasks/${t}`, { title: 'Mine' }),
         await request(bob, 'PUT', `/tasks/${t}/status`, { status: 'in-progress' }),
         await request(bob, 'POST', `/projects/${apollo}/tasks`, { title: 'New' }),
+        await request(bob, 'POST', `/tasks/${t}/cancel`),
         await request(bob, 'PATCH', `/tasks/${t}`, { assignees: [bob.id] }),
       ]
       for (const response of edits) expect(response.statusCode).toBe(403)
@@ -82,9 +83,6 @@ describe('test cases of the roles on tasks through the REST API', () => {
         assignees: [],
       })
     })
-
-    // Pending: the TC's "delete T". No SC in the plan deletes a task (tasks are cancelled, SC-038),
-    // so there is no deletion to try yet.
   })
 
   describe('TC-156: a contributor sets the status of a task they are assigned to', () => {
@@ -111,7 +109,7 @@ describe('test cases of the roles on tasks through the REST API', () => {
   })
 
   describe('TC-157: every other edit from a contributor is rejected', () => {
-    it("rejects carol's rename, starting another's task and reopening a finished one", async () => {
+    it("rejects carol's rename, starting another's task, cancelling her own and reopening a finished one", async () => {
       const carol = await seedAccount(x.db, { username: 'carol' })
       await grantRole(x.db, carol, apollo, 'contributor')
       const mine = await createTask({ title: 'Mine', assignees: [carol.id] })
@@ -122,17 +120,17 @@ describe('test cases of the roles on tasks through the REST API', () => {
       const edits = [
         await request(carol, 'PATCH', `/tasks/${mine}`, { title: 'Renamed' }),
         await request(carol, 'PUT', `/tasks/${others}/status`, { status: 'in-progress' }),
+        await request(carol, 'POST', `/tasks/${mine}/cancel`),
         await request(carol, 'PUT', `/tasks/${closed}/status`, { status: 'in-progress' }),
       ]
       for (const response of edits) expect(response.statusCode).toBe(403)
 
-      // Negative: Mine keeps its title; Others is not started; Closed is still done.
+      // Negative: Mine keeps its title and is not cancelled; Others is not started; Closed is
+      // still done.
       expect(await readTask(mine)).toMatchObject({ title: 'Mine', status: 'not-started' })
       expect((await readTask(others)).status).toBe('not-started')
       expect((await readTask(closed)).status).toBe('done')
     })
-
-    // Pending: the TC's "cancel Mine" comes with task cancellation (SC-038).
   })
 
   describe('TC-158: a read-write member edits tasks, plans and assignments', () => {

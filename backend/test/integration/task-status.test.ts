@@ -450,6 +450,17 @@ describe('test cases through the REST API', () => {
     expect(read.statusCode).toBe(200)
     return read.json<Record<string, unknown>>()
   }
+  /** alice's load on each day from 2027-03-01 to 2027-03-05, as she reads it (SC-006). */
+  const loadOfAlice = async () => {
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/accounts/${alice.id}/load`,
+      query: { from: '2027-03-01', to: '2027-03-05' },
+      headers: as(alice, 'rest-api'),
+    })
+    expect(read.statusCode).toBe(200)
+    return read.json<{ days: { load: number }[] }>().days.map((day) => day.load)
+  }
   /** Gives the task a status and actual dates straight in the database, as a TC's given. */
   const given = (id: string, fields: Partial<Row>) =>
     x.db.update(tasks).set(fields).where(eq(tasks.id, id))
@@ -524,6 +535,8 @@ describe('test cases through the REST API', () => {
       const before = await readTask(t)
       const otherBefore = await readTask(other)
       expect(before.plannedFinish).toBe('2027-03-05')
+      const week = Array.from({ length: 5 }, () => 100)
+      expect(await loadOfAlice()).toEqual(week)
 
       const held = await setStatus(t, 'on-hold')
       expect(held.statusCode).toBe(200)
@@ -531,6 +544,7 @@ describe('test cases through the REST API', () => {
       const read = await readTask(t)
       expect(read.status).toBe('on-hold')
       expect(read.plannedFinish).toBe('2027-03-05')
+      expect(await loadOfAlice()).toEqual(week)
       // Negative: planned start and duration unchanged, and so is every other field.
       expect(read.plannedStart).toBe('2027-03-01')
       expect(read.durationWorkingDays).toBe(5)
@@ -539,10 +553,8 @@ describe('test cases through the REST API', () => {
       expect(await readTask(other)).toEqual(otherBefore)
     })
 
-    // Pending: alice's load of 100% on each day from 2027-03-01 to 2027-03-05 cannot be read yet.
-    // It needs the global calendar and alice's capacity (SC-008), her assignment to T (SC-005)
-    // and the daily person load (SC-006). The planned finish is given here rather than derived
-    // from the duration, which is the scheduler's (SC-004). What this test shows is that putting
-    // T on hold changes nothing a load is computed from: its dates, duration and AI share.
+    // alice's load is read on the fresh deployment's global calendar, Saturday and Sunday the
+    // weekend and no holidays, at her capacity of 100% (SC-008), from the daily person load
+    // (SC-006).
   })
 })

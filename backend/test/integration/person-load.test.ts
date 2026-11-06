@@ -405,6 +405,17 @@ describe('test cases through the REST API', () => {
     expect(read.statusCode).toBe(200)
     return read.json<Task>()
   }
+  /** The person's load on each day from `from` to `to`, as alice reads it (SC-006). */
+  const loadOn = async (person: Seeded, from: string, to: string) => {
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/accounts/${person.id}/load`,
+      query: { from, to },
+      headers: as(alice, 'rest-api'),
+    })
+    expect(read.statusCode).toBe(200)
+    return read.json<{ days: { load: number }[] }>().days.map((day) => day.load)
+  }
 
   describe("TC-043: a task's person-load percentage is 100% minus its AI share", () => {
     it('reads 100% for T0 (AI share 0%) and 50% for T50 (AI share 50%)', async () => {
@@ -423,11 +434,9 @@ describe('test cases through the REST API', () => {
   })
 
   describe('TC-044: two 50% AI tasks on the same days fit one full-time person', () => {
-    // Pending: alice's load on each day and the person load view come with the daily person load
-    // aggregator (SC-006) and the person load chart (SC-032). "Not overloaded" and "not red" are
-    // tested in red-flags.test.ts (SC-040, SC-042, SC-043). What this SC gives now is the load
-    // each task puts on alice.
-    it('puts 50% on alice from each task, 100% together: her full capacity', async () => {
+    // "Not overloaded" and "not red" are tested in red-flags.test.ts (SC-040, SC-042, SC-043).
+    // Pending: the person load view for the week is the person load chart's (SC-032, node F20).
+    it('puts 50% on alice from each task, and reads her load as 100% on each day', async () => {
       const task = {
         aiShare: 50,
         plannedStart: '2027-03-01',
@@ -442,12 +451,12 @@ describe('test cases through the REST API', () => {
       )
       expect(loads).toEqual([50, 50])
       expect((loads[0] ?? 0) + (loads[1] ?? 0)).toBe(100)
+      // alice's load on each day from 2027-03-01 to 2027-03-05 (SC-006).
+      expect(await loadOn(alice, '2027-03-01', '2027-03-05')).toEqual([100, 100, 100, 100, 100])
     })
   })
 
   describe("TC-045: one assignment's load override replaces the task default for that person only", () => {
-    // Pending: reading alice's and bob's load on 2027-03-01 comes with the daily person load
-    // aggregator (SC-006). What this SC gives now is the load T puts on each of them.
     it("sets alice's assignment to 30%, leaving bob at 100% and T at 100% with AI share 0%", async () => {
       const bob = await seedAccount(x.db, { username: 'bob' })
       await grantRole(x.db, bob, apollo, 'read-only')
@@ -467,6 +476,9 @@ describe('test cases through the REST API', () => {
       expect(read.loadOverrides).toEqual({ [alice.id]: 30 })
       expect(assignmentLoad(read, alice.id)).toBe(30)
       expect(assignmentLoad(read, bob.id)).toBe(100)
+      // Step 2: the load of alice and of bob on 2027-03-01 (SC-006).
+      expect(await loadOn(alice, '2027-03-01', '2027-03-01')).toEqual([30])
+      expect(await loadOn(bob, '2027-03-01', '2027-03-01')).toEqual([100])
       // Negative: T's own person-load percentage is still 100%, its AI share still 0%.
       expect(read.personLoad).toBe(100)
       expect(read.aiShare).toBe(0)

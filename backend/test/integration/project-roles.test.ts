@@ -364,10 +364,9 @@ describe('the project role store', () => {
     })
   })
 
-  // The role store's part of FR-111's and FR-112's test cases. Groups with members and projects
-  // (SC-018, SC-057, SC-058) do not exist yet, so a group's role is given through the stand-in
-  // above; tasks (SC-001), whose titles bob edits in each test case, do not exist either, so the
-  // role the store applies is read in their place.
+  // The role store's part of FR-111's and FR-112's test cases: a group's role is given through
+  // the stand-in above, and the role the store applies is read. The test cases in full, with
+  // groups and tasks through the REST API, are at the end of this file.
   describe('TC-162: a group member holds the group role on every project in the group', () => {
     it('gives bob the write role on Apollo and Borealis, and not the admin role', async () => {
       const [apollo, borealis] = [await seedProject(x.db, alice), await seedProject(x.db, alice)]
@@ -380,10 +379,6 @@ describe('the project role store', () => {
         await refused(store.removeMember(by(bob), p, alice.id), 'forbidden')
       }
     })
-
-    // Pending: TC-162 in full: Platform created by alice, Apollo and Borealis added to it, bob
-    // added with the write role (SC-018, SC-057, SC-058), and bob changing a task's title in each
-    // through the REST API (SC-001).
   })
 
   describe('TC-163: a removed group member loses the group role on its projects', () => {
@@ -396,10 +391,6 @@ describe('the project role store', () => {
       expect(await store.roleOf(bob.id, apollo)).toBeUndefined()
       await refused(store.listMembers(by(bob), apollo), 'not-visible')
     })
-
-    // Pending: TC-163 in full: bob removed from Platform by alice (SC-057), and bob's edit of T
-    // rejected with T still `Draft` (SC-001). Apollo is already reported as not visible to him
-    // (SC-051), here when he reads its members.
   })
 
   describe('TC-164: of a direct read role and a group write role, write applies', () => {
@@ -412,9 +403,6 @@ describe('the project role store', () => {
       const members = await store.listMembers(by(alice), apollo)
       expect(members.find((m) => m.accountId === bob.id)?.role).toBe('read-only')
     })
-
-    // Pending: TC-164 in full: Platform with bob as a write member and Apollo added (SC-018,
-    // SC-057, SC-058), and bob changing T's title to `Final` through the REST API (SC-001).
   })
 
   it('records nothing when the audit log cannot be written, and makes no change', async () => {
@@ -599,5 +587,146 @@ describe('test cases through the REST API', () => {
   // permission checks (SC-049) before it reads or changes anything; the checks themselves are
   // tested role by role in src/service/permissions.test.ts.
 
-  // TC-162, TC-163 and TC-164 need groups, so their tests are with the role store above.
+  // FR-111's and FR-112's test cases in full: groups (SC-018), their members (SC-057) and their
+  // projects (SC-058), and the tasks bob edits (SC-001), all through the REST API.
+  const createGroup = async (creator: Seeded, name: string): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/groups',
+      headers: as(creator),
+      payload: { name },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
+  const setGroupRole = async (as_: Seeded, groupId: string, member: Seeded, role: string) => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/groups/${groupId}/members/${member.id}`,
+      headers: as(as_),
+      payload: { role },
+    })
+    expect(response.statusCode).toBe(200)
+  }
+  const addToGroup = async (as_: Seeded, groupId: string, projectId: string) => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/groups/${groupId}/projects/${projectId}`,
+      headers: as(as_),
+    })
+    expect(response.statusCode).toBe(200)
+  }
+  const createTask = async (as_: Seeded, projectId: string, title: string): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${projectId}/tasks`,
+      headers: as(as_, 'rest-api'),
+      payload: { title },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
+  const rename = (as_: Seeded, taskId: string, title: string) =>
+    app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${taskId}`,
+      headers: as(as_, 'rest-api'),
+      payload: { title },
+    })
+  const titleOf = async (taskId: string) => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/tasks/${taskId}`,
+      headers: as(alice, 'rest-api'),
+    })
+    expect(response.statusCode).toBe(200)
+    return response.json<{ title: string }>().title
+  }
+
+  describe('TC-162: a group member holds the group role on every project in the group', () => {
+    it("accepts bob's renaming of a task in Apollo and in Borealis, and refuses him their members", async () => {
+      const platform = await createGroup(alice, 'Platform')
+      const apollo = await create(alice, 'Apollo')
+      const borealis = await create(alice, 'Borealis')
+      await addToGroup(alice, platform, apollo)
+      await addToGroup(alice, platform, borealis)
+      await setGroupRole(alice, platform, bob, 'read-write')
+      const a = await createTask(alice, apollo, 'A')
+      const b = await createTask(alice, borealis, 'B')
+
+      expect((await rename(bob, a, 'A by bob')).statusCode).toBe(200)
+      expect((await rename(bob, b, 'B by bob')).statusCode).toBe(200)
+      expect(await titleOf(a)).toBe('A by bob')
+      expect(await titleOf(b)).toBe('B by bob')
+
+      // Negative: bob cannot manage members of either project, since write is not admin.
+      const carol = await seedAccount(x.db, { username: 'carol' })
+      for (const p of [apollo, borealis]) {
+        expect((await setRole(bob, p, carol, 'read-only')).statusCode).toBe(403)
+        const removal = await app.inject({
+          method: 'DELETE',
+          url: `/api/projects/${p}/members/${alice.id}`,
+          headers: as(bob),
+        })
+        expect(removal.statusCode).toBe(403)
+      }
+      // bob holds no direct role in either: his role there is the group's.
+      for (const p of [apollo, borealis]) {
+        const read = (await members(alice, p)).json<{ accountId: string }[]>()
+        expect(read.map((m) => m.accountId)).toEqual([alice.id])
+      }
+    })
+  })
+
+  describe('TC-163: a removed group member loses the group role on its projects', () => {
+    it("rejects bob's renaming of T and his reading of Apollo once alice removes him from Platform", async () => {
+      const platform = await createGroup(alice, 'Platform')
+      await setGroupRole(alice, platform, bob, 'read-write')
+      const apollo = await create(alice, 'Apollo')
+      await addToGroup(alice, platform, apollo)
+      const t = await createTask(alice, apollo, 'Draft')
+
+      // Step 1: alice removes bob from Platform.
+      const removal = await app.inject({
+        method: 'DELETE',
+        url: `/api/groups/${platform}/members/${bob.id}`,
+        headers: as(alice),
+      })
+      expect(removal.statusCode).toBe(204)
+
+      // Step 2: bob tries to rename T, and to read Apollo.
+      expect((await rename(bob, t, 'Mine')).statusCode).toBe(403)
+      const read = await app.inject({
+        method: 'GET',
+        url: `/api/projects/${apollo}`,
+        headers: as(bob, 'rest-api'),
+      })
+      expect(read.statusCode).toBe(403)
+      expect(read.json()).toMatchObject({
+        error: 'Not Visible',
+        message: 'This project is not visible to you',
+      })
+
+      // Negative: T's title is still Draft.
+      expect(await titleOf(t)).toBe('Draft')
+    })
+  })
+
+  describe('TC-164: of a direct read role and a group write role, write applies', () => {
+    it("accepts bob's renaming of T to Final and leaves his direct read-only role as it was", async () => {
+      const apollo = await create(alice, 'Apollo')
+      expect((await setRole(alice, apollo, bob, 'read-only')).statusCode).toBe(200)
+      const platform = await createGroup(alice, 'Platform')
+      await setGroupRole(alice, platform, bob, 'read-write')
+      await addToGroup(alice, platform, apollo)
+      const t = await createTask(alice, apollo, 'Draft')
+
+      expect((await rename(bob, t, 'Final')).statusCode).toBe(200)
+      expect(await titleOf(t)).toBe('Final')
+
+      // Negative: bob's direct role is still read-only: it is not rewritten.
+      const read = (await members(alice, apollo)).json<{ accountId: string; role: string }[]>()
+      expect(read.find((m) => m.accountId === bob.id)?.role).toBe('read-only')
+    })
+  })
 })
