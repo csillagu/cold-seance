@@ -132,8 +132,19 @@ const task = {
         'assigned to none',
     }),
     githubIssue: {
-      type: 'null',
-      description: 'The linked GitHub issue; none until the task is assigned to a repository',
+      type: ['object', 'null'],
+      description:
+        'The linked GitHub issue, created once the task is assigned to a repository; null while ' +
+        'it has none',
+      required: ['repositoryId', 'number'],
+      properties: {
+        repositoryId: {
+          type: 'string',
+          format: 'uuid',
+          description: "The registered repository the issue is in, by the tool's id for it",
+        },
+        number: { type: 'integer', description: 'The issue number in that repository' },
+      },
     },
   },
 } as const

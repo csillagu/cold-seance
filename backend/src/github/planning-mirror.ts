@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import {
   accounts,
@@ -11,6 +11,9 @@ import {
 import type { PlanningChanges } from '../service/planning-changes.ts'
 import type { Repository } from './app-tokens.ts'
 import { GitHubRequestError, type GitHubClient } from './client.ts'
+import { GitHubIssueCreator } from './issue-creator.ts'
+import { arrayField, numberField, objectField, stringField } from './json.ts'
+import { GitHubNotPlannedCloser } from './not-planned-closer.ts'
 
 /** A task's linked issue, as the mirror needs it. */
 interface LinkedIssue {
@@ -59,11 +62,17 @@ export interface PlanningMirrorOptions {
  * mirrors the tasks one at a time in the background, so that two changes of one task cannot
  * overtake each other. A write that fails is put right by the re-check (DD-051), which calls
  * `mirrorAll`.
+ *
+ * Each task it is told of is first given its issue by the GitHub issue creator (SC-060), if it is
+ * assigned to a repository and has none, so that a new issue is mirrored at once; and once
+ * mirrored, a cancelled task's issue is closed as not planned by the not-planned closer (SC-061).
  */
 export class GitHubPlanningMirror implements PlanningChanges {
   readonly #db: Database
   readonly #github: () => GitHubClient
   readonly #onError: (error: unknown, taskId: string) => void
+  readonly #creator: GitHubIssueCreator
+  readonly #closer: GitHubNotPlannedCloser
   #client: GitHubClient | undefined
   readonly #pending = new Set<string>()
   #running: Promise<void> | undefined
@@ -73,6 +82,9 @@ export class GitHubPlanningMirror implements PlanningChanges {
     this.#db = db
     this.#github = github
     this.#onError = options.onError ?? (() => {})
+    const client = () => (this.#client ??= this.#github())
+    this.#creator = new GitHubIssueCreator(db, client)
+    this.#closer = new GitHubNotPlannedCloser(db, client)
   }
 
   changed(taskIds: readonly string[]): void {
@@ -85,11 +97,29 @@ export class GitHubPlanningMirror implements PlanningChanges {
     while (this.#running !== undefined) await this.#running
   }
 
-  /** Mirrors every task that has a linked issue, and resolves once all are done. */
+  /**
+   * Mirrors every task that has a linked issue or is assigned to a repository, creating the issues
+   * still missing and closing those of cancelled tasks, and resolves once all are done.
+   */
   async mirrorAll(): Promise<void> {
-    const linked = await this.#db.select({ taskId: taskIssues.taskId }).from(taskIssues)
+    const linked = await this.#db
+      .select({ taskId: tasks.id })
+      .from(tasks)
+      .leftJoin(taskIssues, eq(taskIssues.taskId, tasks.id))
+      .where(or(isNotNull(tasks.repositoryId), isNotNull(taskIssues.taskId)))
     this.changed(linked.map((row) => row.taskId))
     await this.idle()
+  }
+
+  /**
+   * Gives the task its GitHub issue if it has none yet (SC-060), brings the issue into line with
+   * the task, and closes it as not planned if the task is cancelled (SC-061). Rejects with what
+   * GitHub refused.
+   */
+  async syncTask(taskId: string): Promise<void> {
+    await this.#creator.create(taskId)
+    await this.mirrorTask(taskId)
+    await this.#closer.close(taskId)
   }
 
   /**
@@ -112,8 +142,7 @@ export class GitHubPlanningMirror implements PlanningChanges {
     if (!task) return
     const own = (await this.#issuesOf([taskId])).get(taskId)
     if (own === undefined || !own.synced) return
-    this.#client ??= this.#github()
-    const client = this.#client
+    const client = (this.#client ??= this.#github())
 
     const { data: issue } = await client.rest('readIssues', own.repository, {
       method: 'GET',
@@ -157,7 +186,7 @@ export class GitHubPlanningMirror implements PlanningChanges {
     for (const taskId of this.#pending) {
       this.#pending.delete(taskId)
       try {
-        await this.mirrorTask(taskId)
+        await this.syncTask(taskId)
       } catch (error) {
         this.#onError(error, taskId)
       }
@@ -368,25 +397,4 @@ function issueRef(json: unknown): GitHubIssueRef | undefined {
     number,
     repository: { owner: decodeURIComponent(owner), name: decodeURIComponent(name) },
   }
-}
-
-function objectField(json: unknown, name: string): unknown {
-  if (typeof json !== 'object' || json === null) return undefined
-  const value: unknown = Reflect.get(json, name)
-  return value
-}
-
-function stringField(json: unknown, name: string): string | undefined {
-  const value = objectField(json, name)
-  return typeof value === 'string' ? value : undefined
-}
-
-function numberField(json: unknown, name: string): number | undefined {
-  const value = objectField(json, name)
-  return typeof value === 'number' && Number.isSafeInteger(value) ? value : undefined
-}
-
-function arrayField(json: unknown, name: string): unknown[] {
-  const value = objectField(json, name)
-  return Array.isArray(value) ? (value as unknown[]) : []
 }

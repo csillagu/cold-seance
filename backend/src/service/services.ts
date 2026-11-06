@@ -81,8 +81,9 @@ export interface ServiceOptions {
    */
   github?: RepositoryReach
   /**
-   * Told of each task whose planning, as it is mirrored to GitHub, changed: the GitHub planning
-   * mirror (SC-022). Without it, nothing is mirrored.
+   * Told of each task whose planning, as it is mirrored to GitHub, changed, and of each task
+   * assigned to a repository or cancelled: the GitHub planning mirror (SC-022), with the issue
+   * creator (SC-060) and the not-planned closer (SC-061). Without it, nothing reaches GitHub.
    */
   planningChanges?: PlanningChanges
 }
@@ -121,7 +122,13 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     tasks: new TaskService(db, audit, projectRoles, changes),
     taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter, changes),
-    taskRepository: new TaskRepositoryService(db, audit, projectRoles, projectRepositories),
+    taskRepository: new TaskRepositoryService(
+      db,
+      audit,
+      projectRoles,
+      projectRepositories,
+      changes,
+    ),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
     variance: new VarianceService(db, projectRoles),
     viewFilter,

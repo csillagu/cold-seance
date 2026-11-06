@@ -1,8 +1,9 @@
 /**
  * The issues of the fake GitHub (`github.ts`): the parts of GitHub's REST API the GitHub planning
- * mirror (SC-022) reads and writes, an issue's assignees and milestone, its parent and sub-issues,
- * its blocked-by relations, and a repository's milestones. Issues are created on it directly, as
- * the test cases' "so it has issue #1" needs while the GitHub issue creator (SC-060) is not built.
+ * mirror (SC-022), the issue creator (SC-060) and the not-planned closer (SC-061) read and write:
+ * creating an issue, its title, state and state reason, its assignees and milestone, its parent
+ * and sub-issues, its blocked-by relations, and a repository's milestones. Issues can also be
+ * created on it directly, as someone would on GitHub.
  */
 
 /** An issue on the fake GitHub. */
@@ -12,6 +13,10 @@ export interface FakeIssue {
   number: number
   /** `owner/name`, as the repository was created. */
   repository: string
+  title: string
+  state: 'open' | 'closed'
+  /** Why it was closed, as GitHub names it (`completed`, `not_planned`), or `null`. */
+  stateReason: string | null
   assignees: string[]
   /** The number of its repository's milestone it is in, if any. */
   milestone: number | undefined
@@ -29,7 +34,9 @@ export interface FakeMilestone {
 
 export interface FakeIssues {
   /** Opens an issue in `owner/name`, which must exist on the fake GitHub. */
-  createIssue(fullName: string): FakeIssue
+  createIssue(fullName: string, title?: string): FakeIssue
+  /** The issues of `owner/name`, in the order they were made. */
+  issuesOf(fullName: string): FakeIssue[]
   /** The issue `number` of `owner/name`. */
   issue(fullName: string, number: number): FakeIssue
   /** The issues whose parent is the issue `number` of `owner/name`, in the order they were made. */
@@ -72,6 +79,9 @@ export function fakeIssues(
     return {
       id: issue.id,
       number: issue.number,
+      title: issue.title,
+      state: issue.state,
+      state_reason: issue.stateReason,
       repository_url: `${apiUrl}/repos/${repo?.owner}/${repo?.name}`,
       assignees: issue.assignees.map((login) => ({ login })),
       milestone: milestone === undefined ? null : milestoneOut(milestone),
@@ -84,7 +94,7 @@ export function fakeIssues(
   let body: unknown
 
   return {
-    createIssue(fullName) {
+    createIssue(fullName, title = 'An issue') {
       const key = fullName.toLowerCase()
       if (repositoryOf(key) === undefined) throw new Error(`no repository ${fullName}`)
       const number = (counters.get(key) ?? 0) + 1
@@ -93,6 +103,9 @@ export function fakeIssues(
         id: nextIssueId++,
         number,
         repository: fullName,
+        title,
+        state: 'open',
+        stateReason: null,
         assignees: [],
         milestone: undefined,
         parent: undefined,
@@ -100,6 +113,10 @@ export function fakeIssues(
       }
       issues.set(issue.id, issue)
       return issue
+    },
+    issuesOf(fullName) {
+      const key = fullName.toLowerCase()
+      return [...issues.values()].filter((i) => i.repository.toLowerCase() === key)
     },
     issue(fullName, number) {
       const issue = find(fullName.toLowerCase(), number)
@@ -144,6 +161,15 @@ export function fakeIssues(
         }
       }
 
+      if (method === 'POST' && rest === '/issues') {
+        const title = field('title')
+        if (typeof title !== 'string' || title === '') {
+          return json(422, { message: 'Validation Failed' })
+        }
+        const repo = repositoryOf(key)
+        return json(201, out(this.createIssue(`${repo?.owner}/${repo?.name}`, title)))
+      }
+
       const path = /^\/issues\/(\d+)(\/.*)?$/.exec(rest)
       if (!path) return undefined
       const issue = find(key, Number(path[1]))
@@ -155,6 +181,15 @@ export function fakeIssues(
       if (below === '' && method === 'PATCH') {
         const assignees = field('assignees')
         if (Array.isArray(assignees)) issue.assignees = assignees.map(String)
+        const state = field('state')
+        if (state === 'closed') {
+          const reason = field('state_reason')
+          issue.state = 'closed'
+          issue.stateReason = typeof reason === 'string' ? reason : 'completed'
+        } else if (state === 'open') {
+          issue.state = 'open'
+          issue.stateReason = null
+        }
         const number = field('milestone')
         if (number === null) issue.milestone = undefined
         else if (typeof number === 'number') {

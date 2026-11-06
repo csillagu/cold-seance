@@ -1,6 +1,6 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import type { Database, Executor, Transaction } from '../db/client.ts'
-import { MILESTONE_VARIANTS, tasks } from '../db/schema.ts'
+import { MILESTONE_VARIANTS, taskIssues, tasks } from '../db/schema.ts'
 import {
   type Assignment,
   type AssignmentInput,
@@ -38,7 +38,7 @@ import { toDay } from './working-days.ts'
  * subtasks (FR-006). `repositoryId` is the registered repository the task is assigned to, set by the
  * task repository assignment (SC-036, `TaskRepositoryService`). `githubIssue` is the GitHub issue
  * linked to the task: none until the task is assigned to a repository and its issue is created
- * (SRC-168, SC-060), so always `null` for now.
+ * there (SRC-168, FR-088, the GitHub issue creator SC-060).
  *
  * `milestone` is `null` for a task that is not a milestone. A milestone (FR-190) takes no time, so
  * its planned dates, duration, effort and AI share are always `null` (FR-191); its date is the one
@@ -105,8 +105,24 @@ export interface Task {
    * edit.
    */
   repositoryId: string | null
-  githubIssue: null
+  /**
+   * The GitHub issue linked to the task, by its repository's id in the tool and its number there,
+   * or `null` while it has none (FR-088).
+   */
+  githubIssue: GitHubIssueLink | null
 }
+
+/** A task's linked GitHub issue: the registered repository it is in, and its number there. */
+export interface GitHubIssueLink {
+  repositoryId: string
+  number: number
+}
+
+/** The column a task's linked GitHub issue is read with (FR-088), `null` while it has none. */
+const githubIssueColumn = sql<GitHubIssueLink | null>`(
+  select json_build_object('repositoryId', ${taskIssues.repositoryId}, 'number', ${taskIssues.number})
+  from ${taskIssues} where ${taskIssues.taskId} = ${tasks.id}
+)`
 
 /** The variants of a milestone: pinned to a fixed date, or floating (FR-190). */
 export type MilestoneVariant = (typeof MILESTONE_VARIANTS)[number]
@@ -200,6 +216,7 @@ export const taskColumns = {
   actualStart: tasks.actualStart,
   actualFinish: tasks.actualFinish,
   repositoryId: tasks.repositoryId,
+  githubIssue: githubIssueColumn,
   eligibility: tasks.eligibility,
   assignees: assigneesColumn,
   loadOverrides: loadOverridesColumn,
@@ -208,7 +225,7 @@ export const taskColumns = {
 const columns = taskColumns
 
 /** A task as it is read with `taskColumns`. */
-export type TaskRow = Omit<Task, 'githubIssue' | 'milestone' | 'withoutReadAccess' | 'personLoad'> &
+export type TaskRow = Omit<Task, 'milestone' | 'withoutReadAccess' | 'personLoad'> &
   Pick<TaskFields, 'milestoneVariant' | 'milestoneDate' | 'aiOnlyLoad'> & {
     floatingDate: string | null
   }
@@ -507,7 +524,6 @@ function toTask(
     }),
     milestone: milestoneOf(milestoneVariant, milestoneDate, floatingDate),
     withoutReadAccess: namedIn(row).filter((person) => without.has(person)),
-    githubIssue: null,
   }
 }
 
