@@ -36,6 +36,7 @@ describe('the variance calculator', () => {
   let services: Services
   let app: ReturnType<typeof buildApp>
   let today: string
+  let root: Account
   let alice: Account
   let bob: Account
   let carol: Account
@@ -45,7 +46,7 @@ describe('the variance calculator', () => {
     today = '2027-03-01'
     services = createServices(x.db, { today: () => today })
     app = buildApp({}, { authenticators: [testAuthenticator], services })
-    await seedAccount(x.db, { username: 'root', systemAdmin: true })
+    root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
     alice = await seedAccount(x.db, { username: 'alice' })
     bob = await seedAccount(x.db, { username: 'bob' })
     carol = await seedAccount(x.db, { username: 'carol' })
@@ -220,6 +221,23 @@ describe('the variance calculator', () => {
       const finished = await services.variance.varianceAgainst(by(alice), v1.id)
       expect(row(finished, t).actual).toEqual({ start: '2027-03-03', finish: '2027-03-05' })
       expect(row(finished, t).variance).toEqual({ start: 2, finish: 3 })
+    })
+
+    it('counts working days of the global calendar, leaving out its weekend and company holidays', async () => {
+      const apollo = await seedProject(x.db, alice, 'Apollo')
+      const t = await task(alice, apollo, {
+        title: 'T',
+        plannedStart: '2027-03-01',
+        durationWorkingDays: 1,
+      })
+      const v1 = await save(alice, apollo, 'v1')
+      // From Monday 2027-03-01 to the next Monday: five working days, not seven calendar days.
+      await ok(alice, 'PATCH', `/tasks/${t}`, { plannedStart: '2027-03-08' })
+      expect(row(await variance(alice, v1.id), t).variance).toEqual({ start: 5, finish: 5 })
+
+      // A company holiday between the two, added later, is left out too: the calendar as it is now.
+      await services.calendars.changeGlobalCalendar(by(root), { addHolidays: ['2027-03-03'] })
+      expect(row(await variance(alice, v1.id), t).variance).toEqual({ start: 4, finish: 4 })
     })
 
     it('computes against the selected baseline, not another of the project', async () => {

@@ -18,7 +18,8 @@ const days = (which: string) =>
   ({
     type: ['integer', 'null'],
     description:
-      `The ${which} variance in calendar days: the actual ${which}, or the planned one where ` +
+      `The ${which} variance in working days of the global calendar, leaving out its weekend ` +
+      `days and company holidays: the actual ${which}, or the planned one where ` +
       `there is no actual ${which} yet, minus the baseline's; positive is later. Null where ` +
       'either has no date.',
   }) as const
