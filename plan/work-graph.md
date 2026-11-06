@@ -159,7 +159,7 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 | B07  | GitHub planning mirror                                                             | SC-022                                 | 5      |               | 0              | 5 / 0             |
 | B08  | GitHub issue creator and not-planned closer                                        | SC-060, SC-061                         | 3      | B07           | 5              | 3 / 0             |
 | B09  | GitHub seeding importer                                                            | SC-025                                 | 8      |               | 0              | 5 / 3             |
-| B10  | Proposal store                                                                     | SC-010                                 | 3      |               | 0              | 3 / 5             |
+| B10  | Proposal store                                                                     | SC-010                                 | 3      |               | 0              | 5 / 5             |
 | B11  | Proposal edit, reject and expiry                                                   | SC-045, SC-046                         | 3      | B10           | 3              | 0 / 4             |
 | B12  | Proposal conflict detector                                                         | SC-047                                 | 3      | B10           | 3              | 0 / 3             |
 | B13  | Proposal preview                                                                   | SC-011                                 | 5      | B10, B02      | 7              | 0 / 4             |

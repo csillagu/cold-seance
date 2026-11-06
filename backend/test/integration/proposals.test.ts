@@ -18,7 +18,7 @@ import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { grantRole, insertProject, seedProject } from '../helpers/projects.ts'
 
-// The proposal store (SC-010: FR-069, FR-070, FR-154, FR-203, FR-204, FR-205) against a real
+// The proposal store (SC-010: FR-069, FR-070, FR-154, FR-203 to FR-207) against a real
 // PostgreSQL, each test in a fresh test deployment: a fresh database, first system admin `root`,
 // and a global calendar with Saturday and Sunday as the weekend and no company holidays. First the
 // test cases, then the rules through the service layer.
@@ -259,31 +259,42 @@ describe('the proposal store', () => {
       await grantRole(x.db, carol, apollo, 'contributor')
       await grantRole(x.db, dave, apollo, 'read-write')
       const zeus = await seedProject(x.db, dave, 'Zeus')
-      const a = await task(apollo, { title: 'A', durationWorkingDays: 1 })
-      const z = await ok<Task>(dave, 'POST', `/projects/${zeus}/tasks`, {
-        title: 'Z',
+      const a = await task(apollo, {
+        title: 'A',
+        plannedStart: '2027-03-01',
         durationWorkingDays: 1,
       })
-      const groups = [{ changes: [move(a.id, '2027-03-08')] }]
+      const z = await ok<Task>(dave, 'POST', `/projects/${zeus}/tasks`, {
+        title: 'Z',
+        plannedStart: '2027-03-01',
+        durationWorkingDays: 1,
+      })
+      const p1 = [{ changes: [move(a.id, '2027-03-08')] }]
+      const p2 = [{ changes: [move(a.id, '2027-03-08'), move(z.id, '2027-03-09')] }]
 
-      expect((await propose(bob, groups)).statusCode).toBe(403)
-      expect((await propose(carol, groups)).statusCode).toBe(403)
-      const fromDave = await propose(dave, groups)
-      const fromAlice = await propose(alice, groups)
-      expect(fromDave.statusCode).toBe(201)
-      expect(fromAlice.statusCode).toBe(201)
-      const both = [{ changes: [move(a.id, '2027-03-08'), move(z.id, '2027-03-09')] }]
-      expect((await propose(alice, both)).statusCode).toBe(403)
+      for (const who of [bob, carol]) {
+        const response = await propose(who, p1)
+        expect(response.statusCode).toBe(403)
+        expect(response.json<{ message: string }>().message).toContain(
+          'read-write members and admins',
+        )
+      }
+      expect((await propose(dave, p1)).statusCode).toBe(201)
+      expect((await propose(alice, p1)).statusCode).toBe(201)
+      expect((await propose(alice, p2)).statusCode).toBe(403)
 
       const listed = await list(alice, apollo)
       expect(listed.map((proposal) => proposal.createdBy)).toEqual([dave.id, alice.id])
-      expect(await stored()).toBe(2)
+      for (const proposal of listed) expect(given(proposal)).toEqual([p1[0]?.changes])
       expect(await list(dave, zeus)).toEqual([])
+      expect(await stored()).toBe(2)
+      expect((await ok<Task>(alice, 'GET', `/tasks/${a.id}`)).plannedStart).toBe('2027-03-01')
+      expect((await ok<Task>(dave, 'GET', `/tasks/${z.id}`)).plannedStart).toBe('2027-03-01')
     })
 
-    it('TC-280: a proposal is created through the REST API and the MCP server, not the UI', async () => {
-      // Steps 1 and 3, and step 4 for what they made. Pending: step 2, creating it through the MCP
-      // server (SC-027, B19).
+    it('TC-280: a proposal is created through the REST API and through the MCP server', async () => {
+      // Steps 1 and 3 for what step 1 made. Pending: step 2, creating it through the MCP server
+      // (SC-027, B19).
       const a = await task(apollo, {
         title: 'A',
         plannedStart: '2027-03-01',
@@ -291,18 +302,36 @@ describe('the proposal store', () => {
       })
       const groups = [{ changes: [move(a.id, '2027-03-08')] }]
 
-      const viaRest = await propose(alice, groups, 'rest-api')
-      expect(viaRest.statusCode).toBe(201)
-      const viaUi = await propose(alice, groups, 'ui')
-      expect(viaUi.statusCode).toBe(403)
+      expect((await propose(alice, groups, 'rest-api')).statusCode).toBe(201)
 
       const listed = await list(alice, apollo)
       expect(listed.map((proposal) => proposal.channel)).toEqual(['rest-api'])
+      expect(listed.map(given)).toEqual([[groups[0]?.changes]])
       expect((await ok<Task>(alice, 'GET', `/tasks/${a.id}`)).plannedStart).toBe('2027-03-01')
     })
 
+    it('TC-282: a proposal made through the UI is refused', async () => {
+      const a = await task(apollo, {
+        title: 'A',
+        plannedStart: '2027-03-01',
+        durationWorkingDays: 1,
+      })
+      const response = await propose(alice, [{ changes: [move(a.id, '2027-03-08')] }], 'ui')
+      expect(response.statusCode).toBe(403)
+      expect(response.json<{ message: string }>().message).toContain(
+        'through the REST API or the MCP server',
+      )
+
+      expect(await list(alice, apollo)).toEqual([])
+      expect((await ok<Task>(alice, 'GET', `/tasks/${a.id}`)).plannedStart).toBe('2027-03-01')
+      const logged = await x.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.action, 'proposal.created'))
+      expect(logged).toEqual([])
+    })
+
     it("TC-281: a proposal holds any change to a project's tasks", async () => {
-      await grantRole(x.db, bob, apollo, 'read-only')
       const [a, b, c, d] = await Promise.all(
         ['A', 'B', 'C', 'D'].map((title) => task(apollo, { title, durationWorkingDays: 1 })),
       )
@@ -320,16 +349,24 @@ describe('the proposal store', () => {
 
       const read = await ok<Proposal>(alice, 'GET', `/proposals/${created.json<Proposal>().id}`)
       expect(given(read)).toEqual([changes])
+      expect(await x.db.select().from(tasks)).toEqual(before)
+    })
 
+    it("TC-283: a proposal changing a project's members is refused", async () => {
+      await grantRole(x.db, bob, apollo, 'read-only')
       const membership = {
         kind: 'set-role',
         projectId: apollo,
         accountId: bob.id,
         role: 'read-write',
       }
-      expect((await propose(alice, [{ changes: [membership] }])).statusCode).toBe(400)
-      expect(await stored()).toBe(1)
-      expect(await x.db.select().from(tasks)).toEqual(before)
+      const response = await propose(alice, [{ changes: [membership] }])
+      expect(response.statusCode).toBe(400)
+      expect(response.json<{ message: string }>().message).toContain(
+        "A change's kind must be one of",
+      )
+
+      expect(await list(alice, apollo)).toEqual([])
       const [role] = await x.db
         .select({ role: projectMembers.role })
         .from(projectMembers)

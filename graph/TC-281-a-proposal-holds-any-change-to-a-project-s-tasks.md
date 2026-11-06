@@ -4,29 +4,33 @@ Verifies [FR-205](FR-205-accept-any-change-to-a-project-s-tasks-in-a-propos.md).
 
 ## Intent
 
-Verify that the system accepts in a proposal changes to every part of a project's tasks, not only to their dates, assignments and constraints, and refuses a change to anything else.
+Verify that the system accepts in a proposal changes to every part of a project's tasks, not only to their dates, assignments and constraints.
 
 ## Inputs
 
-- A fresh test deployment, first system admin `root`; accounts `alice` (with an access token) and `bob`; project `Apollo` created by `alice`, where `bob` has the read-only role.
-- Tasks `A`, `B`, `C` and `D` in `Apollo`, not started, 1 working day each, no relations.
-- The proposal: rename `A` to `A2` and change its description; set `B` in progress; cancel `C`; make `D` a subtask of `A`.
-- The second proposal: give `bob` the read-write role in `Apollo`.
+- A fresh test deployment, first system admin `root`; account `alice`, with an access token; project `Apollo` created by `alice`.
+- Tasks `A`, `B`, `C` and `D` in `Apollo`, not started, 1 working day each, no relations, no description.
+- The proposal, one group of five changes, in this order:
+  1. `A`'s title set to `A2`;
+  2. `A`'s description set to `Now A2`;
+  3. `B`'s status set to in progress;
+  4. `C` cancelled;
+  5. `D` made a subtask of `A`.
 
 ## Procedure
 
 1. Through the REST API with `alice`'s token, create the proposal.
-2. Read it back.
-3. Through the REST API with `alice`'s token, try to create the second proposal.
+2. Read it back through the REST API.
+3. Read `A`, `B`, `C` and `D`.
 
 ## Expected response
 
-- At step 2, the proposal holds exactly the five changes given.
-- At step 3, the second proposal is refused.
+- At step 1, the proposal is reported created.
+- At step 2, it holds one group of exactly the five changes, in the order given, each naming its task and what it sets as given.
 
 ## Negative assertions
 
-- `A`, `B`, `C` and `D` are unchanged, and `bob` still has the read-only role.
+- At step 3, `A` is still titled `A` with no description, `B` is not started, `C` is not cancelled, and `D` is a subtask of nothing.
 
 ## Cleanup
 

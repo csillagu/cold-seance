@@ -168,8 +168,10 @@ nodes:
       - { tc: TC-226, part: 'step 1 (REST): only planning inputs are stored' }
       - { tc: TC-239, part: 'the proposal keeps the channel it was made through' }
       - { tc: TC-279, part: full }
-      - { tc: TC-280, part: 'steps 1, 3 and 4; creating through the MCP server comes in B19' }
+      - { tc: TC-280, part: 'steps 1 and 3; creating through the MCP server comes in B19' }
       - { tc: TC-281, part: full }
+      - { tc: TC-282, part: full }
+      - { tc: TC-283, part: full }
 
   B11:
     title: Proposal edit, reject and expiry

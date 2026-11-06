@@ -8,26 +8,31 @@ Verify that the system refuses a proposal from someone without the read-write or
 
 ## Inputs
 
-- A fresh test deployment, first system admin `root`; accounts `alice`, `bob`, `carol` and `dave`, each with an access token; project `Apollo` created by `alice`, where `bob` has the read-only role, `carol` the contributor role and `dave` the read-write role; project `Zeus` created by `dave`, where `alice` has no role.
-- Task `A` in `Apollo` and task `Z` in `Zeus`, 1 working day each.
-- The proposal: move `A` to start on 2027-03-08.
-- The proposal over two projects: move `A` to start on 2027-03-08 and `Z` to start on 2027-03-09.
+- A fresh test deployment, first system admin `root`; accounts `alice`, `bob`, `carol` and `dave`, each with an access token.
+- Project `Apollo` created by `alice`, who is its admin as its creator; there `bob` has the read-only role, `carol` the contributor role and `dave` the read-write role.
+- Project `Zeus` created by `dave`, who is its admin; `alice` has no role there.
+- Task `A` in `Apollo`, 2027-03-01, and task `Z` in `Zeus`, 2027-03-01, 1 working day each.
+- The proposal P1: one group, moving `A` to start on 2027-03-08.
+- The proposal P2: one group, moving `A` to start on 2027-03-08 and `Z` to start on 2027-03-09.
 
 ## Procedure
 
-1. Through the REST API with each of `bob`'s, `carol`'s, `dave`'s and `alice`'s tokens, create the proposal.
-2. Through the REST API with `alice`'s token, create the proposal over two projects.
-3. As `alice`, list `Apollo`'s proposals.
+1. Through the REST API, create P1 with `bob`'s token, then with `carol`'s, then `dave`'s, then `alice`'s.
+2. Through the REST API with `alice`'s token, create P2.
+3. As `alice`, list `Apollo`'s proposals. As `dave`, list `Zeus`'s proposals.
+4. Read `A` and `Z`.
 
 ## Expected response
 
-- At step 1, `bob`'s and `carol`'s are refused; `dave`'s and `alice`'s are created.
-- At step 2, the proposal is refused.
-- At step 3, there are exactly two proposals, `dave`'s and `alice`'s.
+- At step 1, the REST API reports `bob`'s and `carol`'s requests as refused for their role, and reports `dave`'s and `alice`'s as created, each with its new proposal.
+- At step 2, the REST API reports the request as refused.
+- At step 3, `Apollo` has exactly two proposals, created by `dave` and by `alice`, in that order, each holding P1's one change. `Zeus` has none.
+- At step 4, `A` and `Z` still start on 2027-03-01.
 
 ## Negative assertions
 
-- No proposal is stored from `bob`, from `carol`, or over two projects from `alice`.
+- No proposal is stored from `bob` or `carol`, and none over two projects from `alice`.
+- Neither `A` nor `Z` is moved by any step.
 
 ## Cleanup
 
