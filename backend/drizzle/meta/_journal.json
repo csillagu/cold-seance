@@ -176,6 +176,13 @@
       "when": 1793910223145,
       "tag": "0024_task_issues",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793969459185,
+      "tag": "0025_proposals",
+      "breakpoints": true
     }
   ]
 }
