@@ -204,10 +204,33 @@ describe('TC-165: an API token gets its owner’s read-only role', () => {
     expect(after.json().error).toBe('Not Visible')
   })
 
-  // Pending: TC-165 in full: bob's token reads task T and is refused changing its title to Mine,
-  // T's title staying Draft (tasks, SC-001). The edit tried here, a change of Apollo's members,
-  // needs the admin role, so it does not single out the read-only role as the task edit will.
-  // Pending too: SC-055 refuses a token whose owner's account is no longer active. The tool has no
+  it("lets bob's token read task T and refuses it renaming T to Mine, which stays Draft", async () => {
+    const asAlice = { accountId: alice.id, channel: 'ui' } as const
+    const apollo = await services.projects.createProject(asAlice, { name: 'Apollo' })
+    await services.projectRoles.setRole(asAlice, apollo.id, bob.id, 'read-only')
+    const t = await services.tasks.createTask(asAlice, apollo.id, { title: 'Draft' })
+    const { secret } = await services.apiTokens.createToken({ accountId: bob.id, channel: 'ui' })
+    const headers = { authorization: `Bearer ${secret}` }
+
+    // Step 1: with bob's token, read T.
+    const read = await app.inject({ method: 'GET', url: `/api/tasks/${t.id}`, headers })
+    expect(read.statusCode).toBe(200)
+    expect(read.json()).toMatchObject({ id: t.id, title: 'Draft' })
+
+    // Step 2: with bob's token, try to change T's title to Mine.
+    const edit = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${t.id}`,
+      headers,
+      payload: { title: 'Mine' },
+    })
+    expect(edit.statusCode).toBe(403)
+
+    // Negative: T's title is still Draft.
+    expect((await services.tasks.getTask(asAlice, t.id)).title).toBe('Draft')
+  })
+
+  // Pending: SC-055 refuses a token whose owner's account is no longer active. The tool has no
   // way yet to end an account, so the token's owner need only exist.
   // TC-166 (MCP server access gets its owner's lack of a role) is pending the MCP server (SC-027),
   // which recognises the same tokens through `ApiTokenService.resolve`.

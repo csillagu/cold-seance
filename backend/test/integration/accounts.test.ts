@@ -311,9 +311,9 @@ describe('the account service', () => {
 })
 
 // The test cases, each on a fresh test deployment: an empty, migrated database, with the first
-// system admin `root`. They go through the REST API, as the TCs say. Sign-in (SC-052, SC-107)
-// does not exist yet, so the test authenticator says who makes each request; the steps that sign
-// in or look at the browser are pending (see each test).
+// system admin `root`. They go through the REST API, as the TCs say. The test authenticator says
+// who makes each request; the steps that sign in do so through the sign-in route (SC-052), and
+// the steps that look at the browser are pending (see each test).
 describe('test cases through the REST API', () => {
   let x: TestDatabase
   let app: ReturnType<typeof buildApp>
@@ -330,6 +330,10 @@ describe('test cases through the REST API', () => {
     await x?.drop()
   })
 
+  /** Signs in through the sign-in route (SC-052), as the sign-in page does. */
+  const signIn = (username: string, password: string) =>
+    app.inject({ method: 'POST', url: '/api/session', payload: { username, password } })
+
   const createErin = (headers: Record<string, string>) =>
     app.inject({
       method: 'POST',
@@ -338,8 +342,6 @@ describe('test cases through the REST API', () => {
       payload: { username: 'erin', password: 'erin-password' },
     })
 
-  // Pending: "Sign in as erin" needs sign-in (SC-052). Until then the test checks what sign-in
-  // will check: that erin's account holds the Argon2id hash of the password root gave.
   it('TC-174: a system admin creates an account', async () => {
     const response = await createErin(as(root))
     expect(response.statusCode).toBe(201)
@@ -349,20 +351,40 @@ describe('test cases through the REST API', () => {
     const stored = await storedAccount(x.db, 'erin')
     expect(stored?.id).toBe(erin.id)
     expect(argon2idMatches(stored!.passwordHash, 'erin-password')).toBe(true)
+    // Step 2: erin signs in with the password root gave.
+    expect((await signIn('erin', 'erin-password')).statusCode).toBe(204)
 
     // Negative assertion: erin is not a system admin.
     expect(erin.systemAdmin).toBe(false)
     expect((await createErin(as(erin))).statusCode).toBe(403)
   })
 
-  // Pending: `alice` being an admin of project `Apollo` needs projects and roles (SC-014, SC-017);
-  // the browser offering her no way to create accounts is the account screen's (SC-076); and the
-  // failed sign-in as erin needs sign-in (SC-052). Until then "no account erin exists" is checked
-  // in the database and in root's list.
+  // Pending: the browser offering alice no way to create accounts is the account screen's
+  // (SC-076, node F03).
   it('TC-175: someone who is not a system admin cannot create an account', async () => {
     const alice = await seedAccount(x.db, { username: 'alice' })
+    // alice is the admin of Apollo, which she creates.
+    const apollo = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(alice),
+      payload: { name: 'Apollo' },
+    })
+    expect(apollo.statusCode).toBe(201)
+    const members = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${apollo.json<{ id: string }>().id}/members`,
+      headers: as(alice),
+    })
+    expect(members.json()).toEqual([{ accountId: alice.id, username: 'alice', role: 'admin' }])
+
     const response = await createErin(as(alice))
     expect(response.statusCode).toBe(403)
+
+    // Step 2: the sign-in as erin fails, as no account erin exists.
+    const signedIn = await signIn('erin', 'erin-password')
+    expect(signedIn.statusCode).toBe(401)
+    expect(signedIn.headers['set-cookie']).toBeUndefined()
 
     expect(await storedAccount(x.db, 'erin')).toBeUndefined()
     const list = await app.inject({ method: 'GET', url: '/api/accounts', headers: as(root) })

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { tokenAuthenticator } from '../../src/api/token-auth.ts'
 import { buildApp } from '../../src/app.ts'
 import type { Database } from '../../src/db/client.ts'
 import { auditLog } from '../../src/db/schema.ts'
@@ -621,7 +622,7 @@ describe('test cases through the REST API', () => {
       await expectAtTime(entry!.at, t)
     })
 
-    // Pending: TC-171 in full: with alice's API token, rename task T in Apollo and read Apollo's log (SC-016, SC-055, SC-001).
+    // TC-171 in full, with alice's API token renaming task T, is in the last block of this file.
   })
 
   describe('TC-172: creating a proposal through the MCP server is logged with the MCP channel', () => {
@@ -680,7 +681,7 @@ describe('test cases through the REST API', () => {
       expect(renames.map((e) => e.subject.id).sort()).toEqual(['A', 'B'])
     })
 
-    // Pending: TC-203 in full: alice and bob rename tasks A and B in projects they created (SC-001).
+    // TC-203 in full, with alice and bob renaming tasks A and B, is in the last block of this file.
   })
 
   describe("TC-204: project admins and read-write members read only their projects' audit log", () => {
@@ -704,7 +705,7 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-204 in full: with Apollo and Borealis created and their members' roles set (SC-001).
+    // TC-204 in full, with the renamings made on real tasks, is in the last block of this file.
   })
 
   describe('TC-205: read-only members and contributors are refused the audit log', () => {
@@ -720,7 +721,7 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-205 in full: with Apollo created and bob and carol given their roles (SC-001).
+    // TC-205 in full, with the renaming made on a real task, is in the last block of this file.
   })
 
   describe("TC-206: an approved proposal's changes are logged as the approver's", () => {
@@ -764,5 +765,194 @@ describe('test cases through the REST API', () => {
     })
 
     // Pending: TC-239 in full: bob approves the proposal in the browser (SC-016, SC-055, SC-001, SC-010, SC-048, SC-027, SC-052). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
+  })
+})
+
+describe('test cases in full through the REST API', () => {
+  // The test cases above whose every part is built now, each from a fresh test deployment of its
+  // own: projects created, roles given, tasks created and renamed (SC-001) and the log read, all
+  // through the REST API, with the real service layer. A request is made with an API token
+  // (SC-055) where the test case says so, and otherwise as the test authenticator names.
+  let x: TestDatabase
+  let services: Services
+  let app: ReturnType<typeof buildApp>
+  let root: Seeded
+  let alice: Seeded
+  let bob: Seeded
+  let carol: Seeded
+
+  beforeEach(async () => {
+    x = await createTestDatabase()
+    services = createServices(x.db)
+    app = buildApp(
+      {},
+      { authenticators: [tokenAuthenticator(services.apiTokens), testAuthenticator], services },
+    )
+    root = await seedAccount(x.db, { username: 'root', systemAdmin: true })
+    alice = await seedAccount(x.db, { username: 'alice' })
+    bob = await seedAccount(x.db, { username: 'bob' })
+    carol = await seedAccount(x.db, { username: 'carol' })
+  })
+
+  afterEach(async () => {
+    await app?.close()
+    await x?.drop()
+  })
+
+  type Sent = Omit<AuditEntry, 'at'> & { at: string }
+
+  const project = async (creator: Seeded, name: string): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: as(creator),
+      payload: { name },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
+  const setRole = async (admin: Seeded, projectId: string, member: Seeded, role: ProjectRole) => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/projects/${projectId}/members/${member.id}`,
+      headers: as(admin),
+      payload: { role },
+    })
+    expect(response.statusCode).toBe(200)
+  }
+  const task = async (creator: Seeded, projectId: string, title: string): Promise<string> => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${projectId}/tasks`,
+      headers: as(creator),
+      payload: { title },
+    })
+    expect(response.statusCode).toBe(201)
+    return response.json<{ id: string }>().id
+  }
+  const rename = async (headers: Record<string, string>, taskId: string, title: string) => {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${taskId}`,
+      headers,
+      payload: { title },
+    })
+    expect(response.statusCode).toBe(200)
+  }
+  const readLog = (reader: Seeded, projectId?: string) =>
+    app.inject({
+      method: 'GET',
+      url: '/api/audit-log',
+      query: projectId === undefined ? {} : { projectId },
+      headers: as(reader),
+    })
+  /** The renamings in a log as sent: the entries that change a task's title. */
+  const renamings = (entries: Sent[]) =>
+    entries.filter(
+      (e) =>
+        e.action === 'task.updated' &&
+        (e.details as { changes?: { title?: string } } | undefined)?.changes?.title !== undefined,
+    )
+
+  describe('TC-171: a change through the REST API is logged with the REST API channel', () => {
+    it("logs alice's renaming of T with her API token as hers, at t, through the REST API", async () => {
+      const apollo = await project(alice, 'Apollo')
+      const t = await task(alice, apollo, 'Draft')
+      const { secret } = await services.apiTokens.createToken({
+        accountId: alice.id,
+        channel: 'ui',
+      })
+
+      // Step 1: with alice's token, change T's title to Final at time t.
+      const at = await now(x.db)
+      await rename({ authorization: `Bearer ${secret}` }, t, 'Final')
+
+      // Step 2: as alice, read Apollo's log.
+      const response = await readLog(alice, apollo)
+      expect(response.statusCode).toBe(200)
+      const [entry, ...others] = renamings(response.json<Sent[]>())
+      expect(others).toEqual([])
+      expect(entry).toMatchObject({
+        subject: { type: 'task', id: t },
+        by: { accountId: alice.id, username: 'alice' },
+        channels: ['rest-api'],
+        details: { changes: { title: 'Final' }, previous: { title: 'Draft' } },
+      })
+      const sent = new Date(entry!.at).getTime()
+      expect(sent).toBeGreaterThanOrEqual(at.getTime())
+      expect(sent - at.getTime()).toBeLessThan(60_000)
+      // Negative: the entry does not give the UI as its channel.
+      expect(entry!.channels).not.toContain('ui')
+    })
+  })
+
+  describe('TC-203: a system admin reads the whole audit log', () => {
+    it('shows root, with no role in Apollo or Borealis, the renaming of A and of B', async () => {
+      const apollo = await project(alice, 'Apollo')
+      const a = await task(alice, apollo, 'A')
+      await rename(as(alice), a, 'A renamed')
+      const borealis = await project(bob, 'Borealis')
+      const b = await task(bob, borealis, 'B')
+      await rename(as(bob), b, 'B renamed')
+
+      const response = await readLog(root)
+      expect(response.statusCode).toBe(200)
+      // Negative: no entry is withheld for lack of a project role.
+      const shown = renamings(response.json<Sent[]>())
+      expect(shown.map((e) => [e.subject.id, e.by.username])).toHaveLength(2)
+      expect(shown.map((e) => [e.subject.id, e.by.username])).toEqual(
+        expect.arrayContaining([
+          [a, 'alice'],
+          [b, 'bob'],
+        ]),
+      )
+      expect(await services.projectRoles.roleOf(root.id, apollo)).toBeUndefined()
+      expect(await services.projectRoles.roleOf(root.id, borealis)).toBeUndefined()
+    })
+  })
+
+  describe("TC-204: project admins and read-write members read only their projects' audit log", () => {
+    it('lets alice and carol read Apollo with the renaming of A, and refuses them Borealis', async () => {
+      const apollo = await project(alice, 'Apollo')
+      await setRole(alice, apollo, carol, 'read-write')
+      const a = await task(alice, apollo, 'A')
+      await rename(as(alice), a, 'A renamed')
+      const borealis = await project(bob, 'Borealis')
+      await setRole(bob, borealis, alice, 'read-only')
+      await setRole(bob, borealis, carol, 'read-only')
+      const b = await task(bob, borealis, 'B')
+      await rename(as(bob), b, 'B renamed')
+
+      for (const reader of [alice, carol]) {
+        const own = await readLog(reader, apollo)
+        expect(own.statusCode).toBe(200)
+        expect(renamings(own.json<Sent[]>()).map((e) => e.subject.id)).toEqual([a])
+        const other = await readLog(reader, borealis)
+        expect(other.statusCode).toBe(403)
+        // Negative: no read by alice or carol shows the renaming of B.
+        for (const read of [own, other, await readLog(reader)]) {
+          expect(read.body).not.toContain(b)
+          expect(read.body).not.toContain('B renamed')
+        }
+      }
+    })
+  })
+
+  describe('TC-205: read-only members and contributors are refused the audit log', () => {
+    it("refuses bob, read-only, and carol, a contributor, Apollo's log and the renaming of A", async () => {
+      const apollo = await project(alice, 'Apollo')
+      await setRole(alice, apollo, bob, 'read-only')
+      await setRole(alice, apollo, carol, 'contributor')
+      const a = await task(alice, apollo, 'A')
+      await rename(as(alice), a, 'A renamed')
+
+      for (const reader of [bob, carol]) {
+        const response = await readLog(reader, apollo)
+        expect(response.statusCode).toBe(403)
+        // Negative: neither sees the renaming of A.
+        expect(response.body).not.toContain(a)
+        expect(response.body).not.toContain('A renamed')
+      }
+    })
   })
 })
