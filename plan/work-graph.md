@@ -159,7 +159,7 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 | B07  | GitHub planning mirror                                                             | SC-022                                 | 5      |               | 0              | 5 / 0             |
 | B08  | GitHub issue creator and not-planned closer                                        | SC-060, SC-061                         | 3      | B07           | 5              | 3 / 0             |
 | B09  | GitHub seeding importer                                                            | SC-025                                 | 8      |               | 0              | 5 / 3             |
-| B10  | Proposal store                                                                     | SC-010                                 | 3      |               | 0              | 1 / 4             |
+| B10  | Proposal store                                                                     | SC-010                                 | 3      |               | 0              | 5 / 5             |
 | B11  | Proposal edit, reject and expiry                                                   | SC-045, SC-046                         | 3      | B10           | 3              | 0 / 4             |
 | B12  | Proposal conflict detector                                                         | SC-047                                 | 3      | B10           | 3              | 0 / 3             |
 | B13  | Proposal preview                                                                   | SC-011                                 | 5      | B10, B02      | 7              | 0 / 4             |
@@ -169,7 +169,7 @@ B02 (overloads and red flags) starts two of them, and B16 (the GitHub change han
 | B20  | Project repository removal                                                         | SC-117                                 | 2      |               | 0              | 0 / 1             |
 | B17  | GitHub webhook endpoint and re-check timer                                         | SC-105, SC-024                         | 5      | B16           | 18             | 1 / 1             |
 | B18  | GitHub revert commenter and revert notifications                                   | SC-062                                 | 1      | B16, B15      | 18             | 4 / 0             |
-| B19  | MCP server endpoint                                                                | SC-027                                 | 5      | B14, B15      | 17             | 9 / 2             |
+| B19  | MCP server endpoint                                                                | SC-027                                 | 5      | B14, B15      | 17             | 9 / 3             |
 | D01  | Frontend design                                                                    | —                                      | 0      |               | 0              | 0 / 0             |
 | P01  | Playwright browser tests                                                           | —                                      | 0      |               | 0              | 0 / 0             |
 | F01  | Frontend layout and sign-in page                                                   | SC-113, SC-075                         | 4      | D01, P01      | 0              | 2 / 1             |

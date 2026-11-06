@@ -13,6 +13,7 @@ import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ProposalService } from './proposals.ts'
 import { ReceivingProjectService } from './receiving-projects.ts'
 import { RedFlagService } from './red-flags.ts'
 import { RepositoryService } from './repositories.ts'
@@ -49,6 +50,8 @@ export interface Services {
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** The proposals, each a set of grouped changes to the plan (SC-010). */
+  proposals: ProposalService
   /** Each repository's one receiving project (SC-111). */
   receivingProjects: ReceivingProjectService
   /** The red flags currently raised, with when each appeared (SC-043). */
@@ -115,6 +118,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
+    proposals: new ProposalService(db, audit, projectRoles),
     receivingProjects: new ReceivingProjectService(db, audit, projectRoles, projectRepositories),
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
