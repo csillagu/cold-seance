@@ -7,4 +7,4 @@ package-lock.json
 backend/drizzle/
 
 # The frontend design, exported from its design canvas as is.
-design/kanban-gantt/
+design/frontend/

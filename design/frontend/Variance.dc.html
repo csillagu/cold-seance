@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Baseline variance: Apollo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; display: flex; flex-direction: column; background: {{t.bg}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased">
+
+<!-- app bar -->
+<header style="flex: none; height: 52px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<span style="width: 24px; height: 24px; border-radius: 6px; background: #6366F1"></span>
+<span style="font-weight: 600">Apollo</span>
+<span style="color: {{t.faint}}">/</span>
+<span style="color: {{t.muted}}">Views</span>
+<span style="margin-left: auto; display: flex; align-items: center; gap: 8px; color: {{t.muted}}">Your role: <strong style="font-weight: 600; color: {{t.text}}">admin</strong></span>
+<span style="width: 28px; height: 28px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span>
+</header>
+
+<!-- view kinds and saved views -->
+<nav aria-label="Views" style="flex: none; height: 44px; padding: 0 24px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<a href="Main.dc.html" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Board</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">My Kanban</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Sync engine only</a>
+<a href="Gantt.dc.html" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Gantt</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Person load</a>
+<a href="#" aria-current="page" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-bottom: 2px solid #6366F1; color: {{t.text}}; font-weight: 600; text-decoration: none"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M4 12h16M4 17h7"></path><path d="M17 4v6M20 14v6" stroke-dasharray="2 2"></path></svg>Baseline variance</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: #6366F1; font-weight: 500; text-decoration: none">+ New view</a>
+</nav>
+
+<!-- toolbar -->
+<div style="flex: none; padding: 12px 24px; display: flex; align-items: center; gap: 8px">
+<label for="baseline-pick" style="color: {{t.muted}}">Baseline</label>
+<select id="baseline-pick" style="height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.card}}; color: {{t.text}}; font-family: inherit; font-size: 13px; font-weight: 600">
+<option>v1 approved · saved 26 Feb 2027</option>
+<option>v2 after re-plan · saved 5 Mar 2027</option>
+</select>
+<span style="height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: {{t.sec}}; color: {{t.text2}}; font-size: 12px; font-weight: 500"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Read-only</span>
+<span style="margin-left: 8px; font-size: 12px; color: {{t.muted}}">Variance in working days of the global calendar. Actual dates are used where a task has them, the current plan where it has none.</span>
+</div>
+
+<!-- summary -->
+<div style="flex: none; padding: 0 24px 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+<div style="border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 14px 16px; display: flex; align-items: baseline; gap: 10px"><span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: {{t.lateText}}">6</span><span style="color: {{t.muted}}">later than the baseline</span></div>
+<div style="border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 14px 16px; display: flex; align-items: baseline; gap: 10px"><span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em">2</span><span style="color: {{t.muted}}">on the baseline</span></div>
+<div style="border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 14px 16px; display: flex; align-items: baseline; gap: 10px"><span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: {{t.okText}}">1</span><span style="color: {{t.muted}}">earlier than the baseline</span></div>
+<div style="border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 14px 16px; display: flex; align-items: baseline; gap: 10px"><span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: {{t.muted}}">3</span><span style="color: {{t.muted}}">with no baseline dates</span></div>
+</div>
+
+<!-- table -->
+<div style="margin: 0 24px; border: 1px solid {{t.border}}; border-radius: 12px; background: {{t.card}}; overflow: hidden">
+<div role="row" style="height: 40px; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 128px 128px 128px 76px 76px 320px; gap: 12px; align-items: center; border-bottom: 1px solid {{t.border}}; background: {{t.bg}}; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: {{t.muted}}">
+<span>TASK</span><span>PLANNED</span><span>BASELINE v1</span><span>ACTUAL</span><span style="text-align: right">START Δ</span><span style="text-align: right">FINISH Δ</span>
+<span style="position: relative; height: 100%; display: block"><span style="position: absolute; left: 36px; top: 13px">22 FEB</span><span style="position: absolute; left: 120px; top: 13px">1 MAR</span><span style="position: absolute; left: 204px; top: 13px">8 MAR</span><span style="position: absolute; left: 280px; top: 13px">15 MAR</span></span>
+</div>
+
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="12">
+<sc-if value="{{r.group}}" hint-placeholder-val="{{false}}">
+<div style="height: 30px; padding: 0 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid {{t.border}}; background: {{t.bg}}; font-size: 12px; font-weight: 600">{{r.title}}<span style="font-weight: 400; color: {{t.muted}}">{{r.note}}</span></div>
+</sc-if>
+<sc-if value="{{r.task}}" hint-placeholder-val="{{true}}">
+<div role="row" style="{{r.rowStyle}}">
+<span style="{{r.titleStyle}}"><sc-if value="{{r.milestone}}" hint-placeholder-val="{{false}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" style="flex: none"><path d="M12 2l10 10-10 10L2 12z" fill="{{t.text}}"></path></svg></sc-if><span style="{{r.dotStyle}}"></span><span style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis">{{r.title}}</span><span style="flex: none; font-size: 11px; font-weight: 400; color: {{t.muted}}">{{r.note}}</span></span>
+<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{r.planned}}</span>
+<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: {{t.muted}}">{{r.baseline}}</span>
+<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">{{r.actual}}</span>
+<span style="justify-self: end"><span style="{{r.sStyle}}">{{r.s}}</span></span>
+<span style="justify-self: end"><span style="{{r.fStyle}}">{{r.f}}</span></span>
+<span style="position: relative; height: 100%; display: block">
+<span style="position: absolute; left: 222px; top: 0; bottom: 0; width: 1px; background: #6366F1; opacity: 0.5"></span>
+<span style="{{r.barPlanned}}"></span>
+<span style="{{r.barBaseline}}"></span>
+<span style="{{r.barActual}}"></span>
+</span>
+</div>
+</sc-if>
+</sc-for>
+</div>
+
+<!-- legend -->
+<div style="margin: 14px 24px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 20px; font-size: 12px; color: {{t.muted}}">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 7px; border-radius: 2px; background: #6366F1"></span>Planned</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 5px; border-radius: 2px; background: {{t.neutral}}"></span>Baseline</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 5px; border-radius: 2px; background: {{t.text}}"></span>Actual, so far</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 2px; height: 14px; background: #6366F1; opacity: 0.6"></span>Today, 9 Mar</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.lateBg}}; color: {{t.lateText}}; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; font-weight: 600">+1</span>later</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.okBg}}; color: {{t.okText}}; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; font-weight: 600">−1</span>earlier</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var themes = {
+      light: { bg: '#F9FAFB', card: '#FFFFFF', sec: '#F3F4F6', border: '#E5E7EB', borderStrong: '#D1D5DB',
+        text: '#111827', text2: '#374151', muted: '#4B5563', faint: '#6B7280', neutral: '#9CA3AF',
+        lateBg: '#FFFBEB', lateText: '#92400E', okBg: '#ECFDF5', okText: '#047857' },
+      dark: { bg: '#0D0E12', card: '#16181D', sec: '#1F232B', border: '#262626', borderStrong: '#363B45',
+        text: '#F9FAFB', text2: '#D1D5DB', muted: '#9CA3AF', faint: '#8B93A1', neutral: '#5B6270',
+        lateBg: 'rgba(245,158,11,0.15)', lateText: '#FCD34D', okBg: 'rgba(16,185,129,0.15)', okText: '#6EE7B7' }
+    };
+    var t = themes[this.props.theme] || themes.light;
+    var status = { done: '#10B981', progress: '#F59E0B', hold: '#3B82F6', none: null, cancelled: '#6B7280' };
+    function chip(v) {
+      var base = 'height: 22px; min-width: 30px; box-sizing: border-box; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-family: Geist Mono, ui-monospace, monospace; font-size: 12px; font-weight: 600; ';
+      if (v.charAt(0) === '+') return base + 'background: ' + t.lateBg + '; color: ' + t.lateText + ';';
+      if (v.charAt(0) === '−') return base + 'background: ' + t.okBg + '; color: ' + t.okText + ';';
+      return base + 'color: ' + t.muted + ';';
+    }
+    function bar(b, top, h, color, extra) {
+      if (!b) return 'display: none';
+      return 'position: absolute; left: ' + (b[0] * 12) + 'px; width: ' + (b[1] * 12 - 2) + 'px; top: ' + top + 'px; height: ' + h + 'px; border-radius: 2px; background: ' + color + ';' + (extra || '');
+    }
+    var data = [
+      { group: true, title: 'Scheduled', note: '' },
+      { title: 'Choose sync protocol', note: 'done', st: 'done', planned: '22–24 Feb', baseline: '22–24 Feb', actual: '19–24 Feb', s: '−1', f: '0', p: [3, 3], b: [3, 3], a: [0, 6] },
+      { title: 'Set up CI pipeline', note: 'done', st: 'done', planned: '25–26 Feb', baseline: '25–26 Feb', actual: '25 Feb–1 Mar', s: '0', f: '+1', p: [6, 2], b: [6, 2], a: [6, 5] },
+      { title: 'Sync engine', note: '4 subtasks', st: 'progress', bold: true, planned: '1–15 Mar', baseline: '1–12 Mar', actual: '1 Mar –', s: '0', f: '+1', p: [10, 15], b: [10, 12], a: [10, 9], open: true },
+      { title: 'Design API schema', st: 'progress', sub: true, planned: '1–3 Mar', baseline: '1–2 Mar', actual: '1 Mar –', s: '0', f: '+1', p: [10, 3], b: [10, 2], a: [10, 9], open: true },
+      { title: 'Write migration guide', st: 'progress', sub: true, planned: '3 Mar', baseline: '2 Mar', actual: '3 Mar –', s: '+1', f: '+1', p: [12, 1], b: [11, 1], a: [12, 7], open: true },
+      { title: 'Build sync service', note: 'on hold', st: 'hold', sub: true, planned: '4–10 Mar', baseline: '3–9 Mar', actual: '4 Mar –', s: '+1', f: '+1', p: [13, 7], b: [12, 7], a: [13, 6], open: true },
+      { title: 'Load testing', st: 'none', sub: true, planned: '11–15 Mar', baseline: '10–12 Mar', actual: '—', s: '+1', f: '+1', p: [20, 5], b: [19, 3] },
+      { title: 'Release 1.0 GA', note: 'fixed milestone', milestone: true, bold: true, planned: '12 Mar', baseline: '12 Mar', actual: '—', s: '0', f: '', p: [21, 1], b: [21, 1] },
+      { title: 'Integrate Borealis auth', st: 'none', planned: '11–12 Mar', baseline: 'not in v1', actual: '—', s: '—', f: '—', p: [20, 2] },
+      { title: 'Old export flow', note: 'cancelled', st: 'cancelled', cancelled: true, planned: '8–9 Mar', baseline: '8–9 Mar', actual: '—', s: '0', f: '0', p: [17, 2], b: [17, 2] },
+      { group: true, title: 'Unscheduled', note: 'no planned dates' },
+      { title: 'Triage backlog', st: 'none', planned: '—', baseline: '—', actual: '—', s: '—', f: '—' },
+      { title: 'Investigate flaky e2e run', st: 'none', planned: '—', baseline: '—', actual: '—', s: '—', f: '—' }
+    ];
+    var rows = data.map(function (r) {
+      if (r.group) return { group: true, task: false, title: r.title, note: r.note };
+      var dot = r.milestone ? 'display: none' : (status[r.st]
+        ? 'flex: none; width: 8px; height: 8px; border-radius: 50%; background: ' + status[r.st]
+        : 'flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; border: 1.5px solid ' + t.neutral);
+      return {
+        group: false, task: true, milestone: !!r.milestone,
+        title: r.title, note: r.note || '', planned: r.planned, baseline: r.baseline, actual: r.actual,
+        s: r.s, f: r.f, sStyle: chip(r.s), fStyle: r.f ? chip(r.f) : 'display: none',
+        rowStyle: 'height: 44px; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 128px 128px 128px 76px 76px 320px; gap: 12px; align-items: center; border-bottom: 1px solid ' + t.sec + ';' + (r.cancelled ? ' opacity: 0.5;' : ''),
+        titleStyle: 'min-width: 0; display: flex; align-items: center; gap: 8px; padding-left: ' + (r.sub ? 24 : 0) + 'px; font-weight: ' + (r.bold ? 600 : 500) + ';' + (r.cancelled ? ' text-decoration: line-through;' : ''),
+        dotStyle: dot,
+        barPlanned: r.milestone
+          ? 'position: absolute; left: ' + (r.p[0] * 12 - 1) + 'px; top: 11px; width: 10px; height: 10px; transform: rotate(45deg); background: #6366F1; border-radius: 1px;'
+          : bar(r.p, 10, 7, '#6366F1'),
+        barBaseline: r.milestone
+          ? 'position: absolute; left: ' + (r.b[0] * 12 + 3) + 'px; top: 25px; width: 2px; height: 8px; background: ' + t.neutral + ';'
+          : bar(r.b, 20, 5, t.neutral),
+        barActual: bar(r.a, 28, 5, t.text, r.open ? ' -webkit-mask-image: linear-gradient(90deg, #000 70%, transparent);' : '')
+      };
+    });
+    return { t: t, rows: rows };
+  }
+}
+</script>
+</body>
+</html>

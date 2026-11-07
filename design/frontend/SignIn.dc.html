@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<main style="width: 1440px; height: 900px; box-sizing: border-box; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; background: {{t.bg}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased">
+<div aria-hidden="true" style="position: absolute; left: 50%; top: 50%; width: 900px; height: 700px; transform: translate(-50%, -58%); border-radius: 50%; background: radial-gradient(closest-side, {{t.glow}}, transparent); pointer-events: none"></div>
+
+<div style="position: relative; width: 400px; display: flex; flex-direction: column; align-items: center">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="width: 32px; height: 32px; border-radius: 8px; background: #6366F1"></span>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">cold-seance</span>
+</div>
+<h1 style="margin: 32px 0 0; font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em">Sign in</h1>
+<p style="margin: 8px 0 0; color: {{t.muted}}">With the account your system admin gave you.</p>
+
+<form action="#" style="margin-top: 28px; width: 100%; box-sizing: border-box; padding: 28px; border-radius: 12px; border: 1px solid {{t.border}}; background: {{t.card}}; box-shadow: {{t.shadow}}; display: flex; flex-direction: column; gap: 18px">
+
+<sc-if value="{{failed}}" hint-placeholder-val="{{false}}">
+<div role="alert" style="padding: 12px 14px; border-radius: 8px; border: 1px solid {{t.redBorder}}; background: {{t.redBg}}; color: {{t.redText}}; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5">
+<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5M12 16.5v.5"></path></svg>
+<span>Signing in failed. The username or the password is wrong.</span>
+</div>
+</sc-if>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="username" style="font-size: 13px; font-weight: 600">Username</label>
+<input id="username" name="username" type="text" autocomplete="username" value="{{username}}" style="height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.bg}}; color: {{t.text}}; font-family: inherit; font-size: 14px; outline: none">
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="password" style="font-size: 13px; font-weight: 600">Password</label>
+<input id="password" name="password" type="password" autocomplete="current-password" style="{{passwordStyle}}">
+</div>
+<button type="submit" style="height: 44px; margin-top: 4px; border: 0; border-radius: 8px; background: #4F46E5; color: #FFFFFF; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Sign in</button>
+</form>
+
+<p style="margin: 20px 0 0; font-size: 13px; color: {{t.muted}}; text-align: center">No account yet? A system admin creates accounts.</p>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"failed":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var themes = {
+      light: { bg: '#F9FAFB', card: '#FFFFFF', border: '#E5E7EB', borderStrong: '#D1D5DB', text: '#111827', muted: '#4B5563',
+        glow: 'rgba(99,102,241,0.10)', shadow: '0 12px 40px rgba(17,24,39,0.08)',
+        redBg: '#FEF2F2', redBorder: '#FCA5A5', redText: '#B91C1C' },
+      dark: { bg: '#0D0E12', card: '#16181D', border: '#262626', borderStrong: '#363B45', text: '#F9FAFB', muted: '#9CA3AF',
+        glow: 'rgba(99,102,241,0.20)', shadow: '0 24px 60px rgba(0,0,0,0.45)',
+        redBg: 'rgba(239,68,68,0.14)', redBorder: 'rgba(239,68,68,0.6)', redText: '#FCA5A5' }
+    };
+    var t = themes[this.props.theme] || themes.light;
+    var failed = this.props.failed === true || this.props.failed === 'true';
+    return {
+      t: t,
+      failed: failed,
+      username: failed ? 'alice' : '',
+      passwordStyle: 'height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; border: 1px solid '
+        + (failed ? t.redBorder : t.borderStrong) + '; background: ' + t.bg + '; color: ' + t.text
+        + '; font-family: inherit; font-size: 14px; outline: none;'
+        + (failed ? ' box-shadow: 0 0 0 3px rgba(239,68,68,0.15);' : '')
+    };
+  }
+}
+</script>
+</body>
+</html>
