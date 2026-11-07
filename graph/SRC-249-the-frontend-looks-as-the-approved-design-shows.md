@@ -1,5 +1,6 @@
 ---
 certainty: verified
+negotiability: immovable
 source: design session
 evidence: design session 2026-11-07
 ---
@@ -22,3 +23,5 @@ The colours are the owner's:
 As received, in the design session of 2026-11-07. The owner first gave the colours above in a brief for a landing page, then asked instead for "an example for a gant chart and a kanban diagram, not this bullshitting marketing page. Read the repo on what a kanban board and a gantt chart should contain." Claude drew the two views from the items in the graph, and the owner asked for "both lingt AND dark mode, as per my earlier instudctions." Shown both modes, the owner answered: "great, perfect. Somehow incorporate this into the DD-s. This is how the thing should and will look like. Maybe not DD, and also, there is a gh issue for it", the issue being #111 (D01, the frontend design). The owner then asked: "lets design the sign in and the baseline variance screen too please", and, shown them, answered: "great as is, pleas make sure it is in reqlite. Commit push then open pr, which closes the issue".
 
 Claude drew some details that no other item states, and the owner approved them only as part of the pictures: a parent task has its own Kanban card; a card shows no effort; the baseline variance view shows cancelled tasks faded, shows an unscheduled task's missing dates and variance as dashes, and has summary counts above its table; and the sign-in page has no way to reset a password. Not stated: how the design applies to the screens it does not draw, such as the person load view and the settings screens; and how a Kanban covering several projects groups its cards.
+
+Asked what negotiability this item carries, the owner answered: "immovalbe".
