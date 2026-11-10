@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { Database, Executor } from '../db/client.ts'
+import type { Executor } from '../db/client.ts'
 import { tasks } from '../db/schema.ts'
 import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
@@ -42,7 +42,7 @@ export const NOT_PULLED_MESSAGE =
  * is created.
  */
 export class TaskRepositoryService {
-  readonly #db: Database
+  readonly #db: Executor
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #projectRepositories: ProjectRepositoryService
@@ -51,7 +51,7 @@ export class TaskRepositoryService {
 
   /** `changes` is told of each task assigned to a repository, for its issue (SC-060). */
   constructor(
-    db: Database,
+    db: Executor,
     audit: AuditLogService,
     roles: ProjectRoleService,
     projectRepositories: ProjectRepositoryService,

@@ -13,6 +13,7 @@ import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ProposalPreviewService } from './proposal-preview.ts'
 import { ProposalService } from './proposals.ts'
 import { ReceivingProjectService } from './receiving-projects.ts'
 import { RedFlagService } from './red-flags.ts'
@@ -50,6 +51,8 @@ export interface Services {
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** A proposal's live preview against the current plan (SC-011). */
+  proposalPreview: ProposalPreviewService
   /** The proposals, each a set of grouped changes to the plan (SC-010). */
   proposals: ProposalService
   /** Each repository's one receiving project (SC-111). */
@@ -105,6 +108,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const projectRepositories = new ProjectRepositoryService(db, audit, projectRoles)
   const calendars = new CalendarService(db, audit, projectRoles)
   const changes = options.planningChanges
+  const proposals = new ProposalService(db, audit, projectRoles)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -118,7 +122,16 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
-    proposals: new ProposalService(db, audit, projectRoles),
+    proposalPreview: new ProposalPreviewService(
+      db,
+      proposals,
+      audit,
+      projectRoles,
+      viewFilter,
+      projectRepositories,
+      options.today,
+    ),
+    proposals,
     receivingProjects: new ReceivingProjectService(db, audit, projectRoles, projectRepositories),
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),

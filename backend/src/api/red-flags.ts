@@ -19,7 +19,7 @@ const personDay = {
   properties: { accountId: { type: 'string', format: 'uuid' }, date: day },
 } as const
 
-const redFlag = {
+export const redFlag = {
   type: 'object',
   required: ['id', 'kind', 'projectId', 'raisedAt'],
   properties: {
