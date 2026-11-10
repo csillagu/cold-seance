@@ -198,3 +198,4 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC-011 | implemented | #123 | https://github.com/csillagu/cold-seance/pull/170 |
 | SC-045 | implemented | #124 | https://github.com/csillagu/cold-seance/pull/171 |
 | SC-046 | implemented | #124 | https://github.com/csillagu/cold-seance/pull/171 |
+| SC-047 | implemented | #125 | https://github.com/csillagu/cold-seance/pull/172 |
