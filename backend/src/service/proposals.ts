@@ -43,6 +43,30 @@ export interface ProposalGroup {
   changes: StoredChange[]
 }
 
+/**
+ * Where a proposal stands: waiting for review, rejected (FR-075), or expired, having been left
+ * unedited for more than 24 hours (FR-081, DD-024).
+ */
+export type ProposalStatus = 'waiting' | 'rejected' | 'expired'
+
+/** How long a proposal lives after its last edit, in milliseconds (DD-024). */
+export const PROPOSAL_LIFETIME_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The expiry rule (SC-046, DD-050): a proposal is expired when its last edit is more than 24
+ * hours before `now`. A rejected proposal stays rejected, whenever it was last edited. Applied
+ * whenever a proposal is read; nothing stores that a proposal expired.
+ */
+export function proposalStatus(
+  proposal: { lastEditedAt: Date; rejectedAt: Date | null },
+  now: Date,
+): ProposalStatus {
+  if (proposal.rejectedAt !== null) return 'rejected'
+  return now.getTime() - proposal.lastEditedAt.getTime() > PROPOSAL_LIFETIME_MS
+    ? 'expired'
+    : 'waiting'
+}
+
 /** A proposal as the service layer hands it out (SC-010). */
 export interface Proposal {
   id: string
@@ -53,6 +77,12 @@ export interface Proposal {
   createdAt: Date
   /** When it was created or last edited, which its expiry is counted from (DD-024). */
   lastEditedAt: Date
+  /** Where it stands, the expiry rule applied as it is read (SC-046). */
+  status: ProposalStatus
+  /** When it was rejected, if it was (FR-075). */
+  rejectedAt: Date | null
+  /** Who rejected it, if anyone did. */
+  rejectedBy: string | null
   /** The projects it changes, in the order of their ids (DD-025). */
   projectIds: string[]
   groups: ProposalGroup[]
@@ -84,7 +114,7 @@ const isOneOf = <T extends string>(list: readonly T[], value: unknown): value is
   typeof value === 'string' && (list as readonly string[]).includes(value)
 
 /** A change with the project it changes and the projects of the other tasks it names. */
-interface LocatedChange {
+export interface LocatedChange {
   change: ProposedChange
   projectId: string
   reads: string[]
@@ -106,17 +136,26 @@ interface LocatedChange {
  * of the change made directly. The creation is recorded in the audit log, in each project it
  * changes (FR-116).
  *
- * Anyone with a role in every project a proposal changes may read it (FR-106).
+ * Anyone with a role in every project a proposal changes may read it (FR-106). Whenever it is
+ * read, the expiry rule says whether it has expired (SC-046, DD-050); `now` is the clock it is
+ * read by, and the clock a new proposal's creation is recorded by.
  */
 export class ProposalService {
   readonly #db: Database
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
+  readonly #now: () => Date
 
-  constructor(db: Database, audit: AuditLogService, roles: ProjectRoleService) {
+  constructor(
+    db: Database,
+    audit: AuditLogService,
+    roles: ProjectRoleService,
+    now: () => Date = () => new Date(),
+  ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
+    this.#now = now
   }
 
   /**
@@ -133,7 +172,7 @@ export class ProposalService {
     }
     const groups = validGroups(proposal.groups)
     return this.#db.transaction(async (tx) => {
-      const located = await this.#locate(tx, groups)
+      const located = await locate(tx, groups)
       const all = located.flat()
       const changed = [...new Set(all.map((change) => change.projectId))].sort()
       for (const projectId of changed) {
@@ -198,54 +237,21 @@ export class ProposalService {
     return result
   }
 
-  /**
-   * The project each change changes, and the projects of the other tasks it names, which the
-   * caller must be able to read. Refused as not found for a task that does not exist.
-   */
-  async #locate(tx: Transaction, groups: ProposedChange[][]): Promise<LocatedChange[][]> {
-    const named = new Set<string>()
-    for (const change of groups.flat()) {
-      for (const ref of refsOf(change)) if ('taskId' in ref) named.add(ref.taskId)
-    }
-    const found =
-      named.size > 0
-        ? await tx
-            .select({ id: tasks.id, projectId: tasks.projectId })
-            .from(tasks)
-            .where(inArray(tasks.id, [...named]))
-        : []
-    const projectOfTask = new Map(found.map((task) => [task.id, task.projectId]))
-    for (const taskId of named) {
-      if (!projectOfTask.has(taskId)) throw new ServiceError('not-found', 'There is no such task')
-    }
-    return groups.map((group) => {
-      const projectOfKey = new Map<string, string>()
-      for (const change of group) {
-        if (change.kind === 'create-task') projectOfKey.set(change.key, change.projectId)
-      }
-      const projectOf = (ref: TaskRef): string => {
-        const projectId =
-          'taskId' in ref ? projectOfTask.get(ref.taskId) : projectOfKey.get(ref.newTask)
-        if (projectId === undefined) throw new Error('A task the proposal names was not found')
-        return projectId
-      }
-      return group.map((change) => ({
-        change,
-        projectId: change.kind === 'create-task' ? change.projectId : projectOf(change.task),
-        reads: otherRefsOf(change).map(projectOf),
-      }))
-    })
-  }
-
   async #store(
     tx: Transaction,
     caller: Caller,
     changed: string[],
     located: LocatedChange[][],
   ): Promise<string> {
+    const now = this.#now()
     const [created] = await tx
       .insert(proposals)
-      .values({ createdBy: caller.accountId, channel: caller.channel })
+      .values({
+        createdBy: caller.accountId,
+        channel: caller.channel,
+        createdAt: now,
+        lastEditedAt: now,
+      })
       .returning({ id: proposals.id })
     if (!created) throw new Error('The new proposal was not returned')
     await tx
@@ -257,16 +263,7 @@ export class ProposalService {
         .values({ proposalId: created.id, position })
         .returning({ id: proposalGroups.id })
       if (!stored) throw new Error('The new group was not returned')
-      await tx.insert(proposalChanges).values(
-        group.map(({ change, projectId }, index) => ({
-          groupId: stored.id,
-          position: index,
-          kind: change.kind,
-          projectId,
-          ...subjectOf(change),
-          change,
-        })),
-      )
+      await insertChanges(tx, stored.id, group)
     }
     return created.id
   }
@@ -279,10 +276,13 @@ export class ProposalService {
         channel: proposals.channel,
         createdAt: proposals.createdAt,
         lastEditedAt: proposals.lastEditedAt,
+        rejectedAt: proposals.rejectedAt,
+        rejectedBy: proposals.rejectedBy,
       })
       .from(proposals)
       .where(eq(proposals.id, proposalId))
     if (!proposal) throw new ServiceError('not-found', 'There is no such proposal')
+    const status = proposalStatus(proposal, this.#now())
     const projectIds = (await projectsOf(executor, [proposalId])).map((row) => row.projectId)
     const rows = await executor
       .select({
@@ -304,12 +304,68 @@ export class ProposalService {
       }
       group.changes.push({ ...row.change, id: row.id, projectId: row.projectId })
     }
-    return { ...proposal, projectIds, groups }
+    return { ...proposal, status, projectIds, groups }
   }
 }
 
+/**
+ * The project each change changes, and the projects of the other tasks it names, which the
+ * caller must be able to read. Refused as not found for a task that does not exist.
+ */
+export async function locate(
+  tx: Transaction,
+  groups: ProposedChange[][],
+): Promise<LocatedChange[][]> {
+  const named = new Set<string>()
+  for (const change of groups.flat()) {
+    for (const ref of refsOf(change)) if ('taskId' in ref) named.add(ref.taskId)
+  }
+  const found =
+    named.size > 0
+      ? await tx
+          .select({ id: tasks.id, projectId: tasks.projectId })
+          .from(tasks)
+          .where(inArray(tasks.id, [...named]))
+      : []
+  const projectOfTask = new Map(found.map((task) => [task.id, task.projectId]))
+  for (const taskId of named) {
+    if (!projectOfTask.has(taskId)) throw new ServiceError('not-found', 'There is no such task')
+  }
+  return groups.map((group) => {
+    const projectOfKey = new Map<string, string>()
+    for (const change of group) {
+      if (change.kind === 'create-task') projectOfKey.set(change.key, change.projectId)
+    }
+    const projectOf = (ref: TaskRef): string => {
+      const projectId =
+        'taskId' in ref ? projectOfTask.get(ref.taskId) : projectOfKey.get(ref.newTask)
+      if (projectId === undefined) throw new Error('A task the proposal names was not found')
+      return projectId
+    }
+    return group.map((change) => ({
+      change,
+      projectId: change.kind === 'create-task' ? change.projectId : projectOf(change.task),
+      reads: otherRefsOf(change).map(projectOf),
+    }))
+  })
+}
+
+/** Stores a group's changes, in the order given, in the group `groupId`. */
+export async function insertChanges(tx: Transaction, groupId: string, group: LocatedChange[]) {
+  await tx.insert(proposalChanges).values(
+    group.map(({ change, projectId }, index) => ({
+      groupId,
+      position: index,
+      kind: change.kind,
+      projectId,
+      ...subjectOf(change),
+      change,
+    })),
+  )
+}
+
 /** The projects the proposals change, by proposal, each project in the order of its id. */
-async function projectsOf(executor: Executor, proposalIds: string[]) {
+export async function projectsOf(executor: Executor, proposalIds: string[]) {
   if (proposalIds.length === 0) return []
   return executor
     .select({ proposalId: proposalProjects.proposalId, projectId: proposalProjects.projectId })

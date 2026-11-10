@@ -14,6 +14,7 @@ import { personLoadRoutes } from './person-load.ts'
 import { projectMemberRoutes } from './project-members.ts'
 import { projectRepositoryRoutes, repositoryRequestRoutes } from './project-repositories.ts'
 import { projectRoutes } from './projects.ts'
+import { proposalEditRoutes } from './proposal-edits.ts'
 import { proposalPreviewRoutes } from './proposal-preview.ts'
 import { projectProposalRoutes, proposalRoutes } from './proposals.ts'
 import { receivingProjectRoutes } from './receiving-projects.ts'
@@ -75,6 +76,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: redFlagRoutes },
   { prefix: '/projects', routes: violationRoutes },
   { prefix: '/projects', routes: projectBaselineRoutes },
+  { prefix: '/proposals', routes: proposalEditRoutes },
   { prefix: '/proposals', routes: proposalPreviewRoutes },
   { prefix: '/proposals', routes: proposalRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },

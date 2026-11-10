@@ -13,6 +13,7 @@ import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ProposalEditService } from './proposal-edits.ts'
 import { ProposalPreviewService } from './proposal-preview.ts'
 import { ProposalService } from './proposals.ts'
 import { ReceivingProjectService } from './receiving-projects.ts'
@@ -51,6 +52,8 @@ export interface Services {
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** Editing a proposal one group at a time, and rejecting it (SC-045). */
+  proposalEdits: ProposalEditService
   /** A proposal's live preview against the current plan (SC-011). */
   proposalPreview: ProposalPreviewService
   /** The proposals, each a set of grouped changes to the plan (SC-010). */
@@ -81,6 +84,8 @@ export interface Services {
 export interface ServiceOptions {
   /** Today's date, `YYYY-MM-DD`; the deployment's local date when not given (SC-003). */
   today?: Today
+  /** The current time; the system clock when not given. Proposals expire by it (SC-046). */
+  now?: () => Date
   /**
    * Whether the tool reaches a repository on GitHub (SC-019); without it, the registry refuses
    * every registration as GitHub being unavailable.
@@ -108,7 +113,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const projectRepositories = new ProjectRepositoryService(db, audit, projectRoles)
   const calendars = new CalendarService(db, audit, projectRoles)
   const changes = options.planningChanges
-  const proposals = new ProposalService(db, audit, projectRoles)
+  const proposals = new ProposalService(db, audit, projectRoles, options.now)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -122,6 +127,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
+    proposalEdits: new ProposalEditService(db, audit, projectRoles, proposals, options.now),
     proposalPreview: new ProposalPreviewService(
       db,
       proposals,
