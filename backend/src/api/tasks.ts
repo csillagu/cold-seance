@@ -31,7 +31,7 @@ const eligibility = {
 } as const
 
 /** A task as the routes send it (FR-001). */
-const task = {
+export const task = {
   type: 'object',
   required: [
     'id',

@@ -1,5 +1,5 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
-import type { Database, Executor, Transaction } from '../db/client.ts'
+import type { Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
@@ -95,7 +95,7 @@ const found = {
  * (FR-018).
  */
 export class TaskRelationService {
-  readonly #db: Database
+  readonly #db: Executor
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #filter: ViewReadFilter
@@ -104,7 +104,7 @@ export class TaskRelationService {
 
   /** `changes` is told of each task whose parent or blockers changed (SC-022). */
   constructor(
-    db: Database,
+    db: Executor,
     audit: AuditLogService,
     roles: ProjectRoleService,
     filter: ViewReadFilter,

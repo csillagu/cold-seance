@@ -203,8 +203,8 @@ describe('the proposal store', () => {
     })
 
     it('TC-226: a proposal holds the changed input and no derived dates', async () => {
-      // Step 1, through the REST API. Pending: the preview showing B on 2027-03-08 to 2027-03-09
-      // (SC-011, B13).
+      // Step 1, through the REST API. The preview showing B on 2027-03-08 to 2027-03-09 is in
+      // proposal-preview.test.ts. Pending: opening it in the browser (SC-034, F23).
       const a = await task(apollo, {
         title: 'A',
         plannedStart: '2027-03-01',

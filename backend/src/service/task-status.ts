@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { Database, Executor } from '../db/client.ts'
+import type { Executor } from '../db/client.ts'
 import { TASK_STATUSES, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
@@ -61,13 +61,13 @@ type ActualDates = Pick<TaskRow, 'actualStart' | 'actualFinish'>
  * transaction that makes it (FR-116).
  */
 export class TaskStatusService {
-  readonly #db: Database
+  readonly #db: Executor
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #today: Today
 
   constructor(
-    db: Database,
+    db: Executor,
     audit: AuditLogService,
     roles: ProjectRoleService,
     today: Today = localToday,

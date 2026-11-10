@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import type { Database, Executor, Transaction } from '../db/client.ts'
+import type { Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
@@ -65,7 +65,7 @@ const linked = { id: tasks.id, projectId: tasks.projectId } as const
  * cancellation once committed, through the planning mirror.
  */
 export class TaskCancellationService {
-  readonly #db: Database
+  readonly #db: Executor
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #scheduling: PlanScheduling
@@ -76,7 +76,7 @@ export class TaskCancellationService {
    * cancellation passed on (SC-022).
    */
   constructor(
-    db: Database,
+    db: Executor,
     audit: AuditLogService,
     roles: ProjectRoleService,
     changes: PlanningChanges = NO_PLANNING_CHANGES,

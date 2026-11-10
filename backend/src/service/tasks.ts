@@ -1,5 +1,5 @@
 import { asc, eq, sql } from 'drizzle-orm'
-import type { Database, Executor, Transaction } from '../db/client.ts'
+import type { Executor, Transaction } from '../db/client.ts'
 import { MILESTONE_VARIANTS, taskIssues, tasks } from '../db/schema.ts'
 import {
   type Assignment,
@@ -261,7 +261,7 @@ export type TaskRow = Omit<Task, 'milestone' | 'withoutReadAccess' | 'personLoad
  * refused (FR-011).
  */
 export class TaskService {
-  readonly #db: Database
+  readonly #db: Executor
   readonly #audit: AuditLogService
   readonly #roles: ProjectRoleService
   readonly #assignments: TaskAssignments
@@ -270,7 +270,7 @@ export class TaskService {
 
   /** `changes` is told of each task whose assignees or fixed date an edit changed (SC-022). */
   constructor(
-    db: Database,
+    db: Executor,
     audit: AuditLogService,
     roles: ProjectRoleService,
     changes: PlanningChanges = NO_PLANNING_CHANGES,
