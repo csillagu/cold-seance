@@ -149,7 +149,9 @@ export const proposalGroups = pgTable(
  * were given. `change` is the change itself (`ProposedChange`): what it gives, as it was given, the planning inputs only (FR-154). The columns beside it are read off it
  * for finding a project's or a task's changes: `project_id` is the project it changes; `task_id`
  * the existing task it changes, if any; `new_task_key` the key of a task the proposal itself
- * creates, if it changes or creates one.
+ * creates, if it changes or creates one. `given_at` is when the change was given: when the proposal
+ * was created, or when its group was last edited, which gives the group's changes anew (SC-045);
+ * the conflict detector counts the edits made to its task after it (SC-047, DD-022).
  */
 export const proposalChanges = pgTable(
   'proposal_changes',
@@ -166,6 +168,7 @@ export const proposalChanges = pgTable(
     taskId: uuid('task_id').references(() => tasks.id),
     newTaskKey: text('new_task_key'),
     change: jsonb('change').$type<ProposedChange>().notNull(),
+    givenAt: timestamp('given_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('proposal_changes_position_key').on(table.groupId, table.position),

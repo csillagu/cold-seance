@@ -13,6 +13,7 @@ import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
 import { ProjectService } from './projects.ts'
+import { ProposalConflictService } from './proposal-conflicts.ts'
 import { ProposalEditService } from './proposal-edits.ts'
 import { ProposalPreviewService } from './proposal-preview.ts'
 import { ProposalService } from './proposals.ts'
@@ -52,6 +53,8 @@ export interface Services {
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
   projects: ProjectService
+  /** A proposal's conflicts with edits made to the plan since (SC-047). */
+  proposalConflicts: ProposalConflictService
   /** Editing a proposal one group at a time, and rejecting it (SC-045). */
   proposalEdits: ProposalEditService
   /** A proposal's live preview against the current plan (SC-011). */
@@ -127,6 +130,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),
+    proposalConflicts: new ProposalConflictService(db, proposals),
     proposalEdits: new ProposalEditService(db, audit, projectRoles, proposals, options.now),
     proposalPreview: new ProposalPreviewService(
       db,

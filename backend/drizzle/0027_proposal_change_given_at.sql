@@ -1,0 +1,1 @@
+ALTER TABLE "proposal_changes" ADD COLUMN "given_at" timestamp with time zone DEFAULT now() NOT NULL;
