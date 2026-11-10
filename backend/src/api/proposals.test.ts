@@ -27,6 +27,8 @@ const PROPOSAL: Proposal = {
   status: 'waiting',
   rejectedAt: null,
   rejectedBy: null,
+  appliedAt: null,
+  approvals: [],
   projectIds: [APOLLO],
   groups: [
     {

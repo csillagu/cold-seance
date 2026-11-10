@@ -153,8 +153,8 @@ describe('proposal edits, rejection and expiry', () => {
     })
 
     it('TC-115: a proposal untouched for 24 hours expires', async () => {
-      // The service part: the proposal reads as expired. Pending: that alice's approval is
-      // rejected (SC-048, B14).
+      // The service part: the proposal reads as expired. That alice's approval is rejected is in
+      // proposal-approval.test.ts.
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
       expect(created.status).toBe('waiting')
@@ -171,7 +171,8 @@ describe('proposal edits, rejection and expiry', () => {
 
     it('TC-116: an edit within 24 hours keeps a proposal from expiring', async () => {
       // The service part: an edit at t0 + 23 hours keeps the proposal alive at t0 + 25 hours.
-      // Pending: making the edit in the browser (SC-071, F24), and approving it (SC-048, B14).
+      // Pending: making the edit in the browser (SC-071, F24), and approving it there (SC-072,
+      // F25).
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
       const [group] = created.groups

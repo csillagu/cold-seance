@@ -1,32 +1,16 @@
-import { asc, inArray } from 'drizzle-orm'
-import type { Database, Executor, Transaction } from '../db/client.ts'
-import { taskBlockedBy, tasks } from '../db/schema.ts'
+import type { Database, Transaction } from '../db/client.ts'
 import { TaskAssignments } from './assignment.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
-import { ServiceError } from './errors.ts'
+import { applyChanges, planVersion, type PreviewedTask, readTasks } from './proposal-application.ts'
 import type { ProjectRepositoryService } from './project-repositories.ts'
 import type { ProjectRoleService } from './project-roles.ts'
-import type { Proposal, ProposalService, StoredChange, TaskRef } from './proposals.ts'
+import type { Proposal, ProposalService } from './proposals.ts'
 import { detectRedFlags, type FoundFlag } from './red-flags.ts'
-import { TaskCancellationService } from './task-cancellation.ts'
-import { TaskRelationService } from './task-relations.ts'
-import { TaskRepositoryService } from './task-repository.ts'
-import { localToday, TaskStatusService, type Today } from './task-status.ts'
-import { type Task, taskColumns, TaskService, toTasks } from './tasks.ts'
+import { localToday, type Today } from './task-status.ts'
 import type { ViewReadFilter } from './view-filter.ts'
 
-/**
- * A task as the preview shows it: the task as the service layer hands it out, with the task it is
- * a subtask of and the tasks it is blocked by, so that a proposed change of its relations shows
- * too.
- */
-export type PreviewedTask = Task & {
-  /** The task it is a subtask of, by id, or `null`. */
-  parentId: string | null
-  /** The tasks it is blocked by, by id, in the order of their ids. */
-  blockedBy: string[]
-}
+export type { PreviewedTask }
 
 /**
  * A task the proposal would change: how it is in the live plan and how it would be once the
@@ -48,6 +32,11 @@ export interface TaskDifference {
  */
 export interface ProposalPreview {
   proposalId: string
+  /**
+   * The version of the plan the preview was made against (FR-077, FR-078). An approval names it,
+   * and is asked to confirm again with a new preview if the plan is no longer at that version.
+   */
+  planVersion: string
   /**
    * Each task of the projects the proposal changes that its changes, or the rescheduling they
    * cause, would change, in the order the tasks were created.
@@ -130,9 +119,22 @@ export class ProposalPreviewService {
 
   async #preview(caller: Caller, tx: Transaction, proposal: Proposal): Promise<ProposalPreview> {
     const projectIds = proposal.projectIds
+    const version = await planVersion(tx, this.#assignments, proposal)
     const before = await readTasks(tx, this.#assignments, projectIds)
     const flagsBefore = await detectRedFlags(tx)
-    const created = await this.#apply(tx, proposal)
+    const creator: Caller = { accountId: proposal.createdBy, channel: proposal.channel }
+    const created = await applyChanges(
+      tx,
+      proposal,
+      {
+        audit: this.#audit,
+        roles: this.#roles,
+        filter: this.#filter,
+        projectRepositories: this.#projectRepositories,
+        today: this.#today,
+      },
+      () => creator,
+    )
     const after = await readTasks(tx, this.#assignments, projectIds)
     const flagsAfter = await detectRedFlags(tx)
 
@@ -163,132 +165,6 @@ export class ProposalPreviewService {
           (readable.has(flag.detail.task.projectId) &&
             readable.has(flag.detail.blocker.projectId))),
     )
-    return { proposalId: proposal.id, differences, newRedFlags }
+    return { proposalId: proposal.id, planVersion: version, differences, newRedFlags }
   }
-
-  /**
-   * Makes each change of the proposal in the transaction, in order, through the service that makes
-   * it directly. Answers the id each task the proposal creates was given, by its key.
-   */
-  async #apply(tx: Transaction, proposal: Proposal): Promise<Map<string, string>> {
-    // The services on the transaction: each opens its own transaction within it, as a savepoint.
-    const db = tx
-    const audit = this.#audit
-    const roles = this.#roles
-    const make = {
-      tasks: new TaskService(db, audit, roles),
-      relations: new TaskRelationService(db, audit, roles, this.#filter),
-      status: new TaskStatusService(db, audit, roles, this.#today),
-      cancellation: new TaskCancellationService(db, audit, roles),
-      repository: new TaskRepositoryService(db, audit, roles, this.#projectRepositories),
-    }
-    const creator: Caller = { accountId: proposal.createdBy, channel: proposal.channel }
-    const created = new Map<string, string>()
-    const idOf = (ref: TaskRef): string => {
-      if ('taskId' in ref) return ref.taskId
-      const id = created.get(ref.newTask)
-      // Cannot happen: the store keeps a new task's changes in the group that creates it, after it.
-      if (id === undefined) throw new Error(`The new task ${ref.newTask} was not created`)
-      return id
-    }
-    const apply = async (change: StoredChange): Promise<void> => {
-      switch (change.kind) {
-        case 'create-task': {
-          const task = await make.tasks.createTask(creator, change.projectId, change.fields)
-          created.set(change.key, task.id)
-          return
-        }
-        case 'update-task':
-          await make.tasks.updateTask(creator, idOf(change.task), change.fields)
-          return
-        case 'set-parent':
-          await make.relations.setParent(
-            creator,
-            idOf(change.task),
-            change.parent === null ? null : idOf(change.parent),
-          )
-          return
-        case 'add-blocker':
-          await make.relations.addBlocker(creator, idOf(change.task), idOf(change.blocker))
-          return
-        case 'remove-blocker':
-          await make.relations.removeBlocker(creator, idOf(change.task), idOf(change.blocker))
-          return
-        case 'set-status':
-          await make.status.setStatus(creator, idOf(change.task), change.status)
-          return
-        case 'cancel-task':
-          await make.cancellation.cancel(creator, idOf(change.task))
-          return
-        case 'assign-repository':
-          await make.repository.assignRepository(creator, idOf(change.task), change.repositoryId)
-          return
-      }
-    }
-    for (const [g, group] of proposal.groups.entries()) {
-      for (const [c, change] of group.changes.entries()) {
-        try {
-          await apply(change)
-        } catch (error) {
-          if (!(error instanceof ServiceError)) throw error
-          throw new ServiceError(
-            'conflict',
-            `Change ${c + 1} of group ${g + 1} of the proposal cannot be made on the plan as ` +
-              `it is now: ${error.message}`,
-          )
-        }
-      }
-    }
-    return created
-  }
-}
-
-/** The tasks of the projects, in the order they were created, each with its relations. */
-async function readTasks(
-  executor: Executor,
-  assignments: TaskAssignments,
-  projectIds: readonly string[],
-): Promise<Map<string, PreviewedTask>> {
-  if (projectIds.length === 0) return new Map()
-  const rows = await executor
-    .select({ ...taskColumns, parentId: tasks.parentId })
-    .from(tasks)
-    .where(inArray(tasks.projectId, [...projectIds]))
-    .orderBy(asc(tasks.createdAt), asc(tasks.id))
-  const ids = rows.map((row) => row.id)
-  const relations =
-    ids.length === 0
-      ? []
-      : await executor
-          .select({ taskId: taskBlockedBy.taskId, blockerId: taskBlockedBy.blockerId })
-          .from(taskBlockedBy)
-          .where(inArray(taskBlockedBy.taskId, ids))
-          .orderBy(asc(taskBlockedBy.blockerId))
-  const blockedBy = new Map<string, string[]>()
-  for (const { taskId, blockerId } of relations) {
-    const list = blockedBy.get(taskId)
-    if (list) list.push(blockerId)
-    else blockedBy.set(taskId, [blockerId])
-  }
-  const parentOf = new Map(rows.map((row) => [row.id, row.parentId]))
-  const result = new Map<string, PreviewedTask>()
-  for (const projectId of projectIds) {
-    const own = rows
-      .filter((row) => row.projectId === projectId)
-      .map(({ parentId: _parentId, ...row }) => row)
-    for (const task of await toTasks(assignments, executor, projectId, own)) {
-      result.set(task.id, {
-        ...task,
-        parentId: parentOf.get(task.id) ?? null,
-        blockedBy: blockedBy.get(task.id) ?? [],
-      })
-    }
-  }
-  // Back in the order the tasks were created, across the projects.
-  const ordered = new Map<string, PreviewedTask>()
-  for (const id of ids) {
-    const task = result.get(id)
-    if (task) ordered.set(id, task)
-  }
-  return ordered
 }
