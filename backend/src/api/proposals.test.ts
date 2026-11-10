@@ -24,6 +24,9 @@ const PROPOSAL: Proposal = {
   channel: 'rest-api',
   createdAt: AT,
   lastEditedAt: AT,
+  status: 'waiting',
+  rejectedAt: null,
+  rejectedBy: null,
   projectIds: [APOLLO],
   groups: [
     {

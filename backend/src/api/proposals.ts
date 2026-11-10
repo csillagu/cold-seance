@@ -43,9 +43,20 @@ const change = {
 } as const
 
 /** A proposal as the routes send it (SC-010). */
-const proposal = {
+export const proposal = {
   type: 'object',
-  required: ['id', 'createdBy', 'channel', 'createdAt', 'lastEditedAt', 'projectIds', 'groups'],
+  required: [
+    'id',
+    'createdBy',
+    'channel',
+    'createdAt',
+    'lastEditedAt',
+    'status',
+    'rejectedAt',
+    'rejectedBy',
+    'projectIds',
+    'groups',
+  ],
   properties: {
     id: { type: 'string', format: 'uuid' },
     createdBy: { type: 'string', format: 'uuid', description: 'Who created it, by account id' },
@@ -59,6 +70,23 @@ const proposal = {
       type: 'string',
       format: 'date-time',
       description: 'When it was created or last edited',
+    },
+    status: {
+      type: 'string',
+      enum: ['waiting', 'rejected', 'expired'],
+      description:
+        '`waiting` for review; `rejected`; or `expired`, when no one has edited it for more ' +
+        'than 24 hours',
+    },
+    rejectedAt: {
+      type: ['string', 'null'],
+      format: 'date-time',
+      description: 'When it was rejected; null if it was not',
+    },
+    rejectedBy: {
+      type: ['string', 'null'],
+      format: 'uuid',
+      description: 'Who rejected it, by account id; null if no one did',
     },
     projectIds: {
       type: 'array',
@@ -80,7 +108,7 @@ const proposal = {
   },
 } as const
 
-const proposalParams = {
+export const proposalParams = {
   type: 'object',
   required: ['proposalId'],
   properties: { proposalId: { type: 'string', format: 'uuid' } },

@@ -24,7 +24,7 @@ import { grantRole, insertProject, seedProject } from '../helpers/projects.ts'
 // test cases, then the rules through the service layer.
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
-type Method = 'GET' | 'POST' | 'PATCH'
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 
 const by = (account: Account, channel: Channel = 'rest-api'): Caller => ({
   accountId: account.id,
@@ -152,9 +152,10 @@ describe('the proposal store', () => {
     })
 
     it('TC-098: dropping a group of proposed changes drops every change in it', async () => {
-      // The part B10 holds: the groups are stored as given. Pending: dropping the move of A on
-      // its own is refused and G1 is dropped as one in the browser (SC-045, F25), and the
-      // approval applies only G2 (SC-048, B14).
+      // The service and REST part: the groups are stored as given, and G1 is dropped as one,
+      // through the route the browser calls; the service has no way to drop one change on its
+      // own (SC-045). Pending: doing it in the browser (SC-071, F24), and that the approval
+      // applies only G2 (SC-048, B14).
       await grantRole(x.db, bob, apollo, 'read-only')
       const a = await task(apollo, {
         title: 'A',
@@ -177,6 +178,14 @@ describe('the proposal store', () => {
       expect(new Set(read.groups.map((group) => group.id)).size).toBe(2)
       const groups = await x.db.select().from(proposalGroups)
       expect(groups).toHaveLength(2)
+
+      const g1Id = read.groups[0]?.id
+      const dropped = await call(alice, 'DELETE', `/proposals/${created.id}/groups/${g1Id}`)
+      expect(dropped.statusCode).toBe(200)
+      expect(given(dropped.json<Proposal>())).toEqual([g2])
+      expect(await x.db.select().from(proposalChanges)).toHaveLength(1)
+      expect((await ok<Task>(alice, 'GET', `/tasks/${a.id}`)).plannedStart).toBe('2027-03-01')
+      expect((await ok<Task>(alice, 'GET', `/tasks/${b.id}`)).plannedStart).toBe('2027-03-02')
     })
 
     it('TC-099: keeping a group of proposed changes keeps every change in it', async () => {
