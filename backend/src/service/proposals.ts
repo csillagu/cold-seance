@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { Database, Executor, Transaction } from '../db/client.ts'
 import {
   PROPOSABLE_STATUSES,
@@ -7,6 +7,7 @@ import {
   type ProposableStatus,
   type ProposedChange,
   type ProposedTaskFields,
+  proposalApprovals,
   proposalChanges,
   proposalGroups,
   proposalProjects,
@@ -45,27 +46,39 @@ export interface ProposalGroup {
 }
 
 /**
- * Where a proposal stands: waiting for review, rejected (FR-075), or expired, having been left
- * unedited for more than 24 hours (FR-081, DD-024).
+ * Where a proposal stands: waiting for review, approved and applied (FR-077, SC-048), rejected
+ * (FR-075), or expired, having been left unedited for more than 24 hours (FR-081, DD-024).
  */
-export type ProposalStatus = 'waiting' | 'rejected' | 'expired'
+export type ProposalStatus = 'waiting' | 'approved' | 'rejected' | 'expired'
 
 /** How long a proposal lives after its last edit, in milliseconds (DD-024). */
 export const PROPOSAL_LIFETIME_MS = 24 * 60 * 60 * 1000
 
 /**
  * The expiry rule (SC-046, DD-050): a proposal is expired when its last edit is more than 24
- * hours before `now`. A rejected proposal stays rejected, whenever it was last edited. Applied
- * whenever a proposal is read; nothing stores that a proposal expired.
+ * hours before `now`. An approved or rejected proposal stays so, whenever it was last edited.
+ * Applied whenever a proposal is read; nothing stores that a proposal expired.
  */
 export function proposalStatus(
-  proposal: { lastEditedAt: Date; rejectedAt: Date | null },
+  proposal: { lastEditedAt: Date; rejectedAt: Date | null; appliedAt: Date | null },
   now: Date,
 ): ProposalStatus {
+  if (proposal.appliedAt !== null) return 'approved'
   if (proposal.rejectedAt !== null) return 'rejected'
   return now.getTime() - proposal.lastEditedAt.getTime() > PROPOSAL_LIFETIME_MS
     ? 'expired'
     : 'waiting'
+}
+
+/** The approval of one project's part of a proposal (FR-080, DD-025). */
+export interface PartApproval {
+  /** The project whose part was approved. */
+  projectId: string
+  /** Who approved it, by account id. */
+  approvedBy: string
+  /** The channel it was approved through. */
+  channel: Channel
+  approvedAt: Date
 }
 
 /** A proposal as the service layer hands it out (SC-010). */
@@ -84,6 +97,13 @@ export interface Proposal {
   rejectedAt: Date | null
   /** Who rejected it, if anyone did. */
   rejectedBy: string | null
+  /** When its changes were applied, once every part was approved (FR-077, FR-132). */
+  appliedAt: Date | null
+  /**
+   * The parts approved, by project, in the order of the projects' ids (FR-080): those approved
+   * since the proposal was last edited, since an edit asks for every part to be approved again.
+   */
+  approvals: PartApproval[]
   /** The projects it changes, in the order of their ids (DD-025). */
   projectIds: string[]
   groups: ProposalGroup[]
@@ -205,15 +225,19 @@ export class ProposalService {
   /**
    * The proposal, for anyone with a role in every project it changes (FR-106). Refused as not
    * found if there is no such proposal, and as not visible to someone with no role in one of the
-   * projects it changes (FR-017).
+   * projects it changes (FR-017). Read in the transaction `executor`, when one is given.
    */
-  async getProposal(caller: Caller, proposalId: string): Promise<Proposal> {
-    const rows = isUuid(proposalId) ? await projectsOf(this.#db, [proposalId]) : []
+  async getProposal(
+    caller: Caller,
+    proposalId: string,
+    executor: Executor = this.#db,
+  ): Promise<Proposal> {
+    const rows = isUuid(proposalId) ? await projectsOf(executor, [proposalId]) : []
     if (rows.length === 0) throw new ServiceError('not-found', 'There is no such proposal')
     for (const { projectId } of rows) {
-      await this.#roles.permissions.require(caller, projectId, 'read')
+      await this.#roles.permissions.require(caller, projectId, 'read', executor)
     }
-    return this.#read(this.#db, proposalId)
+    return this.#read(executor, proposalId)
   }
 
   /**
@@ -281,12 +305,14 @@ export class ProposalService {
         lastEditedAt: proposals.lastEditedAt,
         rejectedAt: proposals.rejectedAt,
         rejectedBy: proposals.rejectedBy,
+        appliedAt: proposals.appliedAt,
       })
       .from(proposals)
       .where(eq(proposals.id, proposalId))
     if (!proposal) throw new ServiceError('not-found', 'There is no such proposal')
     const status = proposalStatus(proposal, this.#now())
     const projectIds = (await projectsOf(executor, [proposalId])).map((row) => row.projectId)
+    const approvals = await currentApprovals(executor, proposalId)
     const rows = await executor
       .select({
         groupId: proposalGroups.id,
@@ -307,7 +333,7 @@ export class ProposalService {
       }
       group.changes.push({ ...row.change, id: row.id, projectId: row.projectId })
     }
-    return { ...proposal, status, projectIds, groups }
+    return { ...proposal, status, projectIds, approvals, groups }
   }
 }
 
@@ -365,6 +391,40 @@ export async function insertChanges(tx: Transaction, groupId: string, group: Loc
       change,
     })),
   )
+}
+
+/**
+ * The approvals of the proposal's parts given since it was last edited, which are the ones that
+ * count, in the order of the projects' ids.
+ */
+export async function currentApprovals(
+  executor: Executor,
+  proposalId: string,
+): Promise<PartApproval[]> {
+  return executor
+    .select({
+      projectId: proposalApprovals.projectId,
+      approvedBy: proposalApprovals.approvedBy,
+      channel: proposalApprovals.channel,
+      approvedAt: proposalApprovals.approvedAt,
+    })
+    .from(proposalApprovals)
+    .innerJoin(
+      proposals,
+      and(
+        eq(proposals.id, proposalApprovals.proposalId),
+        eq(proposals.lastEditedAt, proposalApprovals.proposalEditedAt),
+      ),
+    )
+    .innerJoin(
+      proposalProjects,
+      and(
+        eq(proposalProjects.proposalId, proposalApprovals.proposalId),
+        eq(proposalProjects.projectId, proposalApprovals.projectId),
+      ),
+    )
+    .where(eq(proposalApprovals.proposalId, proposalId))
+    .orderBy(asc(proposalApprovals.projectId))
 }
 
 /** The projects the proposals change, by proposal, each project in the order of its id. */

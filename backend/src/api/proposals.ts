@@ -54,6 +54,8 @@ export const proposal = {
     'status',
     'rejectedAt',
     'rejectedBy',
+    'appliedAt',
+    'approvals',
     'projectIds',
     'groups',
   ],
@@ -73,10 +75,10 @@ export const proposal = {
     },
     status: {
       type: 'string',
-      enum: ['waiting', 'rejected', 'expired'],
+      enum: ['waiting', 'approved', 'rejected', 'expired'],
       description:
-        '`waiting` for review; `rejected`; or `expired`, when no one has edited it for more ' +
-        'than 24 hours',
+        '`waiting` for review; `approved`, every part of it, and applied; `rejected`; or ' +
+        '`expired`, when no one has edited it for more than 24 hours',
     },
     rejectedAt: {
       type: ['string', 'null'],
@@ -87,6 +89,31 @@ export const proposal = {
       type: ['string', 'null'],
       format: 'uuid',
       description: 'Who rejected it, by account id; null if no one did',
+    },
+    appliedAt: {
+      type: ['string', 'null'],
+      format: 'date-time',
+      description: 'When its changes were applied, once every part was approved; null until then',
+    },
+    approvals: {
+      type: 'array',
+      description:
+        "The projects' parts of it approved since it was last edited, in the order of the " +
+        "projects' ids; an edit asks for every part to be approved again",
+      items: {
+        type: 'object',
+        required: ['projectId', 'approvedBy', 'channel', 'approvedAt'],
+        properties: {
+          projectId: { type: 'string', format: 'uuid', description: 'The part, by its project' },
+          approvedBy: { type: 'string', format: 'uuid', description: 'Who approved it' },
+          channel: {
+            type: 'string',
+            enum: [...CHANNELS],
+            description: 'The channel it was approved through',
+          },
+          approvedAt: { type: 'string', format: 'date-time' },
+        },
+      },
     },
     projectIds: {
       type: 'array',

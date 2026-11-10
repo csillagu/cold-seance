@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import type { ProposalPreview } from '../service/proposal-preview.ts'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
 import { redFlag } from './red-flags.ts'
@@ -32,11 +33,17 @@ const newRedFlag = {
   properties: newRedFlagProperties,
 } as const
 
-const preview = {
+export const preview = {
   type: 'object',
-  required: ['proposalId', 'differences', 'newRedFlags'],
+  required: ['proposalId', 'planVersion', 'differences', 'newRedFlags'],
   properties: {
     proposalId: { type: 'string', format: 'uuid' },
+    planVersion: {
+      type: 'string',
+      description:
+        'The version of the plan the preview was made against, which an approval of the ' +
+        'proposal names',
+    },
     differences: {
       type: 'array',
       description:
@@ -102,20 +109,26 @@ export const proposalPreviewRoutes: FastifyPluginAsync<RouteGroupOptions> = asyn
         response: { 200: preview },
       },
     },
-    async (request) => {
-      const result = await services.proposalPreview.previewProposal(
-        callerOf(request),
-        request.params.proposalId,
-      )
-      return {
-        proposalId: result.proposalId,
-        differences: result.differences,
-        newRedFlags: result.newRedFlags.map(({ kind, projectId, detail }) => ({
-          kind,
-          projectId,
-          ...detail,
-        })),
-      }
-    },
+    async (request) =>
+      previewBody(
+        await services.proposalPreview.previewProposal(
+          callerOf(request),
+          request.params.proposalId,
+        ),
+      ),
   )
+}
+
+/** The preview as the routes send it: each new red flag with its detail spread out. */
+export function previewBody(result: ProposalPreview) {
+  return {
+    proposalId: result.proposalId,
+    planVersion: result.planVersion,
+    differences: result.differences,
+    newRedFlags: result.newRedFlags.map(({ kind, projectId, detail }) => ({
+      kind,
+      projectId,
+      ...detail,
+    })),
+  }
 }

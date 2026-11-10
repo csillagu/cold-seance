@@ -26,6 +26,8 @@ const PROPOSAL: Proposal = {
   status: 'rejected',
   rejectedAt: AT,
   rejectedBy: ERIN,
+  appliedAt: null,
+  approvals: [],
   projectIds: [APOLLO],
   groups: [
     { id: G1, changes: [{ id: C1, kind: 'cancel-task', projectId: APOLLO, task: { taskId: A } }] },
