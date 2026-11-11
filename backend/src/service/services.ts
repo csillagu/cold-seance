@@ -9,6 +9,7 @@ import { DailyPersonLoadService } from './daily-person-load.ts'
 import { GanttExportService } from './gantt-export.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
+import { NotificationService } from './notifications.ts'
 import type { PlanningChanges } from './planning-changes.ts'
 import { ProjectRepositoryService } from './project-repositories.ts'
 import { ProjectRoleService } from './project-roles.ts'
@@ -49,6 +50,8 @@ export interface Services {
   ganttExport: GanttExportService
   githubLinks: GitHubLinkService
   groups: GroupService
+  /** The in-app notifications, and the subscriptions to projects and issues (SC-012). */
+  notifications: NotificationService
   /** Which projects pull issues from which repositories, with their requests (SC-110). */
   projectRepositories: ProjectRepositoryService
   projectRoles: ProjectRoleService
@@ -127,6 +130,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     ganttExport: new GanttExportService(db, projectRoles),
     githubLinks: new GitHubLinkService(db, audit, changes),
     groups,
+    notifications: new NotificationService(db, audit, projectRoles),
     projectRepositories,
     projectRoles,
     projects: new ProjectService(db, audit, projectRoles, groups),

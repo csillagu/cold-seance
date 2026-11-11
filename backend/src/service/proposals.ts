@@ -17,6 +17,7 @@ import {
 import type { AuditLogService } from './audit.ts'
 import type { Caller, Channel } from './caller.ts'
 import { notVisible, ServiceError } from './errors.ts'
+import { notifyProposalWaiting } from './notifications.ts'
 import { allows } from './permissions.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
@@ -184,6 +185,8 @@ export class ProposalService {
         await this.#roles.permissions.require(caller, projectId, 'read', tx)
       }
       const id = await this.#store(tx, caller, changed, located)
+      // A new proposal waits for review: its reviewers are told (FR-085).
+      await notifyProposalWaiting(tx, id, changed)
       for (const projectId of changed) {
         await this.#audit.record(tx, caller, {
           action: 'proposal.created',

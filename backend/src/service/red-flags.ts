@@ -11,6 +11,7 @@ import {
 import type { Caller } from './caller.ts'
 import { type AssignedTask, dailyLoads } from './daily-person-load.ts'
 import { readCalendars } from './plan-scheduling.ts'
+import { notifyNewRedFlags } from './notifications.ts'
 import { taskPersonLoad } from './person-load.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import type { Calendars } from './scheduler.ts'
@@ -192,7 +193,8 @@ export interface RedFlagRefresh {
  * red flag the detectors now find and the register lacks is raised, recording when it appeared;
  * each one the register holds whose conflict is gone is cleared (FR-021). Every change that can
  * raise or clear a red flag calls it in its own transaction, after its last write: to tasks, their
- * dates, assignments, loads and relations, and to calendars, capacities and absences.
+ * dates, assignments, loads and relations, and to calendars, capacities and absences. Each new
+ * red flag is notified to those subscribed to what it is about, in the same transaction (SC-012).
  */
 export async function refreshRedFlags(tx: Transaction): Promise<RedFlagRefresh> {
   await tx.execute(sql`select pg_advisory_xact_lock(${RED_FLAGS_LOCK_CLASS}::integer, 0)`)
@@ -226,6 +228,8 @@ export async function refreshRedFlags(tx: Transaction): Promise<RedFlagRefresh> 
       .set({ detail: { ...detail } })
       .where(eq(redFlags.id, id))
   }
+  // The people subscribed to what each new red flag is about are told of it (FR-083, FR-084).
+  await notifyNewRedFlags(tx, changes.raise)
   return { raised: changes.raise, cleared: changes.clear }
 }
 

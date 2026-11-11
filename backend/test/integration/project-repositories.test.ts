@@ -6,6 +6,7 @@ import {
   groupMembers,
   groupProjects,
   groups,
+  notifications,
   projectMembers,
   projectRepositoryRequests,
   repositories,
@@ -773,6 +774,8 @@ describe('test cases through the REST API', () => {
       const repoId = await registeredBy(alice)
       const apollo = await createdBy(alice, 'Apollo')
 
+      const notified = await x.db.select().from(notifications)
+
       // Step 1: as alice, add tc-repo to Apollo to pull its issues.
       const added = await ask(alice, apollo, repoId)
       expect(added.statusCode).toBe(201)
@@ -780,9 +783,10 @@ describe('test cases through the REST API', () => {
 
       // Step 2: read Apollo's repositories and alice's pending approvals.
       expect(await repositoriesOf(alice, apollo)).toEqual(['csillagu/tc-repo'])
-      // Negative: no approval request is pending for it. (No repository-request notification is
-      // sent: the notifications (SC-012) are not built yet, so there is none to check.)
+      // Negative: no approval request is pending for it, and no repository-request notification
+      // is sent (SC-012).
       expect(await pendingApprovalsOf(alice)).toEqual([])
+      expect(await x.db.select().from(notifications)).toEqual(notified)
       expect((await requestsOf(alice, apollo)).map((r) => r.state)).toEqual(['approved'])
     })
   })
