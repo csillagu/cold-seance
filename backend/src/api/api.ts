@@ -32,6 +32,7 @@ import {
   taskStatusRoutes,
 } from './tasks.ts'
 import { missingSchemas } from './schema-guard.ts'
+import { unassignedRatingRoutes } from './unassigned-ratings.ts'
 import { varianceRoutes } from './variance.ts'
 import { violationRoutes } from './violations.ts'
 
@@ -77,6 +78,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/projects', routes: receivingProjectRoutes },
   { prefix: '/projects', routes: redFlagRoutes },
+  { prefix: '/projects', routes: unassignedRatingRoutes },
   { prefix: '/projects', routes: violationRoutes },
   { prefix: '/projects', routes: projectBaselineRoutes },
   { prefix: '/proposals', routes: proposalConflictRoutes },
