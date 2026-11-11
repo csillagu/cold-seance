@@ -435,6 +435,6 @@ describe('TC-177: a person signs in with an account held in the tool', () => {
     expect(await x.db.select().from(sessions)).toEqual([])
   })
 
-  // Pending: TC-177 in full: alice signs in and out on the sign-in page (SC-075), and the page
-  // offering no outside identity provider.
+  // The browser steps, alice signing in and out on the sign-in page (SC-075), and the page
+  // offering no outside identity provider, are in e2e/tests/sign-in.spec.ts.
 })

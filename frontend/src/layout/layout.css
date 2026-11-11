@@ -1,0 +1,128 @@
+/* The frontend's layout (SC-113): the header and app bar as design/frontend/Main.dc.html draws them,
+   and the navigation beside the content. */
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout__header {
+  flex: none;
+  height: 52px;
+  box-sizing: border-box;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.layout__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.layout__mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+
+.layout__header-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.layout__nav {
+  flex: none;
+  width: 240px;
+  box-sizing: border-box;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout__nav-heading {
+  margin: 16px 0 4px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.layout__nav-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layout__link {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-button);
+  color: var(--muted);
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layout__link:hover {
+  background: var(--sec);
+  color: var(--text);
+}
+
+.layout__link[aria-current='page'] {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.layout__nav-note {
+  margin: 4px 0;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+.layout__content {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 24px;
+}
+
+@media (max-width: 720px) {
+  .layout__body {
+    flex-direction: column;
+  }
+
+  .layout__nav {
+    width: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

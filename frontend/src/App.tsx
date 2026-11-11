@@ -1,8 +1,25 @@
-// A placeholder until the frontend layout (SC-113) replaces it.
+import { Route, Routes } from 'react-router'
+import { Layout } from './layout/Layout.tsx'
+import { ProjectPage } from './pages/ProjectPage.tsx'
+import { SignInPage } from './pages/SignInPage.tsx'
+import { StartPage } from './pages/StartPage.tsx'
+import { UnknownPage } from './pages/UnknownPage.tsx'
+import { SIGN_IN_PATH } from './sign-in-redirect.ts'
+
+/**
+ * The frontend's pages and their addresses. The sign-in page is outside the layout (SRC-223);
+ * every other page is inside it (SC-113), and the navigation leads to each (SRC-222). A page
+ * added here, in its alphabetical place, needs a way to it in the navigation too.
+ */
 export function App() {
   return (
-    <main>
-      <h1>cold-seance</h1>
-    </main>
+    <Routes>
+      <Route path={SIGN_IN_PATH} element={<SignInPage />} />
+      <Route element={<Layout />}>
+        <Route index element={<StartPage />} />
+        <Route path="projects/:projectId" element={<ProjectPage />} />
+        <Route path="*" element={<UnknownPage />} />
+      </Route>
+    </Routes>
   )
 }

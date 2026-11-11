@@ -66,8 +66,8 @@ describe('a project someone cannot see', () => {
       expect(response.body).not.toContain(borealis)
     })
 
-    // Pending: TC-025 in full: alice opens Borealis's address in the browser, and the page tells
-    // her (the frontend's pages, SC-113 on).
+    // TC-025 in full, alice opening Borealis's address in the browser, is in
+    // e2e/tests/not-visible.spec.ts.
   })
 
   it('shows the project to someone who holds any role in it', async () => {

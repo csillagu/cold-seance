@@ -391,7 +391,8 @@ describe('test cases through the REST API', () => {
     expect(list.json<{ username: string }[]>().map((a) => a.username)).not.toContain('erin')
   })
 
-  // Pending: "the sign-in page offers no registration" is the sign-in page's (SC-075).
+  // "The sign-in page offers no registration" is the sign-in page's (SC-075), in
+  // e2e/tests/sign-in.spec.ts.
   it('TC-176: there is no self-registration', async () => {
     const response = await createErin({})
     expect(response.statusCode).toBe(401)

@@ -1,0 +1,157 @@
+/* The sign-in page, as design/frontend/SignIn.dc.html and SignInFailed.dc.html show it. */
+.sign-in {
+  position: relative;
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 48px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.sign-in__glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 900px;
+  height: 700px;
+  transform: translate(-50%, -58%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--glow), transparent);
+  pointer-events: none;
+}
+
+.sign-in__column {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sign-in__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sign-in__mark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-button);
+  background: var(--accent);
+}
+
+.sign-in__name {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sign-in__title {
+  margin: 32px 0 0;
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.sign-in__lead {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.sign-in__form {
+  margin-top: 28px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 28px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sign-in__alert {
+  padding: 12px 14px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--red-border);
+  background: var(--red-bg);
+  color: var(--red-text);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sign-in__alert svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.sign-in__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sign-in__field label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sign-in__field input {
+  height: 44px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.sign-in__field input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
+.sign-in__field input[aria-invalid='true'] {
+  border-color: var(--red-border);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.sign-in__submit {
+  height: 44px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sign-in__submit:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.sign-in__note {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
