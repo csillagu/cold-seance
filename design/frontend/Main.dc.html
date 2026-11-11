@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kanban: Apollo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; display: flex; flex-direction: column; background: {{t.bg}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased">
+
+<!-- app bar -->
+<header style="flex: none; height: 52px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<span style="width: 24px; height: 24px; border-radius: 6px; background: #6366F1"></span>
+<span style="font-weight: 600">Apollo</span>
+<span style="color: {{t.faint}}">/</span>
+<span style="color: {{t.muted}}">Views</span>
+<span style="margin-left: auto; display: flex; align-items: center; gap: 8px; color: {{t.muted}}">Your role: <strong style="font-weight: 600; color: {{t.text}}">admin</strong></span>
+<span style="width: 28px; height: 28px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span>
+</header>
+
+<!-- saved views -->
+<nav aria-label="Saved views" style="flex: none; height: 44px; padding: 0 24px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<a href="#" aria-current="page" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-bottom: 2px solid #6366F1; color: {{t.text}}; font-weight: 600; text-decoration: none">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"></rect><rect x="10" y="4" width="5" height="10" rx="1"></rect><rect x="17" y="4" width="4" height="13" rx="1"></rect></svg>Board</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: {{t.muted}}; text-decoration: none">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"></rect><rect x="10" y="4" width="5" height="10" rx="1"></rect><rect x="17" y="4" width="4" height="13" rx="1"></rect></svg>My Kanban<span style="font-size: 11px; color: {{t.faint}}">personal</span></a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: {{t.muted}}; text-decoration: none">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"></rect><rect x="10" y="4" width="5" height="10" rx="1"></rect><rect x="17" y="4" width="4" height="13" rx="1"></rect></svg>Sync engine only<span style="font-size: 11px; color: {{t.faint}}">project</span></a>
+<a href="Gantt.dc.html" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: {{t.muted}}; text-decoration: none">
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h8M8 12h9M6 18h6"></path></svg>Gantt</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Person load</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Baseline variance</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: #6366F1; font-weight: 500; text-decoration: none">+ New view</a>
+</nav>
+
+<!-- toolbar -->
+<div style="flex: none; padding: 12px 24px; display: flex; align-items: center; gap: 8px">
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.card}}; color: {{t.text2}}">Projects: <strong style="font-weight: 600">Apollo</strong></span>
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px dashed {{t.borderStrong}}; color: {{t.muted}}">+ Filter</span>
+<span style="margin-left: auto; height: 34px; padding: 0 6px 0 12px; display: inline-flex; align-items: center; gap: 10px; border-radius: 8px; border: 1px solid {{t.accentBorder}}; background: {{t.accentBg}}; color: {{t.accentText}}">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #6366F1"></span>AI proposal under review: 2 changes shown as pending
+<a href="#" style="height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 6px; background: #4F46E5; color: #FFFFFF; font-weight: 600; text-decoration: none">Review</a>
+</span>
+</div>
+
+<!-- columns -->
+<div style="flex: 1; min-height: 0; padding: 0 24px 24px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+
+<!-- NOT STARTED -->
+<section aria-label="Not started" style="border-radius: 12px; background: {{t.sec}}; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-weight: 600"><span style="width: 10px; height: 10px; border-radius: 50%; border: 2px solid {{t.neutral}}; box-sizing: border-box"></span>Not started<span style="color: {{t.faint}}; font-weight: 500">5</span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 11px; color: {{t.muted}}">↳ Sync engine</div>
+<div style="font-weight: 500; line-height: 1.4">Load testing</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">11–15 Mar · 3d</span>
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.accentBg}}; color: {{t.accentText}}">AI share 50%</span>
+</div>
+<div style="font-size: 11px; color: {{t.muted}}">Blocked by Build sync service</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #0EA5E9; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">CA</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#131</span></div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.redBorder}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 0 0 3px {{t.redRing}}">
+<div style="display: flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24"><path d="M12 2l10 10-10 10L2 12z" fill="{{t.text}}"></path></svg><span style="font-weight: 600; line-height: 1.4">Release 1.0 GA</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 17v5M5 17h14l-2-5V4H7v8z"></path></svg>Fixed date</span>
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">12 Mar</span>
+</div>
+<div style="padding: 6px 8px; border-radius: 6px; background: {{t.redBg}}; color: {{t.redText}}; font-size: 11px; font-weight: 500; line-height: 1.45">Pushed past its fixed date: Load testing finishes 15 Mar</div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.redBorder}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 0 0 3px {{t.redRing}}">
+<div style="font-weight: 500; line-height: 1.4">Integrate Borealis auth</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">11–12 Mar · 2d</span>
+</div>
+<div style="padding: 6px 8px; border-radius: 6px; background: {{t.redBg}}; color: {{t.redText}}; font-size: 11px; font-weight: 500; line-height: 1.45">Blocked by Borealis milestone Auth API frozen, which lies on 16 Mar</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #F97316; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">DA</span></div>
+</article>
+
+<div role="separator" style="margin-top: 4px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: {{t.muted}}">UNSCHEDULED<span style="flex: 1; border-top: 1px dashed {{t.borderStrong}}"></span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 500; line-height: 1.4">Triage backlog</div>
+<div style="display: flex; gap: 6px; font-size: 11px"><span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; border: 1px dashed {{t.borderStrong}}; color: {{t.muted}}">No dates</span><span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; border: 1px dashed {{t.borderStrong}}; color: {{t.muted}}">Unassigned</span></div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 500; line-height: 1.4">Investigate flaky e2e run</div>
+<div style="display: flex; gap: 6px; font-size: 11px"><span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; border: 1px dashed {{t.borderStrong}}; color: {{t.muted}}">No dates</span></div>
+<div style="font-size: 11px; color: {{t.muted}}">Eligible: <span style="font-family: 'Geist Mono', ui-monospace, monospace; color: {{t.text}}">alice OR bob</span></div>
+<div style="display: flex; justify-content: flex-end"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#57</span></div>
+</article>
+</section>
+
+<!-- IN PROGRESS -->
+<section aria-label="In progress" style="border-radius: 12px; background: {{t.sec}}; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-weight: 600"><span style="width: 10px; height: 10px; border-radius: 50%; border: 2px solid #F59E0B; box-sizing: border-box; background: linear-gradient(90deg, #F59E0B 50%, transparent 50%)"></span>In progress<span style="color: {{t.faint}}; font-weight: 500">3</span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="font-weight: 600; line-height: 1.4">Sync engine</span><span style="font-size: 11px; color: {{t.muted}}">4 subtasks</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">1–15 Mar</span>
+</div>
+<div style="height: 4px; border-radius: 2px; background: {{t.border}}; overflow: hidden"><span style="display: block; width: 25%; height: 100%; background: #10B981"></span></div>
+<div style="font-size: 11px; color: {{t.muted}}">Spans its subtasks' dates</div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.redBorder}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 0 0 3px {{t.redRing}}">
+<div style="font-size: 11px; color: {{t.muted}}">↳ Sync engine</div>
+<div style="font-weight: 500; line-height: 1.4">Design API schema</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">1–3 Mar · 3d</span>
+</div>
+<div style="padding: 6px 8px; border-radius: 6px; background: {{t.redBg}}; color: {{t.redText}}; font-size: 11px; font-weight: 500">alice is at 200% on 3 Mar</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#128</span></div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.redBorder}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 0 0 3px {{t.redRing}}">
+<div style="font-size: 11px; color: {{t.muted}}">↳ Sync engine</div>
+<div style="font-weight: 500; line-height: 1.4">Write migration guide</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">3 Mar · 1d</span>
+</div>
+<div style="padding: 6px 8px; border-radius: 6px; background: {{t.redBg}}; color: {{t.redText}}; font-size: 11px; font-weight: 500">alice is at 200% on 3 Mar</div>
+<div style="padding: 8px; border-radius: 6px; border: 1px dashed #818CF8; background: {{t.accentBg}}; font-size: 11px; line-height: 1.6; color: {{t.accentText}}">
+<div style="font-weight: 600">Pending change</div>
+<div>Assignee <span style="text-decoration: line-through">alice</span> → bob</div>
+<div>Date <span style="text-decoration: line-through">3 Mar</span> → 4 Mar</div>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span></div>
+</article>
+</section>
+
+<!-- ON HOLD -->
+<section aria-label="On hold" style="border-radius: 12px; background: {{t.sec}}; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-weight: 600"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#3B82F6"></circle><path d="M9.5 8v8M14.5 8v8" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"></path></svg>On hold<span style="color: {{t.faint}}; font-weight: 500">1</span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 11px; color: {{t.muted}}">↳ Sync engine</div>
+<div style="font-weight: 500; line-height: 1.4">Build sync service</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">4–10 Mar · 5d</span>
+</div>
+<div style="font-size: 11px; color: {{t.muted}}">Blocked by Design API schema</div>
+<div style="font-size: 11px; color: {{t.blueText}}">On hold: planned finish and load unchanged</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #8B5CF6; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">BO</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#129</span></div>
+</article>
+</section>
+
+<!-- DONE -->
+<section aria-label="Done" style="border-radius: 12px; background: {{t.sec}}; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-weight: 600"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#10B981"></circle><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>Done<span style="color: {{t.faint}}; font-weight: 500">2</span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 500; line-height: 1.4; color: {{t.text2}}">Choose sync protocol</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">22–24 Feb</span>
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.okBg}}; color: {{t.okText}}">Finished 24 Feb</span>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #8B5CF6; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">BO</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#112</span></div>
+</article>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 500; line-height: 1.4; color: {{t.text2}}">Set up CI pipeline</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-family: 'Geist Mono', ui-monospace, monospace">25–26 Feb</span>
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.accentBg}}; color: {{t.accentText}}">AI share 100%</span>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between"><span style="width: 22px; height: 22px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span></div>
+</article>
+</section>
+
+<!-- CANCELLED -->
+<section aria-label="Cancelled" style="border-radius: 12px; background: {{t.sec}}; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<div style="height: 28px; padding: 0 4px; display: flex; align-items: center; gap: 8px; font-weight: 600"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="{{t.faint}}"></circle><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"></path></svg>Cancelled<span style="color: {{t.faint}}; font-weight: 500">1</span></div>
+
+<article style="border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.card}}; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-weight: 500; line-height: 1.4; color: {{t.muted}}; text-decoration: line-through">Old export flow</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px">
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.muted}}; font-family: 'Geist Mono', ui-monospace, monospace">8–9 Mar</span>
+</div>
+<div style="font-size: 11px; color: {{t.muted}}">Load freed · issue closed as not planned</div>
+<div style="display: flex; justify-content: flex-end"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: {{t.muted}}">apollo-web#97</span></div>
+</article>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var themes = {
+      light: { bg: '#F9FAFB', card: '#FFFFFF', sec: '#F3F4F6', groupBg: 'rgba(249,250,251,0.6)', border: '#E5E7EB', borderStrong: '#D1D5DB',
+        text: '#111827', text2: '#374151', muted: '#4B5563', faint: '#6B7280', neutral: '#9CA3AF',
+        redBg: '#FEF2F2', redBorder: '#FCA5A5', redRing: '#FEE2E2', redText: '#B91C1C',
+        accentBg: '#EEF2FF', accentBorder: '#C7D2FE', accentText: '#3730A3', accentText2: '#4338CA',
+        okBg: '#ECFDF5', okText: '#047857', blueText: '#1D4ED8' },
+      dark: { bg: '#0D0E12', card: '#16181D', sec: '#1F232B', groupBg: 'rgba(31,35,43,0.55)', border: '#262626', borderStrong: '#363B45',
+        text: '#F9FAFB', text2: '#D1D5DB', muted: '#9CA3AF', faint: '#8B93A1', neutral: '#5B6270',
+        redBg: 'rgba(239,68,68,0.14)', redBorder: 'rgba(239,68,68,0.6)', redRing: 'rgba(239,68,68,0.16)', redText: '#FCA5A5',
+        accentBg: 'rgba(99,102,241,0.16)', accentBorder: 'rgba(99,102,241,0.45)', accentText: '#C7D2FE', accentText2: '#A5B4FC',
+        okBg: 'rgba(16,185,129,0.15)', okText: '#6EE7B7', blueText: '#93C5FD' }
+    };
+    var t = themes[this.props.theme] || themes.light;
+    return { t: t };
+  }
+}
+</script>
+</body>
+</html>

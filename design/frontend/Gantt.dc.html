@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gantt: Apollo and Borealis</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1000px; box-sizing: border-box; display: flex; flex-direction: column; background: {{t.bg}}; color: {{t.text}}; font-family: Inter, system-ui, sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased">
+
+<!-- app bar -->
+<header style="flex: none; height: 52px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<span style="width: 24px; height: 24px; border-radius: 6px; background: #6366F1"></span>
+<span style="font-weight: 600">Release train</span>
+<span style="height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: {{t.sec}}; color: {{t.text2}}; font-size: 11px">Cross-project view · personal</span>
+<span style="margin-left: auto; width: 28px; height: 28px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span>
+</header>
+
+<!-- saved views -->
+<nav aria-label="Saved views" style="flex: none; height: 44px; padding: 0 24px; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid {{t.border}}; background: {{t.card}}">
+<a href="Main.dc.html" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Board</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">My Kanban</a>
+<a href="#" aria-current="page" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-bottom: 2px solid #6366F1; color: {{t.text}}; font-weight: 600; text-decoration: none"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h8M8 12h9M6 18h6"></path></svg>Release train</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: {{t.muted}}; text-decoration: none">Apollo Gantt</a>
+<a href="#" style="height: 40px; padding: 0 12px; display: inline-flex; align-items: center; color: #6366F1; font-weight: 500; text-decoration: none">+ New view</a>
+</nav>
+
+<!-- toolbar -->
+<div style="flex: none; padding: 12px 24px; display: flex; align-items: center; gap: 8px">
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.card}}; color: {{t.text2}}">Projects: <strong style="font-weight: 600">Apollo, Borealis</strong></span>
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.card}}; color: {{t.text2}}">Baseline: <strong style="font-weight: 600">v1 (26 Feb)</strong></span>
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px dashed {{t.borderStrong}}; color: {{t.muted}}">+ Filter</span>
+<span style="height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; border: 1px solid {{t.borderStrong}}; background: {{t.card}}; color: {{t.text2}}">Export as Mermaid</span>
+<span style="margin-left: auto; height: 34px; padding: 0 6px 0 12px; display: inline-flex; align-items: center; gap: 10px; border-radius: 8px; border: 1px solid {{t.accentBorder}}; background: {{t.accentBg}}; color: {{t.accentText}}">
+<span style="width: 8px; height: 8px; border-radius: 50%; background: #6366F1"></span>AI proposal under review: 2 changes shown as pending
+<a href="#" style="height: 24px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 6px; background: #4F46E5; color: #FFFFFF; font-weight: 600; text-decoration: none">Review</a>
+</span>
+</div>
+
+<!-- GANTT PANEL -->
+<div style="margin: 0 24px; border: 1px solid {{t.border}}; border-radius: 12px; background: {{t.card}}; overflow: hidden">
+
+<!-- header -->
+<div style="display: flex; border-bottom: 1px solid {{t.border}}">
+<div style="flex: none; width: 468px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; align-items: end; padding-bottom: 8px; gap: 8px; border-right: 1px solid {{t.border}}; font-size: 11px; font-weight: 600; color: {{t.muted}}; letter-spacing: 0.03em">
+<span>TASK</span><span>ASSIGNED</span><span>START</span><span style="text-align: right">DAYS</span>
+</div>
+<div style="width: 924px; position: relative">
+<div style="height: 24px; padding: 0 8px; display: flex; align-items: center; font-weight: 600; font-size: 12px">March 2027</div>
+<div style="height: 32px; display: flex">
+<sc-for list="{{days}}" as="d" hint-placeholder-count="21">
+<div style="{{d.style}}"><span style="font-size: 10px">{{d.w}}</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; font-weight: 500">{{d.n}}</span></div>
+</sc-for>
+</div>
+<span style="position: absolute; left: 352px; top: 2px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: 4px; background: #6366F1; color: #FFFFFF; font-size: 10px; font-weight: 600">TODAY 9 MAR</span>
+</div>
+</div>
+
+<!-- body -->
+<div style="display: flex">
+
+<!-- left table -->
+<div style="flex: none; width: 468px; border-right: 1px solid {{t.border}}">
+<div style="height: 32px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px; background: {{t.bg}}; border-bottom: 1px solid {{t.border}}; font-size: 12px; font-weight: 600">Apollo<span style="font-weight: 400; color: {{t.muted}}">admin</span></div>
+
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 600"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2.6"><path d="M6 9l6 6 6-6"></path></svg><span style="width: 8px; height: 8px; border-radius: 50%; background: #F59E0B"></span>Sync engine</span>
+<span style="color: {{t.muted}}">—</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">1 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">11</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; color: {{t.redText}}; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; background: #F59E0B"></span>Design API schema</span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">1 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">3</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; color: {{t.redText}}; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; background: #F59E0B"></span>Write migration guide</span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #EC4899; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">AL</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">3 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">1</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; background: #3B82F6"></span>Build sync service<span style="font-size: 11px; font-weight: 400; color: {{t.blueText}}">on hold</span></span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #8B5CF6; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">BO</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">4 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">5</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px 0 40px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid {{t.neutral}}; box-sizing: border-box"></span>Load testing<span style="font-size: 11px; font-weight: 400; color: {{t.muted}}">AI 50%</span></span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #0EA5E9; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">CA</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">11 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">3</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: {{t.redText}}"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><path d="M12 2l10 10-10 10L2 12z" fill="#EF4444"></path></svg>Release 1.0 GA<span style="font-size: 11px; font-weight: 400; color: {{t.muted}}">fixed</span></span>
+<span style="color: {{t.muted}}">—</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">12 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right; color: {{t.muted}}">—</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid {{t.neutral}}; box-sizing: border-box"></span>Integrate Borealis auth</span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #F97316; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">DA</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">11 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">2</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}; opacity: 0.5">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500; text-decoration: line-through"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{t.faint}}"></span>Old export flow</span>
+<span style="color: {{t.muted}}">—</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">8 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">2</span>
+</div>
+
+<div style="height: 32px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px; background: {{t.bg}}; border-bottom: 1px solid {{t.border}}; font-size: 12px; font-weight: 600">Borealis<span style="font-weight: 400; color: {{t.muted}}">read-only for you</span></div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; background: #F59E0B"></span>Freeze auth API</span>
+<span style="width: 22px; height: 22px; border-radius: 50%; background: #14B8A6; color: #FFFFFF; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center">ER</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">8 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right">7</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 600"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9z" fill="#FFFFFF" stroke="{{t.text}}" stroke-width="2.4"></path></svg>Auth API frozen<span style="font-size: 11px; font-weight: 400; color: {{t.muted}}">floating</span></span>
+<span style="color: {{t.muted}}">—</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px">16 Mar</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; text-align: right; color: {{t.muted}}">—</span>
+</div>
+
+<div style="height: 32px; box-sizing: border-box; padding: 0 16px; display: flex; align-items: center; gap: 8px; background: {{t.bg}}; border-bottom: 1px solid {{t.border}}; font-size: 12px; font-weight: 600">Unscheduled<span style="font-weight: 400; color: {{t.muted}}">no planned dates</span></div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center; border-bottom: 1px solid {{t.sec}}">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid {{t.neutral}}; box-sizing: border-box"></span>Triage backlog<span style="font-size: 11px; font-weight: 400; color: {{t.muted}}">Apollo</span></span>
+<span style="color: {{t.muted}}">—</span><span style="color: {{t.muted}}">—</span><span style="text-align: right; color: {{t.muted}}">—</span>
+</div>
+<div style="height: 40px; box-sizing: border-box; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) 72px 64px 44px; gap: 8px; align-items: center">
+<span style="display: flex; align-items: center; gap: 6px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid {{t.neutral}}; box-sizing: border-box"></span>Investigate flaky e2e run<span style="font-size: 11px; font-weight: 400; color: {{t.muted}}">Apollo</span></span>
+<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 10px; color: {{t.muted}}">alice OR bob</span><span style="color: {{t.muted}}">—</span><span style="text-align: right; color: {{t.muted}}">—</span>
+</div>
+</div>
+
+<!-- timeline -->
+<div style="width: 924px; position: relative">
+<!-- weekends -->
+<div aria-hidden="true" style="position: absolute; left: 220px; top: 0; width: 88px; height: 576px; background: {{t.sec}}"></div>
+<div aria-hidden="true" style="position: absolute; left: 528px; top: 0; width: 88px; height: 576px; background: {{t.sec}}"></div>
+<div aria-hidden="true" style="position: absolute; left: 836px; top: 0; width: 88px; height: 576px; background: {{t.sec}}"></div>
+
+<!-- rows -->
+<div style="position: relative">
+<div style="height: 32px; box-sizing: border-box; border-bottom: 1px solid {{t.border}}; background: {{t.groupBg}}"></div>
+
+<!-- r1 parent -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 4px; top: 13px; width: 652px; height: 8px; border-radius: 2px; background: {{t.text2}}"></div>
+<div style="position: absolute; left: 4px; top: 13px; width: 4px; height: 14px; background: {{t.text2}}"></div>
+<div style="position: absolute; left: 652px; top: 13px; width: 4px; height: 14px; background: {{t.text2}}"></div>
+</div>
+<!-- r2 design (red: overload) -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 4px; top: 8px; width: 124px; height: 18px; border-radius: 4px; background: #EF4444"></div>
+<div style="position: absolute; left: 4px; top: 30px; width: 80px; height: 5px; border-radius: 2px; background: {{t.neutral}}"></div>
+</div>
+<!-- r3 guide (red) + pending -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 92px; top: 8px; width: 36px; height: 18px; border-radius: 4px; background: #EF4444"></div>
+<div style="position: absolute; left: 136px; top: 7px; width: 34px; height: 18px; border-radius: 4px; border: 1.5px dashed #6366F1; background: rgba(99,102,241,0.10)"></div>
+<span style="position: absolute; left: 178px; top: 9px; font-size: 11px; font-weight: 600; color: {{t.accentText2}}">Proposed: 4 Mar, bob</span>
+</div>
+<!-- r4 build (on hold) -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 136px; top: 8px; width: 300px; height: 18px; border-radius: 4px; background: #6366F1; background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.28) 0 4px, transparent 4px 9px)"></div>
+<div style="position: absolute; left: 92px; top: 30px; width: 300px; height: 5px; border-radius: 2px; background: {{t.neutral}}"></div>
+</div>
+<!-- r5 load testing -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 444px; top: 8px; width: 212px; height: 18px; border-radius: 4px; background: #6366F1; overflow: hidden"><div style="width: 50%; height: 100%; background: #A5B4FC; margin-left: auto"></div></div>
+<div style="position: absolute; left: 400px; top: 30px; width: 124px; height: 5px; border-radius: 2px; background: {{t.neutral}}"></div>
+</div>
+<!-- r6 GA fixed milestone (violated) -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 498px; top: 12px; width: 16px; height: 16px; transform: rotate(45deg); background: #EF4444; border-radius: 2px; box-shadow: 0 0 0 3px {{t.redRing}}"></div>
+<span style="position: absolute; left: 678px; top: 11px; font-size: 11px; font-weight: 600; color: {{t.redText}}">Fixed 12 Mar · pushed: blocker ends 15 Mar</span>
+</div>
+<!-- r7 integrate (red dependency) -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 444px; top: 8px; width: 80px; height: 18px; border-radius: 4px; background: #6366F1"></div>
+<span style="position: absolute; left: 536px; top: 9px; font-size: 11px; font-weight: 600; color: {{t.redText}}">Starts before Borealis milestone</span>
+</div>
+<!-- r8 cancelled -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 312px; top: 8px; width: 80px; height: 18px; border-radius: 4px; background: #6366F1; opacity: 0.25"></div>
+</div>
+
+<div style="height: 32px; box-sizing: border-box; border-bottom: 1px solid {{t.border}}; background: {{t.groupBg}}"></div>
+<!-- r9 freeze -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 312px; top: 8px; width: 388px; height: 18px; border-radius: 4px; background: #14B8A6"></div>
+<div style="position: absolute; left: 312px; top: 30px; width: 344px; height: 5px; border-radius: 2px; background: {{t.neutral}}"></div>
+</div>
+<!-- r10 floating milestone -->
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative">
+<div style="position: absolute; left: 674px; top: 12px; width: 16px; height: 16px; box-sizing: border-box; transform: rotate(45deg); background: {{t.card}}; border: 2.5px solid {{t.text}}; border-radius: 2px"></div>
+<span style="position: absolute; left: 722px; top: 11px; font-size: 11px; color: {{t.muted}}">Floating · lies on 16 Mar</span>
+</div>
+
+<div style="height: 32px; box-sizing: border-box; border-bottom: 1px solid {{t.border}}; background: {{t.groupBg}}"></div>
+<div style="height: 40px; box-sizing: border-box; border-bottom: 1px solid {{t.sec}}; position: relative"><span style="position: absolute; left: 12px; top: 12px; font-size: 11px; font-style: italic; color: {{t.muted}}">No planned dates</span></div>
+<div style="height: 40px; box-sizing: border-box; position: relative"><span style="position: absolute; left: 12px; top: 12px; font-size: 11px; font-style: italic; color: {{t.muted}}">No planned dates</span></div>
+</div>
+
+<!-- today line -->
+<div aria-hidden="true" style="position: absolute; left: 374px; top: 0; width: 2px; height: 576px; background: #6366F1; opacity: 0.6"></div>
+
+<!-- dependency arrows -->
+<svg aria-hidden="true" width="924" height="576" viewBox="0 0 924 576" style="position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible">
+<defs>
+<marker id="ag" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="{{t.faint}}"></path></marker>
+<marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="#EF4444"></path></marker>
+</defs>
+<path d="M128 89 H132 V169 H136" fill="none" stroke="{{t.faint}}" stroke-width="1.5" marker-end="url(#ag)"></path>
+<path d="M436 169 H440 V209 H444" fill="none" stroke="{{t.faint}}" stroke-width="1.5" marker-end="url(#ag)"></path>
+<path d="M656 209 H668 V252 H519" fill="none" stroke="#EF4444" stroke-width="2" marker-end="url(#ar)"></path>
+<path d="M682 410 V431" fill="none" stroke="{{t.faint}}" stroke-width="1.5" marker-end="url(#ag)"></path>
+<path d="M694 444 H712 V310 H434 V289 H444" fill="none" stroke="#EF4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#ar)"></path>
+</svg>
+</div>
+</div>
+</div>
+
+<!-- legend -->
+<div style="margin: 14px 24px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 20px; font-size: 12px; color: {{t.muted}}">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; border-radius: 3px; background: #6366F1"></span>Planned</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 4px; border-radius: 2px; background: {{t.neutral}}"></span>Baseline v1</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; border-radius: 3px; background: #6366F1; overflow: hidden; display: flex; justify-content: flex-end"><span style="width: 12px; background: #A5B4FC"></span></span>AI share</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; border-radius: 3px; background: #6366F1; background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.35) 0 3px, transparent 3px 6px)"></span>On hold</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; border-radius: 3px; background: #6366F1; opacity: 0.25"></span>Cancelled</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; border-radius: 3px; background: #EF4444"></span>Violation (overload, pushed milestone, cross-project)</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; transform: rotate(45deg); background: {{t.text}}"></span>Fixed milestone</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; box-sizing: border-box; transform: rotate(45deg); border: 2px solid {{t.text}}"></span>Floating milestone</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; height: 10px; box-sizing: border-box; border-radius: 3px; border: 1.5px dashed #6366F1"></span>Pending proposal</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 24px; border-top: 2px dashed #EF4444"></span>Cross-project dependency</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var themes = {
+      light: { bg: '#F9FAFB', card: '#FFFFFF', sec: '#F3F4F6', groupBg: 'rgba(249,250,251,0.6)', border: '#E5E7EB', borderStrong: '#D1D5DB',
+        text: '#111827', text2: '#374151', muted: '#4B5563', faint: '#6B7280', neutral: '#9CA3AF',
+        redBg: '#FEF2F2', redBorder: '#FCA5A5', redRing: '#FEE2E2', redText: '#B91C1C',
+        accentBg: '#EEF2FF', accentBorder: '#C7D2FE', accentText: '#3730A3', accentText2: '#4338CA',
+        okBg: '#ECFDF5', okText: '#047857', blueText: '#1D4ED8' },
+      dark: { bg: '#0D0E12', card: '#16181D', sec: '#1F232B', groupBg: 'rgba(31,35,43,0.55)', border: '#262626', borderStrong: '#363B45',
+        text: '#F9FAFB', text2: '#D1D5DB', muted: '#9CA3AF', faint: '#8B93A1', neutral: '#5B6270',
+        redBg: 'rgba(239,68,68,0.14)', redBorder: 'rgba(239,68,68,0.6)', redRing: 'rgba(239,68,68,0.16)', redText: '#FCA5A5',
+        accentBg: 'rgba(99,102,241,0.16)', accentBorder: 'rgba(99,102,241,0.45)', accentText: '#C7D2FE', accentText2: '#A5B4FC',
+        okBg: 'rgba(16,185,129,0.15)', okText: '#6EE7B7', blueText: '#93C5FD' }
+    };
+    var t = themes[this.props.theme] || themes.light;
+    var letters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    var days = [];
+    for (var i = 0; i < 21; i++) {
+      var weekend = i % 7 >= 5;
+      var today = i === 8;
+      days.push({
+        n: String(i + 1),
+        w: letters[i % 7],
+        style: 'flex: none; width: 44px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-left: 1px solid ' + t.sec + '; '
+          + (weekend ? 'background: ' + t.sec + '; color: ' + t.faint + ';' : 'color: ' + t.text2 + ';')
+          + (today ? ' color: ' + t.accentText2 + '; font-weight: 700;' : '')
+      });
+    }
+    return { t: t, days: days };
+  }
+}
+</script>
+</body>
+</html>
