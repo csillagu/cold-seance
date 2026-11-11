@@ -5,5 +5,6 @@
 // (SC-073).
 export * from './schema/core.ts'
 export * from './schema/github-issues.ts'
+export * from './schema/notifications.ts'
 export * from './schema/proposals.ts'
 export * from './schema/red-flags.ts'

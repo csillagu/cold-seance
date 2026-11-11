@@ -14,6 +14,7 @@ import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
 import { notVisible, ServiceError } from './errors.ts'
 import { lockRolesOn } from './groups.ts'
+import { notifyRepositoryRequest } from './notifications.ts'
 import type { ProjectRoleService } from './project-roles.ts'
 import { isUuid } from './system-admins.ts'
 
@@ -202,7 +203,17 @@ export class ProjectRepositoryService {
           projectId,
           details: { repositoryId, repository: fullName },
         })
-        return this.#read(tx, created.id)
+        const request = await this.#read(tx, created.id)
+        // A request waiting for the repository's admins is notified to them (FR-173).
+        if (!atOnce) {
+          await notifyRepositoryRequest(tx, {
+            requestId: request.id,
+            project: request.project,
+            repository: { id: repositoryId, owner: repository.owner, name: repository.name },
+            requestedBy: request.requestedBy,
+          })
+        }
+        return request
       })
     } catch (error) {
       if (violates(error, OPEN_INDEX)) {

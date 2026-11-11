@@ -9,6 +9,7 @@ import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { ganttExportRoutes } from './gantt-export.ts'
 import { groupRoutes } from './groups.ts'
+import { notificationRoutes, subscriptionRoutes } from './notifications.ts'
 import { openApiDescription } from './openapi.ts'
 import { personLoadRoutes } from './person-load.ts'
 import { projectMemberRoutes } from './project-members.ts'
@@ -67,6 +68,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/baselines', routes: varianceRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
+  { prefix: '/notifications', routes: notificationRoutes },
   { prefix: '/projects', routes: ganttExportRoutes },
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
@@ -90,6 +92,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/tasks', routes: taskRepositoryRoutes },
   { prefix: '/tokens', routes: apiTokenRoutes },
   { prefix: '/session', routes: sessionRoutes },
+  { prefix: '/subscriptions', routes: subscriptionRoutes },
 ]
 
 /**

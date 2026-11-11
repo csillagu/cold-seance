@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
-import { auditLog, projectMembers, taskAssignees, tasks } from '../../src/db/schema.ts'
+import {
+  auditLog,
+  notifications,
+  projectMembers,
+  taskAssignees,
+  tasks,
+} from '../../src/db/schema.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { NOT_VISIBLE_MESSAGE, ServiceError } from '../../src/service/errors.ts'
 import { createServices, type Services } from '../../src/service/services.ts'
@@ -599,6 +605,7 @@ describe('test cases through the REST API', () => {
 
       // The TC's step 1 is in the browser, with the assignment editor (SC-100), which is pending.
       // The save it makes is this request; the service decides the same whichever channel asks.
+      const notified = await x.db.select().from(notifications)
       const saved = await change(t, { assignees: [carol.id] })
       expect(saved.statusCode).toBe(200)
       // Negative: no confirmation or error: the save is accepted as it is, at once.
@@ -607,8 +614,9 @@ describe('test cases through the REST API', () => {
         eligibility: { any: [alice.id, bob.id] },
         assignees: [carol.id],
       })
-      // Negative: no notification is raised. Notifications come with SC-012; nothing records one
-      // yet, so this is shown by the task's audit trail holding only its creation and the edit.
+      // Negative: no notification is raised (SC-012), and the task's audit trail holds only its
+      // creation and the edit.
+      expect(await x.db.select().from(notifications)).toEqual(notified)
       const trail = await x.db.select().from(auditLog).where(eq(auditLog.subjectId, t))
       expect(trail.map((entry) => entry.action)).toEqual(['task.created', 'task.updated'])
     })
