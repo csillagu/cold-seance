@@ -1,5 +1,5 @@
 import { and, asc, eq, gte, lte, ne, sql } from 'drizzle-orm'
-import type { Database } from '../db/client.ts'
+import type { Database, Executor } from '../db/client.ts'
 import { absences, accounts, taskAssignees, tasks } from '../db/schema.ts'
 import { assigneesColumn } from './assignment.ts'
 import type { Caller } from './caller.ts'
@@ -189,41 +189,7 @@ export class DailyPersonLoadService {
       .where(eq(accounts.id, accountId))
     if (!person) throw noSuchAccount()
 
-    // A task is read only with both its dates, which the comparisons below require, so they are
-    // typed as present.
-    const rows = await this.#db
-      .select({
-        id: tasks.id,
-        projectId: tasks.projectId,
-        title: tasks.title,
-        plannedStart: sql<string>`${tasks.plannedStart}`,
-        plannedFinish: sql<string>`${tasks.plannedFinish}`,
-        aiShare: tasks.aiShare,
-        aiOnlyLoad: tasks.aiOnlyLoad,
-        milestone: sql<boolean>`${tasks.milestoneVariant} is not null`,
-        loadOverride: taskAssignees.loadOverride,
-        assignees: assigneesColumn,
-      })
-      .from(taskAssignees)
-      .innerJoin(tasks, eq(tasks.id, taskAssignees.taskId))
-      .where(
-        and(
-          eq(taskAssignees.accountId, accountId),
-          ne(tasks.status, 'cancelled'),
-          lte(tasks.plannedStart, to),
-          gte(tasks.plannedFinish, from),
-        ),
-      )
-      .orderBy(asc(tasks.createdAt), asc(tasks.id))
-    const assigned: AssignedTask[] = rows.flatMap(({ aiShare, aiOnlyLoad, milestone, ...row }) => {
-      // A milestone takes no time, so it has no load (FR-191). None is read here, since a
-      // milestone has no planned dates (tasks_milestone_takes_no_time), but should one be, it
-      // counts for nothing.
-      const own = taskPersonLoad({ aiShare, aiOnlyLoad, milestone })
-      if (own === null) return []
-      const { loadOverride, ...task } = row
-      return [{ ...task, load: loadOverride ?? own }]
-    })
+    const assigned = await readAssignedTasks(this.#db, accountId, from, to)
 
     const people = [...new Set(assigned.flatMap((task) => task.assignees))]
     const calendars = await readCalendars(this.#db, people)
@@ -231,19 +197,7 @@ export class DailyPersonLoadService {
       (await this.#viewFilter.readable(caller, assigned)).map((task) => task.projectId),
     )
     const capacity = (await this.#mayReadCapacity(caller, accountId)) ? person.capacity : null
-    const absent =
-      capacity === null
-        ? []
-        : await this.#db
-            .select({ from: absences.startsOn, to: absences.endsOn })
-            .from(absences)
-            .where(
-              and(
-                eq(absences.accountId, accountId),
-                lte(absences.startsOn, to),
-                gte(absences.endsOn, from),
-              ),
-            )
+    const absent = capacity === null ? [] : await readAbsences(this.#db, accountId, from, to)
 
     return {
       accountId,
@@ -280,6 +234,73 @@ export class DailyPersonLoadService {
       throw new ServiceError('forbidden', "Only people with an account can see a person's load")
     }
   }
+}
+
+/**
+ * The tasks `accountId` is assigned to that are not cancelled (FR-127), not milestones (FR-191)
+ * and planned to overlap the days from `from` to `to`, in the order they were created, each with
+ * the person-load percentage it puts on them (FR-034, DD-009, DD-010).
+ */
+export async function readAssignedTasks(
+  executor: Executor,
+  accountId: string,
+  from: string,
+  to: string,
+): Promise<AssignedTask[]> {
+  // A task is read only with both its dates, which the comparisons below require, so they are
+  // typed as present.
+  const rows = await executor
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+      title: tasks.title,
+      plannedStart: sql<string>`${tasks.plannedStart}`,
+      plannedFinish: sql<string>`${tasks.plannedFinish}`,
+      aiShare: tasks.aiShare,
+      aiOnlyLoad: tasks.aiOnlyLoad,
+      milestone: sql<boolean>`${tasks.milestoneVariant} is not null`,
+      loadOverride: taskAssignees.loadOverride,
+      assignees: assigneesColumn,
+    })
+    .from(taskAssignees)
+    .innerJoin(tasks, eq(tasks.id, taskAssignees.taskId))
+    .where(
+      and(
+        eq(taskAssignees.accountId, accountId),
+        ne(tasks.status, 'cancelled'),
+        lte(tasks.plannedStart, to),
+        gte(tasks.plannedFinish, from),
+      ),
+    )
+    .orderBy(asc(tasks.createdAt), asc(tasks.id))
+  return rows.flatMap(({ aiShare, aiOnlyLoad, milestone, ...row }) => {
+    // A milestone takes no time, so it has no load (FR-191). None is read here, since a
+    // milestone has no planned dates (tasks_milestone_takes_no_time), but should one be, it
+    // counts for nothing.
+    const own = taskPersonLoad({ aiShare, aiOnlyLoad, milestone })
+    if (own === null) return []
+    const { loadOverride, ...task } = row
+    return [{ ...task, load: loadOverride ?? own }]
+  })
+}
+
+/** The absences of `accountId` that overlap the days from `from` to `to`. */
+export async function readAbsences(
+  executor: Executor,
+  accountId: string,
+  from: string,
+  to: string,
+): Promise<{ from: string; to: string }[]> {
+  return executor
+    .select({ from: absences.startsOn, to: absences.endsOn })
+    .from(absences)
+    .where(
+      and(
+        eq(absences.accountId, accountId),
+        lte(absences.startsOn, to),
+        gte(absences.endsOn, from),
+      ),
+    )
 }
 
 /**

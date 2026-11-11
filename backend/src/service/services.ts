@@ -27,6 +27,7 @@ import { TaskRelationService } from './task-relations.ts'
 import { TaskRepositoryService } from './task-repository.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
 import { TaskService } from './tasks.ts'
+import { UnassignedTaskRatingService } from './unassigned-ratings.ts'
 import { VarianceService } from './variance.ts'
 import { ViewReadFilter } from './view-filter.ts'
 import { ViolationService } from './violations.ts'
@@ -78,6 +79,8 @@ export interface Services {
   /** Which repository a task is assigned to (SC-036). */
   taskRepository: TaskRepositoryService
   taskStatus: TaskStatusService
+  /** The red, amber or green rating of each eligible but unassigned task by load (SC-041). */
+  unassignedRatings: UnassignedTaskRatingService
   /** Each task's variance against a baseline, computed when asked (SC-044). */
   variance: VarianceService
   /** The filter every view passes the tasks it would show through (SC-050). */
@@ -161,6 +164,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       changes,
     ),
     taskStatus: new TaskStatusService(db, audit, projectRoles, options.today),
+    unassignedRatings: new UnassignedTaskRatingService(db, projectRoles),
     variance: new VarianceService(db, projectRoles),
     viewFilter,
     violations: new ViolationService(db, projectRoles),
