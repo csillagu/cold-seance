@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router'
+import { NavLink, Outlet, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import type { ProjectContext } from './project-context.ts'
 import './pages.css'
 
 /**
@@ -18,7 +19,8 @@ type Project =
   | { state: 'failed' }
 
 /**
- * A project's page, at the address `/projects/<id>`: the place the project's views are shown in.
+ * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
+ * each at an address of its own below it, such as `/projects/<id>/gantt`, with a link to each.
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
  */
 export function ProjectPage() {
@@ -65,9 +67,16 @@ export function ProjectPage() {
     case 'loaded':
       break
   }
+  const context: ProjectContext = { id: project.id, name: project.name }
   return (
     <section>
       <h1 className="page__title">{project.name}</h1>
+      <nav className="page__views" aria-label="Views">
+        <NavLink to="gantt" className="page__view-link">
+          Gantt
+        </NavLink>
+      </nav>
+      <Outlet context={context} />
     </section>
   )
 }
