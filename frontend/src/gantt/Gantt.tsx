@@ -8,6 +8,7 @@ import {
   type GanttModel,
   type GanttRow,
 } from './gantt-model.ts'
+import { avatarColour } from './avatar.ts'
 import './gantt.css'
 
 /** The width of a day on the timeline, and the height of a row, in pixels, as the design draws them. */
@@ -440,13 +441,4 @@ function Legend() {
       </li>
     </ul>
   )
-}
-
-const AVATAR_COLOURS = ['#EC4899', '#8B5CF6', '#0EA5E9', '#F97316', '#14B8A6', '#84CC16']
-
-/** A colour of its own for each person's initials, the same every time. */
-function avatarColour(id: string): string {
-  let hash = 0
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  return AVATAR_COLOURS[hash % AVATAR_COLOURS.length]!
 }

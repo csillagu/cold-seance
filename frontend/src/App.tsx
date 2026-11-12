@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router'
 import { Layout } from './layout/Layout.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
+import { KanbanPage } from './pages/KanbanPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
@@ -20,6 +21,7 @@ export function App() {
         <Route index element={<StartPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="gantt" element={<GanttPage />} />
+          <Route path="kanban" element={<KanbanPage />} />
         </Route>
         <Route path="*" element={<UnknownPage />} />
       </Route>

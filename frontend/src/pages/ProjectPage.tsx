@@ -20,7 +20,7 @@ type Project =
 
 /**
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
- * each at an address of its own below it, such as `/projects/<id>/gantt`, with a link to each.
+ * each at an address of its own below it, such as `/projects/<id>/kanban` or `/projects/<id>/gantt`, with a link to each.
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
  */
 export function ProjectPage() {
@@ -72,6 +72,9 @@ export function ProjectPage() {
     <section>
       <h1 className="page__title">{project.name}</h1>
       <nav className="page__views" aria-label="Views">
+        <NavLink to="kanban" className="page__view-link">
+          Kanban
+        </NavLink>
         <NavLink to="gantt" className="page__view-link">
           Gantt
         </NavLink>
