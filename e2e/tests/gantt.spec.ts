@@ -344,8 +344,8 @@ test('TC-064: the four view kinds are available for a project (the Gantt)', asyn
   await call(page, 'POST', `/projects/${apollo}/baselines`, { name: 'v1' })
   const before = await call(page, 'GET', `/projects/${apollo}/tasks`)
 
-  // Step 1, the Gantt: it opens and shows T. Pending: the Kanban (SC-030, F15), the person load
-  // view (SC-032, F20) and the baseline variance view (SC-033, F21).
+  // Step 1, the Gantt: it opens and shows T. The Kanban is in kanban.spec.ts. Pending: the person
+  // load view (SC-032, F20) and the baseline variance view (SC-033, F21).
   const gantt = await openGantt(page, 'Apollo')
   await expect(bar(gantt, 'T')).toHaveAccessibleName('T: 1 Mar 2027 to 2 Mar 2027')
 
@@ -371,8 +371,8 @@ test("TC-154: a read-only member sees every view and the project's data (the Gan
     assignees: [alice.id],
   })
 
-  // Step 1, the Gantt: as bob, it opens and shows T. Pending: the Kanban (SC-030, F15), the person
-  // load view (SC-032, F20), the baseline variance view (SC-033, F21) and the saved view Board
+  // Step 1, the Gantt: as bob, it opens and shows T. The Kanban is in kanban.spec.ts. Pending: the
+  // person load view (SC-032, F20), the baseline variance view (SC-033, F21) and the saved view Board
   // (SC-020, SC-091, F22), and step 2's reads through the REST API (see
   // backend/test/integration/project-roles.test.ts).
   const bobsPage = await signedIn(browser, deployment.url, bob)
