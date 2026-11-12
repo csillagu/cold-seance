@@ -327,7 +327,7 @@ describe('TC-057: a load equal to capacity is not an overload', () => {
 })
 
 describe('TC-029: a task turns red when an assigned person is overloaded during it', () => {
-  // Pending: T1 and T2 shown in red on the Gantt is the Gantt timeline's (SC-031).
+  // T1 and T2 shown in red on the Gantt is the Gantt timeline's (SC-031), in e2e/tests/gantt.spec.ts.
   it('makes T1 and T2 red once T2 puts alice at 200% on 2027-03-03, moving neither', async () => {
     const apollo = await seedProject(x.db, alice, 'Apollo')
     const t1 = await createTask(alice, apollo, {
@@ -359,7 +359,7 @@ describe('TC-029: a task turns red when an assigned person is overloaded during 
 })
 
 describe('TC-030: a task turns red when an assigned person takes a day off during it', () => {
-  // Pending: T shown in red on the Gantt is the Gantt timeline's (SC-031).
+  // T shown in red on the Gantt is the Gantt timeline's (SC-031), in e2e/tests/gantt.spec.ts.
   it('makes T red once alice takes 2027-03-02 off, with T still running 2027-03-01 to 2027-03-03', async () => {
     const apollo = await seedProject(x.db, alice, 'Apollo')
     const t = await createTask(alice, apollo, {
@@ -432,7 +432,8 @@ describe("TC-058: a shared person's overload is red to every project involved", 
 })
 
 describe('TC-031: a red overload flag clears once the overload is gone', () => {
-  // Pending: the Gantt showing T1 and T2 red, then not, is the Gantt timeline's (SC-031).
+  // The Gantt showing T1 and T2 red, then not, is the Gantt timeline's (SC-031), in
+  // e2e/tests/gantt.spec.ts.
   it('clears the flags of T1 and T2 once alice is removed from T2 through the REST API', async () => {
     const apollo = await seedProject(x.db, alice, 'Apollo')
     const t1 = await createTask(alice, apollo, {

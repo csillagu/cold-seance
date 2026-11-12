@@ -1,0 +1,486 @@
+/*
+ * The Gantt timeline (SC-031), as the approved design draws it (SRC-249, design/frontend/Gantt.dc.html):
+ * a card with the task table on the left and the days on the right, 44px a day and 40px a row.
+ */
+.gantt {
+  --gantt-left: 468px;
+  --gantt-text2: #374151;
+  --gantt-neutral: #9ca3af;
+  --gantt-red-ring: #fee2e2;
+  --gantt-blue-text: #1d4ed8;
+  --gantt-accent-text: #4338ca;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .gantt {
+    --gantt-text2: #d1d5db;
+    --gantt-neutral: #5b6270;
+    --gantt-red-ring: rgba(239, 68, 68, 0.16);
+    --gantt-blue-text: #93c5fd;
+    --gantt-accent-text: #a5b4fc;
+  }
+}
+
+.gantt__scroll {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  overflow-x: auto;
+}
+
+.gantt__table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.gantt__row {
+  display: flex;
+  height: 40px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--sec);
+}
+
+.gantt__body > .gantt__row:last-of-type {
+  border-bottom: 0;
+}
+
+.gantt__left {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+  width: var(--gantt-left);
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 64px 44px;
+  gap: 8px;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* Header */
+.gantt__row--head {
+  height: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.gantt__left--head {
+  align-items: end;
+  padding-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.gantt__timeline-head {
+  position: relative;
+  flex: none;
+}
+
+.gantt__months {
+  position: relative;
+  height: 24px;
+}
+
+.gantt__month {
+  position: absolute;
+  top: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.gantt__days {
+  display: flex;
+  height: 32px;
+}
+
+.gantt__day {
+  flex: none;
+  width: 44px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-left: 1px solid var(--sec);
+  color: var(--gantt-text2);
+}
+
+.gantt__day--off {
+  background: var(--sec);
+  color: var(--faint);
+}
+
+.gantt__day--today {
+  color: var(--gantt-accent-text);
+  font-weight: 700;
+}
+
+.gantt__weekday {
+  font-size: 10px;
+}
+
+.gantt__date,
+.gantt__mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.gantt__mono {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.gantt__today-tag {
+  position: absolute;
+  top: 2px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-tag);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Body */
+.gantt__body {
+  position: relative;
+}
+
+.gantt__overlay,
+.gantt__arrows {
+  position: absolute;
+  top: 0;
+  left: var(--gantt-left);
+  pointer-events: none;
+}
+
+.gantt__overlay {
+  z-index: 0;
+}
+
+.gantt__arrows {
+  z-index: 1;
+  overflow: visible;
+}
+
+.gantt__off {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--sec);
+}
+
+.gantt__today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.6;
+}
+
+.gantt__num {
+  text-align: right;
+}
+
+.gantt__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.gantt__title--parent {
+  font-weight: 600;
+}
+
+.gantt__row--red .gantt__title {
+  color: var(--red-text);
+}
+
+.gantt__title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt__tag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.gantt__tag--hold {
+  color: var(--gantt-blue-text);
+}
+
+.gantt__status {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+}
+
+.gantt__status--not-started {
+  border: 1.5px solid var(--gantt-neutral);
+}
+
+.gantt__status--in-progress {
+  background: var(--amber);
+}
+
+.gantt__status--on-hold {
+  background: var(--blue);
+}
+
+.gantt__status--done {
+  background: var(--green);
+}
+
+.gantt__status--cancelled {
+  background: var(--faint);
+}
+
+.gantt__diamond-icon {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+  transform: rotate(45deg);
+  background: var(--text);
+}
+
+.gantt__diamond-icon--floating {
+  box-sizing: border-box;
+  border: 2px solid var(--text);
+  background: var(--card);
+}
+
+.gantt__row--red .gantt__diamond-icon {
+  border-color: var(--red);
+  background: var(--red);
+}
+
+.gantt__people {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gantt__avatar {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.gantt__none {
+  color: var(--muted);
+}
+
+.gantt__lane {
+  position: relative;
+  flex: 1 0 auto;
+  z-index: 1;
+}
+
+.gantt__bar,
+.gantt__parent,
+.gantt__milestone {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.gantt__bar {
+  top: 8px;
+  height: 18px;
+  border-radius: var(--radius-tag);
+  background: var(--accent);
+  overflow: hidden;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.gantt__bar--hold {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.28) 0 4px,
+    transparent 4px 9px
+  );
+}
+
+.gantt__bar--red {
+  background-color: var(--red);
+}
+
+.gantt__ai {
+  height: 100%;
+  background: #a5b4fc;
+}
+
+.gantt__parent {
+  top: 13px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--gantt-text2);
+}
+
+.gantt__parent::before,
+.gantt__parent::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 14px;
+  background: inherit;
+}
+
+.gantt__parent::before {
+  left: 0;
+}
+
+.gantt__parent::after {
+  right: 0;
+}
+
+.gantt__parent--red {
+  background: var(--red);
+}
+
+.gantt__milestone {
+  top: 12px;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  background: var(--text);
+}
+
+.gantt__milestone--floating {
+  border: 2.5px solid var(--text);
+  background: var(--card);
+}
+
+.gantt__milestone--red {
+  border-color: var(--red);
+  background: var(--red);
+  box-shadow: 0 0 0 3px var(--gantt-red-ring);
+}
+
+.gantt__note {
+  position: absolute;
+  top: 11px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--red-text);
+  white-space: nowrap;
+}
+
+.gantt__arrow {
+  fill: none;
+  stroke: var(--faint);
+  stroke-width: 1.5;
+}
+
+.gantt__arrow--red {
+  stroke: var(--red);
+  stroke-width: 2;
+}
+
+.gantt__arrowhead {
+  fill: var(--faint);
+}
+
+.gantt__arrowhead--red {
+  fill: var(--red);
+}
+
+/* Legend */
+.gantt__legend {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gantt__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gantt__key {
+  width: 24px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--accent);
+  overflow: hidden;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.gantt__key--ai span {
+  width: 12px;
+  background: #a5b4fc;
+}
+
+.gantt__key--hold {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.35) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+.gantt__key--red {
+  background: var(--red);
+}
+
+.gantt__key-diamond {
+  width: 10px;
+  height: 10px;
+  box-sizing: border-box;
+  transform: rotate(45deg);
+  background: var(--text);
+}
+
+.gantt__key-diamond--floating {
+  border: 2px solid var(--text);
+  background: transparent;
+}
