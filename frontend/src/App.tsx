@@ -3,6 +3,8 @@ import { Layout } from './layout/Layout.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
+import { ProposalPage } from './pages/ProposalPage.tsx'
+import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
 import { UnknownPage } from './pages/UnknownPage.tsx'
@@ -22,7 +24,9 @@ export function App() {
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="gantt" element={<GanttPage />} />
           <Route path="kanban" element={<KanbanPage />} />
+          <Route path="proposals" element={<ProposalsPage />} />
         </Route>
+        <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="*" element={<UnknownPage />} />
       </Route>
     </Routes>

@@ -1,0 +1,169 @@
+/*
+ * The proposal screens (SC-034). The approved design (SRC-249, design/frontend/) does not draw
+ * them; they use its colours, type, radii and table style, as the Gantt's table does.
+ */
+.proposal__meta {
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  color: var(--muted);
+}
+
+.proposal__meta a {
+  color: var(--accent-text);
+}
+
+.proposal__status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-tag);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--sec);
+  color: var(--muted);
+}
+
+.proposal__status--waiting {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+.proposal__heading {
+  margin: 24px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.proposal__scroll {
+  margin-top: 12px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.proposal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.proposal__table th,
+.proposal__table td {
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.proposal__table thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--sec);
+  white-space: nowrap;
+}
+
+.proposal__table tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+.proposal__task {
+  font-weight: 600;
+}
+
+.proposal__task a {
+  color: var(--accent-text);
+}
+
+.proposal__num {
+  text-align: right;
+}
+
+.proposal__table .proposal__num {
+  text-align: right;
+}
+
+.proposal__mono {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.proposal__changed {
+  background: var(--accent-bg);
+}
+
+.proposal__before {
+  color: var(--faint);
+}
+
+.proposal__after {
+  text-decoration: none;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proposal__unchanged {
+  color: var(--faint);
+}
+
+.proposal__new {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+.proposal__other {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proposal__flags {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.proposal__flag {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--red-border);
+  border-radius: var(--radius-button);
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.proposal__flag-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.proposal__flag-projects {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.proposal__conflict {
+  margin-top: 16px;
+  border-color: var(--red-border);
+}
+
+.proposal__conflict-text {
+  margin: 8px 0 0;
+  color: var(--red-text);
+}

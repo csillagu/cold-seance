@@ -15,7 +15,7 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // Saturday and Sunday as the weekend and no company holidays. First the test cases' service and
 // REST parts, then the rules through the service layer. Each proposal is created through the
 // service layer with the channel the MCP server will give it; the MCP server itself comes with
-// SC-027 (B19). The browser steps come with the proposal preview screen (SC-034, F23).
+// SC-027 (B19). The browser steps are in e2e/tests/proposal-preview.spec.ts (SC-034).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PATCH'
@@ -118,8 +118,8 @@ describe('the proposal preview', () => {
 
   describe('the test cases', () => {
     it('TC-100: a proposal leaves the live plan unchanged before approval', async () => {
-      // The service and REST part. Pending: opening it in the browser and the plain Gantt
-      // (SC-034, F23).
+      // The service and REST part; opening it in the browser and the plain Gantt are in
+      // e2e/tests/proposal-preview.spec.ts (SC-034).
       const a = await task({ title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
       const proposal = await propose([
         [{ kind: 'update-task', task: { taskId: a.id }, fields: { plannedStart: '2027-03-08' } }],
@@ -136,7 +136,7 @@ describe('the proposal preview', () => {
     })
 
     it('TC-101: opening a proposal previews its rescheduled differences and new red flags', async () => {
-      // The service and REST part. Pending: showing them in the browser (SC-034, F23).
+      // The service and REST part; showing them in the browser is in proposal-preview.spec.ts.
       const a = await task({ title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 3 })
       const b = await task({
         title: 'B',
@@ -197,7 +197,7 @@ describe('the proposal preview', () => {
     })
 
     it("TC-112: a plan change does not rewrite a proposal's changes", async () => {
-      // The service and REST part. Pending: opening the preview in the browser (SC-034, F23).
+      // The service and REST part; opening the preview in the browser is in the e2e spec.
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await task({ title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
       const b = await task({ title: 'B', durationWorkingDays: 1 })
@@ -234,7 +234,7 @@ describe('the proposal preview', () => {
 
     it('TC-226: a proposal holds the changed input and no derived dates', async () => {
       // The preview's content, through the service layer; step 1 is in proposals.test.ts.
-      // Pending: opening it in the browser (SC-034, F23).
+      // Opening it in the browser is in e2e/tests/proposal-preview.spec.ts (SC-034).
       const a = await task({ title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 3 })
       const b = await task({ title: 'B', durationWorkingDays: 2 })
       await block(b.id, a.id)
