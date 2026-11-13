@@ -28,9 +28,10 @@ type Projects =
  * Below them, the navigation leads to the registered repositories (SC-085), which anyone signed in
  * may register, and from there to each one's admins (SC-086).
  *
- * The navigation also leads to the signed-in person's own GitHub account link (SC-077) and API
- * tokens (SC-078), and, for a system admin only, to account administration (SC-076). The pages
- * inside read who is signed in with `useSignedIn()`.
+ * The navigation also leads to the signed-in person's own GitHub account link (SC-077), capacity
+ * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), and, for a system admin
+ * only, to account administration (SC-076). The pages inside read who is signed in with
+ * `useSignedIn()`.
  *
  * Someone who is not signed in is sent to the sign-in page, and comes back here once signed in.
  */
@@ -99,6 +100,12 @@ export function Layout() {
                   <h2 className="layout__nav-heading">Your account</h2>
                   <NavLink to="/settings/github" className="layout__link">
                     GitHub account
+                  </NavLink>
+                  <NavLink to="/settings/capacity" className="layout__link">
+                    Capacity and absences
+                  </NavLink>
+                  <NavLink to="/settings/calendar" className="layout__link">
+                    Working calendar
                   </NavLink>
                   <NavLink to="/tokens" className="layout__link">
                     API tokens

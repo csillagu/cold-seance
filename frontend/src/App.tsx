@@ -1,6 +1,8 @@
 import { Route, Routes } from 'react-router'
 import { Layout } from './layout/Layout.tsx'
 import { AccountsPage } from './pages/AccountsPage.tsx'
+import { CalendarPage } from './pages/CalendarPage.tsx'
+import { CapacityPage } from './pages/CapacityPage.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
 import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
@@ -31,6 +33,8 @@ export function App() {
       <Route element={<Layout />}>
         <Route index element={<StartPage />} />
         <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts/:accountId/calendar" element={<CalendarPage />} />
+        <Route path="accounts/:accountId/capacity" element={<CapacityPage />} />
         <Route path="accounts/:accountId/github" element={<GitHubLinkPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
@@ -43,6 +47,8 @@ export function App() {
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />
         <Route path="repositories/:repositoryId" element={<RepositoryPage />} />
+        <Route path="settings/calendar" element={<CalendarPage key="own" />} />
+        <Route path="settings/capacity" element={<CapacityPage key="own" />} />
         <Route path="settings/github" element={<GitHubLinkPage key="own" />} />
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="tokens" element={<TokensPage />} />

@@ -100,13 +100,21 @@ describe('the layout (SC-113)', () => {
 })
 
 describe('the navigation to the account screens', () => {
-  it('leads a person to their own GitHub account link and API tokens, but not to account administration', async () => {
+  it('leads a person to their own GitHub account link, capacity and absences, working calendar and API tokens, but not to account administration', async () => {
     fakeApi(signedIn)
     renderAt('/')
     const navigation = screen.getByRole('navigation', { name: 'Navigation' })
     expect(await within(navigation).findByRole('link', { name: 'GitHub account' })).toHaveAttribute(
       'href',
       '/settings/github',
+    )
+    expect(within(navigation).getByRole('link', { name: 'Capacity and absences' })).toHaveAttribute(
+      'href',
+      '/settings/capacity',
+    )
+    expect(within(navigation).getByRole('link', { name: 'Working calendar' })).toHaveAttribute(
+      'href',
+      '/settings/calendar',
     )
     expect(within(navigation).getByRole('link', { name: 'API tokens' })).toHaveAttribute(
       'href',

@@ -695,7 +695,7 @@ describe('the test cases', () => {
     expect(given.statusCode).toBe(200)
     expect(given.json().weekendDays).toEqual(['saturday', 'sunday'])
 
-    // Step 1, in the browser, waits for the personal working calendar screen (SC-089). The REST
+    // Step 1, in the browser, is in e2e/tests/availability.spec.ts (SC-089). The REST
     // API offers no weekend setting for a person's own calendar either: the description lists
     // only holidays.
     const description = (await request(alice, 'GET', '/api/openapi.json')).json()
