@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import {
@@ -7,9 +7,19 @@ import {
   type Cell,
   type PreviewModel,
 } from '../proposals/preview-model.ts'
-import { type ApiProposal, formatWhen, PROPOSAL_STATUS_WORDS } from '../proposals/proposal.ts'
+import { ConflictPanel } from '../proposals/ConflictPanel.tsx'
+import { ProposalEditor } from '../proposals/ProposalEditor.tsx'
+import {
+  type ApiConflict,
+  type ApiConflicts,
+  type ApiProposal,
+  formatWhen,
+  PROPOSAL_STATUS_WORDS,
+} from '../proposals/proposal.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import '../proposals/proposals.css'
+import '../proposals/proposal-edit.css'
+import '../tasks/task-editors.css'
 
 type Loaded =
   | { state: 'loading' }
@@ -18,6 +28,10 @@ type Loaded =
       proposal: ApiProposal
       creator: string
       projects: { id: string; name: string }[]
+      /** The live plan's tasks, by id, to name those the proposal's changes name. */
+      tasks: ReadonlyMap<string, string>
+      /** The changes that conflict with the live plan (SC-070). */
+      conflicts: ApiConflict[]
       /** The preview, or why the proposal cannot be previewed on the plan as it is now. */
       preview: { model: PreviewModel } | { conflict: string }
     }
@@ -28,25 +42,45 @@ type Loaded =
 export const NO_SUCH_PROPOSAL = 'There is no such proposal'
 
 /**
- * A proposal's live preview (SC-034), at `/proposals/<id>`. Opening it has the REST API apply the
+ * A proposal's live preview (SC-034), at `/proposals/<id>`, with its conflicts (SC-070) and its
+ * editor (SC-071). Opening it has the REST API apply the
  * proposal's changes to the current plan without saving them and reschedule (FR-072, DD-021); the
  * page shows each task that would change, before and after, and every red flag the proposal would
  * newly raise. The live plan is left as it is (FR-071), and the proposal too: the preview is
  * worked out again against the plan as it is each time the page is opened, the only adjustment
  * ever made to it (FR-079). Anyone who may read the proposal can open it (FR-106).
+ *
+ * While the proposal waits for review, the page offers to edit or drop each of its groups of
+ * changes, and to resolve or drop each conflict; the REST API allows it only to the read-write
+ * members and admins of the projects concerned (FR-074), and the page shows its refusal to anyone
+ * else. After each edit or drop the page reads the proposal, its conflicts and its preview again.
  */
 export function ProposalPage() {
   const { proposalId = '' } = useParams()
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
+  /** Counts the edits and drops made, so that the page reads the proposal again after each. */
+  const [version, setVersion] = useState(0)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setEditing(null)
+    setActionError(null)
+  }, [proposalId])
 
   useEffect(() => {
     const abort = new AbortController()
     const get = <T,>(path: string) => api<T>(path, { signal: abort.signal })
     const base = `/proposals/${encodeURIComponent(proposalId)}`
-    setLoaded({ state: 'loading' })
+    // A first read shows that the page is loading; a read again after an edit keeps what is shown.
+    if (version === 0) setLoaded({ state: 'loading' })
     const load = async () => {
-      const proposal = await get<ApiProposal>(base)
+      const [proposal, conflicts] = await Promise.all([
+        get<ApiProposal>(base),
+        get<ApiConflicts>(`${base}/conflicts`),
+      ])
       const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`
       const [preview, projects] = await Promise.all([
         get<ApiPreview>(`${base}/preview`).then(
@@ -80,6 +114,8 @@ export function ProposalPage() {
         proposal,
         creator: names.people.get(proposal.createdBy) ?? 'someone who is not a member',
         projects: projects.map(({ project }) => project),
+        tasks: names.tasks,
+        conflicts: conflicts.conflicts,
         preview:
           'conflict' in preview
             ? { conflict: preview.conflict }
@@ -97,7 +133,37 @@ export function ProposalPage() {
       }
     })
     return () => abort.abort()
-  }, [proposalId, toSignIn])
+  }, [proposalId, toSignIn, version])
+
+  /** Sends an edit or a drop, then reads the proposal again; shows the API's refusal, if any. */
+  const act = useCallback(
+    (request: () => Promise<unknown>) => {
+      setBusy(true)
+      setActionError(null)
+      request()
+        .then(() => {
+          setEditing(null)
+          setVersion((v) => v + 1)
+        })
+        .catch((error: unknown) => {
+          if (toSignIn(error)) return
+          setActionError(
+            error instanceof ApiError ? error.message : 'The proposal could not be saved.',
+          )
+        })
+        .finally(() => setBusy(false))
+    },
+    [toSignIn],
+  )
+  const groupPath = (groupId: string) =>
+    `/proposals/${encodeURIComponent(proposalId)}/groups/${encodeURIComponent(groupId)}`
+  const save = (groupId: string, changes: Record<string, unknown>[]) =>
+    act(() => api(groupPath(groupId), { method: 'PUT', body: { changes } }))
+  const drop = (groupId: string) => act(() => api(groupPath(groupId), { method: 'DELETE' }))
+  const edit = (groupId: string) => {
+    setActionError(null)
+    setEditing(groupId)
+  }
 
   switch (loaded.state) {
     case 'loading':
@@ -117,7 +183,9 @@ export function ProposalPage() {
     case 'loaded':
       break
   }
-  const { proposal, creator, projects, preview } = loaded
+  const { proposal, creator, projects, preview, conflicts, tasks } = loaded
+  const names = { tasks }
+  const canAct = proposal.status === 'waiting'
   return (
     <section className="proposal">
       <h1 className="page__title">Proposal</h1>
@@ -137,6 +205,30 @@ export function ProposalPage() {
           ))}
         </span>
       </p>
+      <ConflictPanel
+        conflicts={conflicts}
+        groups={proposal.groups}
+        names={names}
+        canAct={canAct}
+        busy={busy}
+        onResolve={edit}
+        onDrop={drop}
+      />
+      <ProposalEditor
+        groups={proposal.groups}
+        names={names}
+        canAct={canAct}
+        busy={busy}
+        editing={editing}
+        error={actionError}
+        onEdit={edit}
+        onCancel={() => {
+          setActionError(null)
+          setEditing(null)
+        }}
+        onSave={save}
+        onDrop={drop}
+      />
       <p className="page__note">
         A preview of the proposal&rsquo;s changes on the plan as it is now. Nothing is saved: the
         plan stays as it is until the proposal is approved.

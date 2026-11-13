@@ -96,8 +96,8 @@ describe('the proposal conflict detector', () => {
 
   describe('the test cases', () => {
     it("TC-106: another person's later edit to the same input is shown as a conflict", async () => {
-      // The service and REST part. Pending: the conflict panel in the browser, with the choice to
-      // resolve or drop (SC-035, F24).
+      // The service and REST part. The conflict panel in the browser, with the choice to resolve
+      // or drop (SC-070), is tested in e2e/tests/proposal-editing.spec.ts.
       const a = await taskA()
       const proposal = await propose([[move(a.id, '2027-03-08')]])
       await edit(bob, a.id, { plannedStart: '2027-03-03' })
@@ -125,10 +125,12 @@ describe('the proposal conflict detector', () => {
     // Pending: TC-107, a change to a deleted task is shown as a conflict. No SC deletes a task
     // (tasks are cancelled, SC-038), so there is no task to delete in a test; the detector marks
     // a change whose task no longer exists as `deleted`. The owner's question is open on #125.
-    // The conflict panel comes with SC-035 (F24).
+    // The conflict panel (SC-070) says such a conflict as frontend/src/pages/ProposalPage.test.tsx
+    // checks.
 
     it('TC-108: an edit to a different input on the same task is not a conflict', async () => {
-      // The service and REST part. Pending: the conflict panel in the browser (SC-035, F24).
+      // The service and REST part. The conflict panel in the browser (SC-070) is tested in
+      // e2e/tests/proposal-editing.spec.ts.
       const a = await taskA({ title: 'Draft' })
       const proposal = await propose([[move(a.id, '2027-03-08')]])
       await edit(bob, a.id, { title: 'Draft v2' })

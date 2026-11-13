@@ -31,6 +31,10 @@ export interface Deployment {
   /** The deployment's database, to put in place what a test case's inputs give. */
   db: Database
   root: Account
+  /** The deployment's clock: the system clock, unless `setClock` set it. Proposals expire by it. */
+  now: () => Date
+  /** Sets the deployment's clock to `at`, or back to the system clock with `undefined`. */
+  setClock(at: Date | undefined): void
   /**
    * Puts an account into the database, with the password given, or `<username>-password`, as the
    * test cases' "account `alice`" needs.
@@ -46,6 +50,8 @@ export const test = base.extend<{ deployment: Deployment }>({
   deployment: async ({}, use) => {
     const database = await createTestDatabase()
     const config = createConfigFixture()
+    let clock: Date | undefined
+    const now = () => clock ?? new Date()
     try {
       const backend = await startBackend({
         env: {
@@ -57,6 +63,7 @@ export const test = base.extend<{ deployment: Deployment }>({
         cwd: config.dir,
         frontendDir,
         server: { logger: false },
+        now,
       })
       try {
         // Any free port, so that tests can run side by side.
@@ -67,6 +74,10 @@ export const test = base.extend<{ deployment: Deployment }>({
           url,
           db: database.db,
           root: { id: root.id, username: ROOT.username, password: ROOT.password },
+          now,
+          setClock(at) {
+            clock = at
+          },
           async seedAccount(username, options = {}) {
             const password = options.password ?? `${username}-password`
             const seeded = await seedAccount(database.db, {

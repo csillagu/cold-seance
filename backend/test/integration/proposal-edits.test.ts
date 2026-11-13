@@ -112,7 +112,8 @@ describe('proposal edits, rejection and expiry', () => {
   describe('the test cases', () => {
     it('TC-104: a read-write reviewer edits a proposal in the browser', async () => {
       // The service and REST part: bob's edit, through the route the browser calls, saved
-      // without approval. Pending: making the edit in the browser (SC-071, F24).
+      // without approval. Making the edit in the browser (SC-071) is tested in
+      // e2e/tests/proposal-editing.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
@@ -171,7 +172,8 @@ describe('proposal edits, rejection and expiry', () => {
 
     it('TC-116: an edit within 24 hours keeps a proposal from expiring', async () => {
       // The service part: an edit at t0 + 23 hours keeps the proposal alive at t0 + 25 hours.
-      // Pending: making the edit in the browser (SC-071, F24), and approving it (SC-048, B14).
+      // Making the edit in the browser (SC-071) is tested in e2e/tests/proposal-editing.spec.ts.
+      // Pending: approving it (SC-048, B14).
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
       const [group] = created.groups
