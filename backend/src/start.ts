@@ -35,6 +35,12 @@ export interface StartOptions extends LoadConfigOptions {
    * from a fake GitHub, as the browser tests of FR-167 need.
    */
   repositoryReach?: RepositoryReach
+  /**
+   * The GitHub client the planning mirror and the repository registry call (SC-106); built from
+   * the configuration unless given, so that a test deployment can call a fake GitHub instead, as
+   * the browser tests that assign a task to a repository need (SC-098, TC-208).
+   */
+  githubClient?: () => GitHubClient
 }
 
 /**
@@ -64,17 +70,19 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   // The GitHub client is built when the tool first asks GitHub something (SC-106, SC-019), once
   // for the registry and the planning mirror together.
   let client: GitHubClient | undefined
-  const github = () =>
-    (client ??= createGitHubClient(config.github, {
-      // Every system admin is notified of a token GitHub refuses (FR-186, SC-012).
-      onTokenRefused: (refusal) =>
-        services.notifications.notifyTokenRefused(refusal.function).catch((error: unknown) => {
-          app?.log.error(
-            { err: error },
-            'The system admins could not be notified: ' + refusal.message,
-          )
-        }),
-    }))
+  const github =
+    options.githubClient ??
+    (() =>
+      (client ??= createGitHubClient(config.github, {
+        // Every system admin is notified of a token GitHub refuses (FR-186, SC-012).
+        onTokenRefused: (refusal) =>
+          services.notifications.notifyTokenRefused(refusal.function).catch((error: unknown) => {
+            app?.log.error(
+              { err: error },
+              'The system admins could not be notified: ' + refusal.message,
+            )
+          }),
+      })))
   // The mirror's failures are logged; the re-check puts them right (SC-022, DD-051). The app's log
   // is there by the time the mirror first runs, after a request has changed a task.
   let app: FastifyInstance | undefined

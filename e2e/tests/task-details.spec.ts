@@ -246,6 +246,9 @@ test('TC-208: a task is assigned to a repository its project pulls issues from',
   // Step 2: T is assigned to tc-repo, and to no other repository.
   await expect.poll(async () => (await readTask(page, task))['repositoryId']).toBe(repository)
   await expect(section.getByRole('combobox', { name: 'Repository' })).toHaveValue(repository)
+  // Its issue is created on the deployment's fake GitHub, which the planning mirror calls; the
+  // test case's cleanup deletes it.
+  await expect.poll(() => deployment.github.issues.issuesOf('csillagu/tc-repo').length).toBe(1)
 })
 
 test('TC-209: assigning a task to a repository its project does not pull from is rejected', async ({
