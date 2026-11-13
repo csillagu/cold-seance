@@ -290,9 +290,9 @@ describe('test cases of the scheduler through the REST API', () => {
   })
 
   it('TC-018 (partial): a move onto a company holiday through the UI channel is rejected', async () => {
-    // Pending: the move made on the Gantt in the browser, and the UI reporting it, need the Gantt
-    // with in-place editing (SC-031, SC-067). What is checked here is the rejection the Gantt's
-    // move reaches: the same change through the UI channel of the service layer.
+    // The move made on the Gantt in the browser, and the UI reporting it, are checked in
+    // e2e/tests/gantt-editing.spec.ts. What is checked here is the rejection the Gantt's move
+    // reaches: the same change through the UI channel of the service layer.
     await companyHoliday('2027-03-10')
     const apollo = await project(alice, 'Apollo')
     const t = await task(alice, apollo, {

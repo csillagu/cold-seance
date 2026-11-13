@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../api.ts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { api, ApiError } from '../api.ts'
 import { ExportDialog } from '../gantt/ExportDialog.tsx'
-import { Gantt, type PeopleById } from '../gantt/Gantt.tsx'
+import { Gantt, type GanttEditing, type PeopleById } from '../gantt/Gantt.tsx'
+import { moveChanges } from '../gantt/gantt-edit.ts'
+import { GanttNewTaskDialog, type NewTask } from '../gantt/GanttNewTaskDialog.tsx'
+import { GanttTaskDialog } from '../gantt/GanttTaskDialog.tsx'
+import type { Member } from '../kanban/Kanban.tsx'
+import type { KanbanTask } from '../kanban/kanban-model.ts'
 import {
   type ApiBaseline,
   type ApiCalendar,
   type ApiRedFlag,
   type ApiRelations,
-  type ApiTask,
   buildGanttModel,
   formatDay,
 } from '../gantt/gantt-model.ts'
@@ -22,12 +26,13 @@ interface BaselineSummary {
 }
 
 interface Plan {
-  tasks: ApiTask[]
+  tasks: KanbanTask[]
   relations: ApiRelations[]
   flags: ApiRedFlag[]
   calendar: ApiCalendar
   baselines: BaselineSummary[]
   people: PeopleById
+  members: Member[]
 }
 
 type Loaded = { state: 'loading' } | ({ state: 'loaded' } & Plan) | { state: 'failed' }
@@ -54,6 +59,12 @@ function localDate(date: Date): string {
  * Above it, a baseline can be selected, whose bars the Gantt then draws under the planned ones
  * (SC-065, FR-050); selecting one only reads it, and changes no task. The export dialog gives the
  * Gantt as a Mermaid chart for GitHub markdown (SC-096, FR-063).
+ *
+ * What it shows can be changed on it (SC-067, FR-053): a bar dragged to other days, a dependency
+ * drawn between two bars, the rest in a task's editor, and a new task created with "New task".
+ * Each change goes to the REST API, which allows or refuses it by the viewer's role in the
+ * project (FR-060); a refusal is shown above the Gantt, and once a change is saved the Gantt is
+ * read again, as the scheduler may have moved other tasks with it.
  */
 export function GanttPage() {
   const project = useProject()
@@ -62,40 +73,104 @@ export function GanttPage() {
   const [selected, setSelected] = useState<Selected>({ state: 'none' })
   const [exporting, setExporting] = useState(false)
   const exportButton = useRef<HTMLButtonElement>(null)
+  /** The task whose editor is open, by id, so that it shows the task as read again. */
+  const [editing, setEditing] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const newTaskButton = useRef<HTMLButtonElement>(null)
+  /** What the API said of the last change made on the Gantt itself that it refused. */
+  const [refused, setRefused] = useState<string | null>(null)
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      const get = <T,>(path: string) => api<T>(path, { signal })
+      const base = `/projects/${encodeURIComponent(project.id)}`
+      const [tasks, flags, calendar, members, baselines] = await Promise.all([
+        get<KanbanTask[]>(`${base}/tasks`),
+        get<ApiRedFlag[]>(`${base}/red-flags`),
+        get<ApiCalendar>('/calendar'),
+        get<Member[]>(`${base}/members`),
+        get<BaselineSummary[]>(`${base}/baselines`),
+      ])
+      const relations = await Promise.all(
+        tasks.map((task) => get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`)),
+      )
+      setLoaded({
+        state: 'loaded',
+        tasks,
+        relations,
+        flags,
+        calendar,
+        baselines,
+        people: new Map(members.map((member) => [member.accountId, member.username])),
+        members,
+      })
+    },
+    [project.id],
+  )
 
   useEffect(() => {
     const abort = new AbortController()
-    const get = <T,>(path: string) => api<T>(path, { signal: abort.signal })
-    const base = `/projects/${encodeURIComponent(project.id)}`
     setLoaded({ state: 'loading' })
     setSelected({ state: 'none' })
-    Promise.all([
-      get<ApiTask[]>(`${base}/tasks`),
-      get<ApiRedFlag[]>(`${base}/red-flags`),
-      get<ApiCalendar>('/calendar'),
-      get<{ accountId: string; username: string }[]>(`${base}/members`),
-      get<BaselineSummary[]>(`${base}/baselines`),
-    ])
-      .then(async ([tasks, flags, calendar, members, baselines]) => {
-        const relations = await Promise.all(
-          tasks.map((task) => get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`)),
-        )
-        setLoaded({
-          state: 'loaded',
-          tasks,
-          relations,
-          flags,
-          calendar,
-          baselines,
-          people: new Map(members.map((member) => [member.accountId, member.username])),
-        })
-      })
-      .catch((error: unknown) => {
-        if (abort.signal.aborted || toSignIn(error)) return
-        setLoaded({ state: 'failed' })
-      })
+    load(abort.signal).catch((error: unknown) => {
+      if (abort.signal.aborted || toSignIn(error)) return
+      setLoaded({ state: 'failed' })
+    })
     return () => abort.abort()
-  }, [project.id, toSignIn])
+  }, [load, toSignIn])
+
+  /** Saves a change through the REST API, then reads the Gantt again; rejects with a refusal. */
+  const save = useCallback(
+    async (path: string, method: string, body: unknown) => {
+      try {
+        await api(path, { method, body })
+      } catch (error) {
+        if (toSignIn(error)) return
+        throw error
+      }
+      await load().catch((error: unknown) => {
+        if (!toSignIn(error)) setLoaded({ state: 'failed' })
+      })
+    },
+    [load, toSignIn],
+  )
+
+  const ganttEditing = useMemo<GanttEditing>(() => {
+    /** Saves a change made on the Gantt itself, and says above it if it was refused. */
+    const attempt = (path: string, method: string, body: unknown, failed: string) => {
+      setRefused(null)
+      save(path, method, body).catch((error: unknown) => {
+        const why = error instanceof ApiError ? error.message : 'Try again.'
+        setRefused(`${failed}: ${why}`)
+      })
+    }
+    return {
+      onMove: (task, start, days) =>
+        attempt(
+          `/tasks/${encodeURIComponent(task.id)}`,
+          'PATCH',
+          moveChanges(task, start, days),
+          `${task.title} was not moved`,
+        ),
+      onLink: (task, blocker) =>
+        attempt(
+          `/tasks/${encodeURIComponent(task.id)}/blocked-by`,
+          'POST',
+          { blockerId: blocker.id },
+          `${task.title} was not made blocked by ${blocker.title}`,
+        ),
+      onOpen: (task) => {
+        setRefused(null)
+        setEditing(task.id)
+      },
+    }
+  }, [save])
+
+  const create = useCallback(
+    (projectId: string, task: NewTask) =>
+      save(`/projects/${encodeURIComponent(projectId)}/tasks`, 'POST', task),
+    [save],
+  )
 
   const selectedId = selected.state === 'none' ? null : selected.id
   useEffect(() => {
@@ -136,10 +211,26 @@ export function GanttPage() {
     setExporting(false)
     exportButton.current?.focus()
   }
+  const closeNewTask = () => {
+    setCreating(false)
+    newTaskButton.current?.focus()
+  }
+  const edited = editing === null ? undefined : loaded.tasks.find((task) => task.id === editing)
 
   return (
     <>
       <div className="gantt__toolbar">
+        <button
+          ref={newTaskButton}
+          type="button"
+          className="gantt__button gantt__button--primary"
+          onClick={() => {
+            setRefused(null)
+            setCreating(true)
+          }}
+        >
+          New task
+        </button>
         <label className="gantt__control">
           Baseline:
           <select
@@ -172,12 +263,35 @@ export function GanttPage() {
           </span>
         )}
       </div>
+      {refused !== null && (
+        <p role="alert" className="gantt__refusal">
+          {refused}
+        </p>
+      )}
       <Gantt
         name={`Gantt of ${project.name}`}
         model={model}
         people={loaded.people}
         today={localDate(new Date())}
+        editing={ganttEditing}
       />
+      {edited && (
+        <GanttTaskDialog
+          task={edited}
+          tasks={loaded.tasks}
+          relations={loaded.relations.find((relations) => relations.taskId === edited.id)}
+          members={loaded.members}
+          save={save}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {creating && (
+        <GanttNewTaskDialog
+          projects={[{ id: project.id, name: project.name, writable: true }]}
+          onCreate={create}
+          onClose={closeNewTask}
+        />
+      )}
       {exporting && (
         <ExportDialog projectId={project.id} projectName={project.name} onClose={closeExport} />
       )}

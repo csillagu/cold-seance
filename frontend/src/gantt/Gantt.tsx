@@ -1,5 +1,14 @@
-import type { CSSProperties } from 'react'
 import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+  useRef,
+  useState,
+} from 'react'
+import { daysDragged, movable } from './gantt-edit.ts'
+import {
+  addDays,
+  type ApiTask,
   arrowPath,
   type BaselineBar,
   daysBetween,
@@ -25,8 +34,35 @@ const BAR_HEIGHT = 18
 /** The half width of a milestone's diamond, from its centre to its tip. */
 const DIAMOND = 11
 
+/** How far, in pixels, a bar must be dragged before it counts as a move rather than a click. */
+const CLICK_SLOP = 4
+
 /** A person as the Gantt names them: by their username, from the project's members. */
 export type PeopleById = ReadonlyMap<string, string>
+
+/**
+ * What the viewer can do on the Gantt (SC-067, FR-053): each is sent to the REST API by the page,
+ * which allows or refuses it by the viewer's role in the task's project (FR-060).
+ */
+export interface GanttEditing {
+  /** Moves `task`, drawn from `start`, by `days` days: its bar was dragged. */
+  onMove: (task: ApiTask, start: string, days: number) => void
+  /** Makes `task` blocked by `blocker`: a dependency was drawn from `blocker` to `task`. */
+  onLink: (task: ApiTask, blocker: ApiTask) => void
+  /** Opens the editor of `task`, for everything else it shows. */
+  onOpen: (task: ApiTask) => void
+}
+
+/** A point in the timeline's pixels, from the top left of its first row. */
+interface Point {
+  x: number
+  y: number
+}
+
+/** A drag under way: a bar being moved, or a dependency being drawn from a bar. */
+type Drag =
+  | { kind: 'move'; row: GanttRow; x0: number; dx: number; pointer: number }
+  | { kind: 'link'; row: GanttRow; from: Point; to: Point; pointer: number }
 
 interface GanttProps {
   /** What it is a Gantt of, for its accessible name. */
@@ -35,6 +71,8 @@ interface GanttProps {
   people: PeopleById
   /** Today, `YYYY-MM-DD`: marked on the timeline if it lies within it. */
   today: string
+  /** What the viewer can change on it; without it, the Gantt only shows. */
+  editing?: GanttEditing
 }
 
 /**
@@ -45,9 +83,15 @@ interface GanttProps {
  * table kept in view. Below the scheduled tasks, the unscheduled ones (SC-064, FR-004, FR-145);
  * cancelled tasks are drawn faded (FR-129); a selected baseline's bars lie under the planned ones
  * (SC-065, FR-050).
+ *
+ * With `editing`, what it shows can be changed on it (SC-067, FR-053): a bar dragged sideways
+ * moves its task by whole days, a line drawn from the handle at a bar's end to another task makes
+ * that task blocked by it, and a click on a bar or a task's title opens its editor for the rest.
  */
-export function Gantt({ name, model, people, today }: GanttProps) {
+export function Gantt({ name, model, people, today, editing }: GanttProps) {
   const { rows, unscheduled, days, dependencies, baseline } = model
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const arrows = useRef<SVGSVGElement>(null)
   if (rows.length === 0 && unscheduled.length === 0) {
     return <p className="page__note">This project has no tasks yet.</p>
   }
@@ -58,6 +102,56 @@ export function Gantt({ name, model, people, today }: GanttProps) {
   const bodyHeight =
     rows.length * ROW_HEIGHT +
     (unscheduled.length > 0 ? GROUP_HEIGHT + unscheduled.length * ROW_HEIGHT : 0)
+
+  /** Where the pointer is, in the timeline's pixels. */
+  const pointAt = (event: ReactPointerEvent): Point => {
+    const box = arrows.current?.getBoundingClientRect()
+    return { x: event.clientX - (box?.left ?? 0), y: event.clientY - (box?.top ?? 0) }
+  }
+  const startMove = (row: GanttRow, event: ReactPointerEvent<HTMLElement>) => {
+    if (!editing || event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDrag({ kind: 'move', row, x0: event.clientX, dx: 0, pointer: event.pointerId })
+  }
+  const startLink = (row: GanttRow, index: number, event: ReactPointerEvent<HTMLElement>) => {
+    if (!editing || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const from = ends(row, index, first).out
+    setDrag({ kind: 'link', row, from, to: pointAt(event), pointer: event.pointerId })
+  }
+  const onPointerMove = (event: ReactPointerEvent) => {
+    if (!drag || event.pointerId !== drag.pointer) return
+    if (drag.kind === 'move') setDrag({ ...drag, dx: event.clientX - drag.x0 })
+    else setDrag({ ...drag, to: pointAt(event) })
+  }
+  const onPointerUp = (event: ReactPointerEvent) => {
+    if (!drag || !editing || event.pointerId !== drag.pointer) return
+    setDrag(null)
+    const { task } = drag.row
+    if (drag.kind === 'move') {
+      const moved = Math.abs(drag.dx) >= CLICK_SLOP
+      const by = movable(task, drag.row.parent) && moved ? daysDragged(drag.dx, DAY_WIDTH) : 0
+      if (by !== 0) editing.onMove(task, drag.row.start, by)
+      else if (!moved) editing.onOpen(task)
+      return
+    }
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-task-id]')?.dataset['taskId']
+    const blocked = [...rows, ...unscheduled].find((other) => other.task.id === target)?.task
+    if (blocked && blocked.id !== task.id) editing.onLink(blocked, task)
+  }
+  const rowEditing = (row: GanttRow, index: number): RowEditing | undefined =>
+    editing && {
+      dx: drag?.kind === 'move' && drag.row.task.id === row.task.id ? drag.dx : 0,
+      movable: movable(row.task, row.parent),
+      onBarDown: (event) => startMove(row, event),
+      onHandleDown: (event) => startLink(row, index, event),
+      onOpen: () => editing.onOpen(row.task),
+    }
 
   return (
     <div className="gantt">
@@ -111,14 +205,21 @@ export function Gantt({ name, model, people, today }: GanttProps) {
               </div>
             </div>
           </div>
-          <div role="rowgroup" className="gantt__body">
-            {rows.map((row) => (
+          <div
+            role="rowgroup"
+            className={'gantt__body' + (drag ? ` gantt__body--${drag.kind}` : '')}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => setDrag(null)}
+          >
+            {rows.map((row, index) => (
               <TaskRow
                 key={row.task.id}
                 row={row}
                 first={first}
                 people={people}
                 baseline={baseline}
+                editing={rowEditing(row, index)}
               />
             ))}
             {unscheduled.length > 0 && (
@@ -136,6 +237,7 @@ export function Gantt({ name, model, people, today }: GanttProps) {
                 first={first}
                 people={people}
                 baseline={baseline}
+                onOpen={editing && (() => editing.onOpen(row.task))}
               />
             ))}
             <div
@@ -161,10 +263,13 @@ export function Gantt({ name, model, people, today }: GanttProps) {
               )}
             </div>
             <Dependencies
+              svg={arrows}
               rows={rows}
               dependencies={dependencies}
               first={first}
               width={timelineWidth}
+              height={bodyHeight}
+              drawing={drag?.kind === 'link' ? drag : null}
             />
           </div>
         </div>
@@ -221,6 +326,7 @@ function TaskCells({
   parent,
   start,
   people,
+  onOpen,
 }: {
   task: GanttRow['task']
   depth: number
@@ -228,6 +334,8 @@ function TaskCells({
   /** The first day it is drawn on, or null for an unscheduled task. */
   start: string | null
   people: PeopleById
+  /** Opens the task's editor, if the Gantt can be edited. */
+  onOpen: (() => void) | undefined
 }) {
   const assignees = task.assignees.map((id) => ({ id, name: people.get(id) }))
   return (
@@ -248,7 +356,18 @@ function TaskCells({
             aria-hidden="true"
           />
         )}
-        <span className="gantt__title-text">{task.title}</span>
+        {onOpen ? (
+          <button
+            type="button"
+            className="gantt__title-text gantt__title-button"
+            aria-label={`Edit ${task.title}`}
+            onClick={onOpen}
+          >
+            {task.title}
+          </button>
+        ) : (
+          <span className="gantt__title-text">{task.title}</span>
+        )}
         {task.milestone ? (
           <span className="gantt__tag">
             {task.milestone.variant === 'fixed-date' ? 'fixed' : 'floating'}
@@ -317,16 +436,29 @@ function BaselineBarOf({
   )
 }
 
+/** What a row of the Gantt can be edited with, when the Gantt can be (SC-067). */
+interface RowEditing {
+  /** How far its bar is being dragged, in pixels; 0 when it is not. */
+  dx: number
+  /** Whether its bar can be dragged to other dates. */
+  movable: boolean
+  onBarDown: (event: ReactPointerEvent<HTMLElement>) => void
+  onHandleDown: (event: ReactPointerEvent<HTMLElement>) => void
+  onOpen: () => void
+}
+
 function TaskRow({
   row,
   first,
   people,
   baseline,
+  editing,
 }: {
   row: GanttRow
   first: string
   people: PeopleById
   baseline: string | null
+  editing: RowEditing | undefined
 }) {
   const { task } = row
   const start = daysBetween(first, row.start)
@@ -352,9 +484,29 @@ function TaskRow({
         parent={row.parent}
         start={row.start}
         people={people}
+        onOpen={editing?.onOpen}
       />
       <div role="cell" className="gantt__lane">
-        <Bar row={row} left={start * DAY_WIDTH} width={length * DAY_WIDTH} />
+        <Bar row={row} left={start * DAY_WIDTH} width={length * DAY_WIDTH} editing={editing} />
+        {editing && editing.dx !== 0 && editing.movable && (
+          <span
+            role="status"
+            className="gantt__drag-tip"
+            style={{ left: (start + daysDragged(editing.dx, DAY_WIDTH)) * DAY_WIDTH }}
+          >
+            {formatDay(addDays(row.start, daysDragged(editing.dx, DAY_WIDTH)))}
+          </span>
+        )}
+        {editing && (
+          <span
+            // Pointer only: the task's editor adds and removes blockers from the keyboard.
+            aria-hidden="true"
+            title={`Drag to the task that waits for ${task.title}`}
+            className="gantt__link-handle"
+            style={{ left: handleLeft(row, start, length) }}
+            onPointerDown={editing.onHandleDown}
+          />
+        )}
         {baseline !== null && row.baseline && (
           <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />
         )}
@@ -381,11 +533,13 @@ function UnscheduledTaskRow({
   first,
   people,
   baseline,
+  onOpen,
 }: {
   row: UnscheduledRow
   first: string
   people: PeopleById
   baseline: string | null
+  onOpen: (() => void) | undefined
 }) {
   const { task } = row
   const cancelled = task.status === 'cancelled'
@@ -398,7 +552,14 @@ function UnscheduledTaskRow({
       data-cancelled={cancelled}
       className={'gantt__row' + (cancelled ? ' gantt__row--cancelled' : '')}
     >
-      <TaskCells task={task} depth={0} parent={false} start={null} people={people} />
+      <TaskCells
+        task={task}
+        depth={0}
+        parent={false}
+        start={null}
+        people={people}
+        onOpen={onOpen}
+      />
       <div role="cell" className="gantt__lane">
         <span className="gantt__unscheduled">No planned dates{cancelled ? ', cancelled' : ''}</span>
         {baseline !== null && row.baseline && (
@@ -409,7 +570,23 @@ function UnscheduledTaskRow({
   )
 }
 
-function Bar({ row, left, width }: { row: GanttRow; left: number; width: number }) {
+/** Where the handle to draw a dependency from sits: just after the end of the bar. */
+function handleLeft(row: GanttRow, start: number, length: number): number {
+  if (row.task.milestone) return start * DAY_WIDTH + DAY_WIDTH / 2 + DIAMOND - 2
+  return (start + length) * DAY_WIDTH - 9
+}
+
+function Bar({
+  row,
+  left,
+  width,
+  editing,
+}: {
+  row: GanttRow
+  left: number
+  width: number
+  editing: RowEditing | undefined
+}) {
   const { task } = row
   const label = barLabel(row)
   const common = {
@@ -418,14 +595,20 @@ function Bar({ row, left, width }: { row: GanttRow; left: number; width: number 
     title: label,
     'data-start': row.start,
     'data-finish': row.finish,
+    ...(editing && {
+      'data-movable': editing.movable,
+      onPointerDown: editing.onBarDown,
+    }),
   }
+  // A bar being dragged follows the pointer; it is saved, by whole days, when it is let go.
+  const shift = editing?.movable ? editing.dx : 0
   if (task.milestone) {
     const variant = task.milestone.variant === 'floating' ? ' gantt__milestone--floating' : ''
     return (
       <span
         {...common}
         className={'gantt__milestone' + variant + (row.red ? ' gantt__milestone--red' : '')}
-        style={{ left: left + DAY_WIDTH / 2 - 8 }}
+        style={{ left: left + DAY_WIDTH / 2 - 8 + shift }}
       />
     )
   }
@@ -438,7 +621,7 @@ function Bar({ row, left, width }: { row: GanttRow; left: number; width: number 
       />
     )
   }
-  const style: CSSProperties = { left: left + 4, width: width - 8 }
+  const style: CSSProperties = { left: left + 4 + shift, width: width - 8 }
   return (
     <span
       {...common}
@@ -475,20 +658,27 @@ function ends(row: GanttRow, index: number, first: string) {
 }
 
 function Dependencies({
+  svg,
   rows,
   dependencies,
   first,
   width,
+  height,
+  drawing,
 }: {
+  svg: RefObject<SVGSVGElement | null>
   rows: readonly GanttRow[]
   dependencies: readonly GanttDependency[]
   first: string
   width: number
+  height: number
+  /** A dependency being drawn, from a bar to the pointer. */
+  drawing: { from: Point; to: Point } | null
 }) {
   const index = new Map(rows.map((row, i) => [row.task.id, i]))
-  const height = rows.length * ROW_HEIGHT
   return (
     <svg
+      ref={svg}
       role="group"
       aria-label="Dependencies"
       className="gantt__arrows"
@@ -547,6 +737,16 @@ function Dependencies({
           </g>
         )
       })}
+      {drawing && (
+        <line
+          x1={drawing.from.x}
+          y1={drawing.from.y}
+          x2={drawing.to.x}
+          y2={drawing.to.y}
+          className="gantt__arrow gantt__arrow--drawing"
+          markerEnd="url(#gantt-arrow)"
+        />
+      )}
     </svg>
   )
 }

@@ -4,8 +4,8 @@ import { type Account, expect, test } from '../fixtures.ts'
 // The Gantt timeline (SC-031): the browser steps of the test cases it makes pass, in full or in
 // part. What the Gantt shows comes from the REST API, whose part of each test case is tested in
 // backend/test/integration/. The inputs are put in place through the REST API, in the browser's
-// own session, until the screens that make them are built (task editing on the Gantt, F19; the
-// calendar screens, F10).
+// own session, until the screens that make them are built (the calendar screens, F10); the
+// changes the test cases make to tasks are made in the task's editor on the Gantt (SC-067).
 
 /** The red of the approved design (SRC-249), as the browser gives a computed colour. */
 const RED = 'rgb(239, 68, 68)'
@@ -186,9 +186,13 @@ test('TC-021: a milestone pushed past its fixed date shows a red violation on th
   expect(await colourOf(gantt, 'M')).not.toBe(RED)
   await expect(arrow(gantt, 'M', 'A')).toHaveAttribute('data-red', 'false')
 
-  // Step 2: A's duration becomes 15 working days, finishing 2027-03-19. Editing on the Gantt is
-  // node F19's; until then the change goes through the REST API.
-  await call(page, 'PATCH', `/tasks/${a}`, { durationWorkingDays: 15 })
+  // Step 2: A's duration becomes 15 working days, finishing 2027-03-19, in A's editor on the
+  // Gantt (SC-067).
+  await gantt.getByRole('button', { name: 'Edit A' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit A' })
+  await editor.getByLabel('Duration in working days').fill('15')
+  await editor.getByRole('button', { name: 'Save' }).click()
+  await expect(editor).toHaveCount(0)
 
   // Step 3: reload the Gantt. The violation on M, and on its dependency on A, is red.
   await page.reload()
@@ -223,18 +227,21 @@ test('TC-029: a task turns red when an assigned person is overloaded during it (
     plannedStart: '2027-03-01',
     durationWorkingDays: 3,
   })
-  const t2 = await createTask(page, apollo, { title: 'T2', assignees: [alice.id], aiShare: 0 })
+  await createTask(page, apollo, { title: 'T2', assignees: [alice.id], aiShare: 0 })
 
   // Step 1: T1 is not red.
   let gantt = await openGantt(page, 'Apollo')
   await expect(row(gantt, 'T1')).toHaveAttribute('data-red', 'false')
   expect(await colourOf(gantt, 'T1')).not.toBe(RED)
 
-  // Step 2: T2 gets its dates, putting alice at 200% on 2027-03-03.
-  await call(page, 'PATCH', `/tasks/${t2}`, {
-    plannedStart: '2027-03-03',
-    durationWorkingDays: 1,
-  })
+  // Step 2: T2 gets its dates, putting alice at 200% on 2027-03-03, in T2's editor on the Gantt
+  // (SC-067).
+  await gantt.getByRole('button', { name: 'Edit T2' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit T2' })
+  await editor.getByLabel('Planned start').fill('2027-03-03')
+  await editor.getByLabel('Duration in working days').fill('1')
+  await editor.getByRole('button', { name: 'Save' }).click()
+  await expect(editor).toHaveCount(0)
 
   // Step 3: reload. T1 and T2 are both shown in red.
   await page.reload()
@@ -301,7 +308,7 @@ test('TC-031: a red overload flag clears once the overload is gone (browser: the
     plannedStart: '2027-03-01',
     durationWorkingDays: 3,
   })
-  const t2 = await createTask(page, apollo, {
+  await createTask(page, apollo, {
     title: 'T2',
     ...assigned,
     plannedStart: '2027-03-03',
@@ -315,8 +322,12 @@ test('TC-031: a red overload flag clears once the overload is gone (browser: the
     expect(await colourOf(gantt, title)).toBe(RED)
   }
 
-  // Step 2: remove alice from T2's assigned people, through the REST API.
-  await call(page, 'PATCH', `/tasks/${t2}`, { assignees: [] })
+  // Step 2: remove alice from T2's assigned people, in T2's editor on the Gantt (SC-067).
+  await gantt.getByRole('button', { name: 'Edit T2' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit T2' })
+  await editor.getByRole('checkbox', { name: 'alice' }).uncheck()
+  await editor.getByRole('button', { name: 'Save' }).click()
+  await expect(editor).toHaveCount(0)
 
   // Step 3: reload. Neither T1 nor T2 is red.
   await page.reload()

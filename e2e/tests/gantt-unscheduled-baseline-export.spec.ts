@@ -5,7 +5,7 @@ import { type Account, expect, test } from '../fixtures.ts'
 // The Gantt's unscheduled and cancelled tasks (SC-064), its baseline bars (SC-065) and its export
 // dialog (SC-096): the browser steps of the test cases they make pass. The inputs are put in place
 // through the REST API, in the browser's own session, until the screens that make them are built
-// (cancelling a task, F12; saving a baseline, F21; editing a task on the Gantt, F19).
+// (cancelling a task, F12; saving a baseline, F21).
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
@@ -223,9 +223,8 @@ test('TC-068: a selected baseline is drawn as bars on the Gantt', async ({
     plannedStart: '2027-03-01',
     durationWorkingDays: 3,
   })
-  // Baseline v1 is saved while T is on 2027-03-01 to 2027-03-03, then T moves to 2027-03-08. The
-  // baseline save dialog is node F21's and editing on the Gantt node F19's; until then both go
-  // through the REST API.
+  // Baseline v1 is saved while T is on 2027-03-01 to 2027-03-03, then T moves to 2027-03-08: the
+  // test case's inputs, put in place through the REST API. The baseline save dialog is node F21's.
   await call(page, 'POST', `/projects/${apollo}/baselines`, { name: 'v1' })
   await call(page, 'PATCH', `/tasks/${t}`, { plannedStart: '2027-03-08' })
   const before = await call(page, 'GET', `/projects/${apollo}/tasks`)
