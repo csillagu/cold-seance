@@ -1,0 +1,22 @@
+/* The repository registration screen (SC-085) and the repository admins screen (SC-086). The
+   design draws neither, so they take the cards, fields, buttons and tables of the account screens
+   (accounts.css), and the colours, radii and type of the screens the design draws (SRC-249). */
+.repositories__link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.repositories__link:hover,
+.repositories__link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.repositories__back {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.repositories__back a {
+  color: var(--muted);
+}

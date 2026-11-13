@@ -40,6 +40,7 @@ function stubbed() {
     listRepositories: vi.spyOn(services.repositories, 'listRepositories'),
     getRepository: vi.spyOn(services.repositories, 'getRepository'),
     addAdmin: vi.spyOn(services.repositories, 'addAdmin'),
+    addAdminByUsername: vi.spyOn(services.repositories, 'addAdminByUsername'),
     removeAdmin: vi.spyOn(services.repositories, 'removeAdmin'),
   }
   const app = buildApp({}, { authenticators: [asErin], services })
@@ -197,9 +198,25 @@ describe('POST /api/repositories/:repositoryId/admins', () => {
     expect(repositories.addAdmin).toHaveBeenCalledWith(caller, REPO_ID, BOB)
   })
 
+  it('hands the service a username given in place of the account id', async () => {
+    const { app, repositories } = stubbed()
+    repositories.addAdminByUsername.mockResolvedValue(REPOSITORY)
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/repositories/${REPO_ID}/admins`,
+      headers: erin,
+      payload: { username: 'Bob' },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(REPOSITORY)
+    expect(repositories.addAdminByUsername).toHaveBeenCalledWith(caller, REPO_ID, 'Bob')
+    expect(repositories.addAdmin).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['no account', {}],
     ['an account id that is not a UUID', { accountId: 'bob' }],
+    ['both an account id and a username', { accountId: BOB, username: 'bob' }],
   ])('refuses %s before the service is asked', async (_, payload) => {
     const { app, repositories } = stubbed()
     const response = await app.inject({
@@ -210,6 +227,7 @@ describe('POST /api/repositories/:repositoryId/admins', () => {
     })
     expect(response.statusCode).toBe(400)
     expect(repositories.addAdmin).not.toHaveBeenCalled()
+    expect(repositories.addAdminByUsername).not.toHaveBeenCalled()
   })
 
   it("answers the service's refusal of someone who may not change the admins as 403", async () => {

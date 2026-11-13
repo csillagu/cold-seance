@@ -10,6 +10,8 @@ import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
+import { RepositoriesPage } from './pages/RepositoriesPage.tsx'
+import { RepositoryPage } from './pages/RepositoryPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
 import { TaskPage } from './pages/TaskPage.tsx'
@@ -39,6 +41,8 @@ export function App() {
           <Route path="proposals" element={<ProposalsPage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
+        <Route path="repositories" element={<RepositoriesPage />} />
+        <Route path="repositories/:repositoryId" element={<RepositoryPage />} />
         <Route path="settings/github" element={<GitHubLinkPage key="own" />} />
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="tokens" element={<TokensPage />} />

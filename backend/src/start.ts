@@ -8,7 +8,7 @@ import { applyMigrations } from './db/migrate.ts'
 import { defaultFrontendDir, hasFrontend } from './frontend.ts'
 import { createGitHubClient, type GitHubClient } from './github/client.ts'
 import { GitHubPlanningMirror } from './github/planning-mirror.ts'
-import { gitHubRepositoryReach } from './github/repository-reach.ts'
+import { gitHubRepositoryReach, type RepositoryReach } from './github/repository-reach.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
 import { createServices } from './service/services.ts'
 
@@ -29,6 +29,12 @@ export interface StartOptions extends LoadConfigOptions {
    * test deployment can set its clock forward, as TC-115 and TC-116 need.
    */
   now?: () => Date
+  /**
+   * How the repository registry asks whether the tool reaches a repository on GitHub (SC-019);
+   * GitHub itself, through the GitHub client, unless given, so that a test deployment can answer
+   * from a fake GitHub, as the browser tests of FR-167 need.
+   */
+  repositoryReach?: RepositoryReach
 }
 
 /**
@@ -77,7 +83,7 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
       app?.log.error({ err: error, taskId }, "A task's planning could not be mirrored to GitHub"),
   })
   const services = createServices(db, {
-    github: gitHubRepositoryReach(github),
+    github: options.repositoryReach ?? gitHubRepositoryReach(github),
     planningChanges: planningMirror,
     ...(options.now ? { now: options.now } : {}),
   })

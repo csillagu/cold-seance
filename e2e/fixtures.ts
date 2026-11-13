@@ -5,6 +5,7 @@ import { startBackend } from '../backend/src/start.ts'
 import { seedAccount, storedAccount } from '../backend/test/helpers/accounts.ts'
 import { createConfigFixture } from '../backend/test/helpers/config.ts'
 import { createTestDatabase } from '../backend/test/helpers/database.ts'
+import { fakeGitHub, type FakeGitHub } from '../backend/test/helpers/github.ts'
 
 /** The built frontend the backend serves to the browser (SC-028). */
 export const frontendDir = fileURLToPath(new URL('../frontend/dist', import.meta.url))
@@ -31,6 +32,12 @@ export interface Deployment {
   /** The deployment's database, to put in place what a test case's inputs give. */
   db: Database
   root: Account
+  /**
+   * The GitHub the deployment reaches repositories on when one is registered (FR-167): a fake, on
+   * which a test creates the test cases' "GitHub test repository", with or without the tool's
+   * GitHub App installed.
+   */
+  github: FakeGitHub
   /** The deployment's clock: the system clock, unless `setClock` set it. Proposals expire by it. */
   now: () => Date
   /** Sets the deployment's clock to `at`, or back to the system clock with `undefined`. */
@@ -50,6 +57,7 @@ export const test = base.extend<{ deployment: Deployment }>({
   deployment: async ({}, use) => {
     const database = await createTestDatabase()
     const config = createConfigFixture()
+    const github = fakeGitHub()
     let clock: Date | undefined
     const now = () => clock ?? new Date()
     try {
@@ -64,6 +72,7 @@ export const test = base.extend<{ deployment: Deployment }>({
         frontendDir,
         server: { logger: false },
         now,
+        repositoryReach: github.reach,
       })
       try {
         // Any free port, so that tests can run side by side.
@@ -74,6 +83,7 @@ export const test = base.extend<{ deployment: Deployment }>({
           url,
           db: database.db,
           root: { id: root.id, username: ROOT.username, password: ROOT.password },
+          github,
           now,
           setClock(at) {
             clock = at
