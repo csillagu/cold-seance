@@ -135,6 +135,20 @@ export class AccountService {
     return this.#db.select(columns).from(accounts).orderBy(asc(accounts.username))
   }
 
+  /**
+   * The caller's own account: who is signed in, and whether they are a system admin, so that the
+   * frontend can show their own settings and offer account administration only to system admins
+   * (SC-076, SC-077). Anyone may read their own account.
+   */
+  async ownAccount(caller: Caller): Promise<Account> {
+    const [account] = await this.#db
+      .select(columns)
+      .from(accounts)
+      .where(eq(accounts.id, caller.accountId))
+    if (!account) throw new ServiceError('not-found', 'There is no such account')
+    return account
+  }
+
   async #requireSystemAdmin(caller: Caller): Promise<void> {
     if (!(await isSystemAdmin(this.#db, caller.accountId))) {
       throw new ServiceError('forbidden', 'Only system admins can administer accounts')

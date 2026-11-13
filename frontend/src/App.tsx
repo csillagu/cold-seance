@@ -1,12 +1,15 @@
 import { Route, Routes } from 'react-router'
 import { Layout } from './layout/Layout.tsx'
+import { AccountsPage } from './pages/AccountsPage.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
+import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
+import { TokensPage } from './pages/TokensPage.tsx'
 import { UnknownPage } from './pages/UnknownPage.tsx'
 import { SIGN_IN_PATH } from './sign-in-redirect.ts'
 
@@ -21,12 +24,16 @@ export function App() {
       <Route path={SIGN_IN_PATH} element={<SignInPage />} />
       <Route element={<Layout />}>
         <Route index element={<StartPage />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts/:accountId/github" element={<GitHubLinkPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="gantt" element={<GanttPage />} />
           <Route path="kanban" element={<KanbanPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
+        <Route path="settings/github" element={<GitHubLinkPage key="own" />} />
+        <Route path="tokens" element={<TokensPage />} />
         <Route path="*" element={<UnknownPage />} />
       </Route>
     </Routes>

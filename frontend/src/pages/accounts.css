@@ -1,0 +1,209 @@
+/* The account screens: account administration (SC-076), the GitHub account link (SC-077) and the
+   personal access tokens (SC-078). The design draws none of them, so they take the colours, radii
+   and type of the screens it draws (SRC-249). */
+.account__card {
+  margin-top: 16px;
+  max-width: 720px;
+  box-sizing: border-box;
+  padding: 20px 24px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.account__card-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.account__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.account__field {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account__field label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.account__field input {
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.account__field input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+
+.account__button {
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.account__button--quiet {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.account__button--danger {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--red-border);
+  background: var(--red-bg);
+  color: var(--red-text);
+  font-size: 13px;
+}
+
+.account__button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.account__done,
+.account__failed {
+  margin: 12px 0 0;
+  max-width: 720px;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  font-size: 13px;
+}
+
+.account__done {
+  border: 1px solid var(--border);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+.account__failed {
+  border: 1px solid var(--red-border);
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.account__scroll {
+  margin-top: 16px;
+  max-width: 720px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.account__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.account__table th,
+.account__table td {
+  padding: 10px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.account__table thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--sec);
+  white-space: nowrap;
+}
+
+.account__table tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+.account__table a {
+  color: var(--accent-text);
+}
+
+.account__name {
+  font-weight: 600;
+}
+
+.account__end {
+  text-align: right;
+}
+
+.account__tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-tag);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account__mono {
+  font-family: var(--font-mono);
+}
+
+.account__secret {
+  border-color: var(--accent);
+}
+
+.account__secret-note {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.account__secret-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account__secret-value {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-button);
+  background: var(--sec);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.account__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

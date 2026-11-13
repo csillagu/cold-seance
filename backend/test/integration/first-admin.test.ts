@@ -137,7 +137,8 @@ describe('the start', () => {
       }
     })
 
-    // Pending: TC-240 in full: root signs in and creates alice on the pages (SC-075, SC-076).
+    // Signing in as root and creating alice on the pages (SC-075, SC-076) is in
+    // e2e/tests/accounts.spec.ts.
   })
 
   it('starts without creating anyone when no first system admin is given', async () => {
