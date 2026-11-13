@@ -1,0 +1,296 @@
+/*
+ * The person load view (SC-032) and its unassigned task rating panel (SC-069). The approved design
+ * draws no person load view (SRC-249), so this one uses the design's colours, type and radii: card
+ * surfaces with 1px borders, red for an overload, and red, amber and green for the ratings.
+ */
+.load {
+  --load-red-text: #b91c1c;
+  --load-amber-bg: #fffbeb;
+  --load-amber-text: #b45309;
+  --load-green-bg: #ecfdf5;
+  --load-green-text: #047857;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .load {
+    --load-red-text: #fca5a5;
+    --load-amber-bg: rgba(245, 158, 11, 0.15);
+    --load-amber-text: #fcd34d;
+    --load-green-bg: rgba(16, 185, 129, 0.15);
+    --load-green-text: #6ee7b7;
+  }
+}
+
+.load__span {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.load__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.load__field input,
+.load__show,
+.load__close {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.load__show {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.load__close {
+  cursor: pointer;
+}
+
+.load__problem {
+  margin: 0;
+  color: var(--red-text);
+}
+
+.load__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.load__table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+}
+
+.load__table th,
+.load__table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px;
+  vertical-align: top;
+}
+
+.load__table tbody tr:last-child th,
+.load__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.load__corner,
+.load__person {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 8px 12px !important;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  font-weight: 600;
+}
+
+.load__day {
+  min-width: 56px;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.load__weekday {
+  display: block;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.load__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.load__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.load__tasks {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.load__tasks a {
+  color: var(--text);
+}
+
+.load__faint {
+  color: var(--faint);
+}
+
+.load__cell {
+  width: 100%;
+  min-height: 44px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  background: var(--sec);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.load__cell--idle {
+  background: transparent;
+  color: var(--faint);
+}
+
+.load__cell--over {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+  color: var(--load-red-text);
+}
+
+.load__cell--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.load__value {
+  font-weight: 600;
+}
+
+.load__capacity {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.load__cell--over .load__capacity {
+  color: inherit;
+}
+
+.load__panel {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.load__panel-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.load__details-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.load__total {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.load__total--over {
+  color: var(--load-red-text);
+}
+
+.load__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.load__item,
+.load__item-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.load__item-title {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.load__item-load {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.load__meaning {
+  color: var(--muted);
+}
+
+.load__rating {
+  min-width: 56px;
+  padding: 2px 8px;
+  border-radius: var(--radius-tag);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.load__rating--red {
+  background: var(--red-bg);
+  color: var(--load-red-text);
+  box-shadow: inset 0 0 0 1px var(--red);
+}
+
+.load__rating--amber {
+  background: var(--load-amber-bg);
+  color: var(--load-amber-text);
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
+
+.load__rating--green {
+  background: var(--load-green-bg);
+  color: var(--load-green-text);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
