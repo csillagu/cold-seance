@@ -69,7 +69,9 @@ describe('the layout (SC-113)', () => {
   })
 
   it('says when a person can read no project', async () => {
-    fakeApi(() => ({ status: 200, body: [] }))
+    fakeApi((method, path) =>
+      path === '/api/session' ? signedIn(method, path) : { status: 200, body: [] },
+    )
     renderAt('/')
     expect(await screen.findByText('No projects yet.')).toBeInTheDocument()
   })
