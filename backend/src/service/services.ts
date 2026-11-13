@@ -23,6 +23,7 @@ import { RedFlagService } from './red-flags.ts'
 import { RepositoryService } from './repositories.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
+import { TaskPeopleService } from './task-people.ts'
 import { TaskRelationService } from './task-relations.ts'
 import { TaskRepositoryService } from './task-repository.ts'
 import { TaskStatusService, type Today } from './task-status.ts'
@@ -75,6 +76,8 @@ export interface Services {
   tasks: TaskService
   /** Cancelling a task, which passes its blockers on to the tasks it blocked (SC-038). */
   taskCancellation: TaskCancellationService
+  /** Who a task's eligibility and assignment name, for the editors (SC-099, SC-100). */
+  taskPeople: TaskPeopleService
   taskRelations: TaskRelationService
   /** Which repository a task is assigned to (SC-036). */
   taskRepository: TaskRepositoryService
@@ -123,6 +126,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const calendars = new CalendarService(db, audit, projectRoles)
   const changes = options.planningChanges
   const proposals = new ProposalService(db, audit, projectRoles, options.now)
+  const tasks = new TaskService(db, audit, projectRoles, changes)
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -153,8 +157,9 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),
-    tasks: new TaskService(db, audit, projectRoles, changes),
+    tasks,
     taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),
+    taskPeople: new TaskPeopleService(db, tasks),
     taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter, changes),
     taskRepository: new TaskRepositoryService(
       db,

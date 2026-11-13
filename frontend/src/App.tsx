@@ -9,6 +9,7 @@ import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
+import { TaskPage } from './pages/TaskPage.tsx'
 import { TokensPage } from './pages/TokensPage.tsx'
 import { UnknownPage } from './pages/UnknownPage.tsx'
 import { SIGN_IN_PATH } from './sign-in-redirect.ts'
@@ -33,6 +34,7 @@ export function App() {
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="settings/github" element={<GitHubLinkPage key="own" />} />
+        <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="tokens" element={<TokensPage />} />
         <Route path="*" element={<UnknownPage />} />
       </Route>

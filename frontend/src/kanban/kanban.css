@@ -255,6 +255,12 @@
   cursor: pointer;
 }
 
+.kanban__link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .kanban__button--primary {
   border-color: var(--accent-strong);
   background: var(--accent-strong);
