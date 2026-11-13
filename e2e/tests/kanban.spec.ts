@@ -270,7 +270,7 @@ test('TC-064: the four view kinds are available for a project (the Kanban)', asy
   const before = await call(page, 'GET', `/projects/${apollo}/tasks`)
 
   // Step 1, the Kanban: it opens and shows T. The Gantt is in gantt.spec.ts, the person load view in
-  // person-load.spec.ts. Pending: the baseline variance view (SC-033, F21).
+  // person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts.
   const kanban = await openKanban(page, 'Apollo')
   await expect(card(kanban, 'T')).toContainText('1–2 Mar · 2d')
 
@@ -297,8 +297,8 @@ test("TC-154: a read-only member sees every view and the project's data (the Kan
   })
 
   // Step 1, the Kanban: as bob, it opens and shows T. The Gantt is in gantt.spec.ts, the person load
-  // view in person-load.spec.ts. Pending: the baseline variance view (SC-033, F21) and the saved view
-  // Board (SC-020, SC-091, F22), and step 2's reads through the REST API (see
+  // view in person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts. Pending:
+  // the saved view Board (SC-020, SC-091, F22), and step 2's reads through the REST API (see
   // backend/test/integration/project-roles.test.ts).
   const bobsPage = await signedIn(browser, deployment.url, bob)
   const kanban = await openKanban(bobsPage, 'Apollo')

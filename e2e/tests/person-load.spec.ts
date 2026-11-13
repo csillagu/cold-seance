@@ -8,8 +8,8 @@ import { type Account, type Deployment, expect, test } from '../fixtures.ts'
 // REST API, in the browser's own session, and capacities straight in the database.
 //
 // The REST side of TC-056, TC-057, TC-058, TC-060, TC-061, TC-062 and TC-063 is in
-// backend/test/integration/ (B02, B03). The other views of TC-064 and TC-154 are in kanban.spec.ts
-// and gantt.spec.ts; their baseline variance view waits for SC-033 (F21).
+// backend/test/integration/ (B02, B03). The other views of TC-064 and TC-154 are in kanban.spec.ts,
+// gantt.spec.ts and baseline-variance.spec.ts.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
