@@ -12,7 +12,7 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // flag register (SC-043) against a real PostgreSQL, through the REST API: the rules of the
 // register first, then the service and REST parts of the test cases of FR-020, FR-021, FR-032,
 // FR-042 and FR-043. What the Gantt and the person load view show of them is the frontend's
-// (SC-031, SC-032), pending there.
+// (SC-031, SC-032): the person load view's is in e2e/tests/person-load.spec.ts.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -275,7 +275,7 @@ describe('the red flag register (SC-043)', () => {
 })
 
 describe('TC-056: a person is marked overloaded on a day their load exceeds their capacity', () => {
-  // Pending: the person load view showing it in red is the person load chart's (SC-032).
+  // The person load view showing it in red is in e2e/tests/person-load.spec.ts (SC-032).
   it('marks alice overloaded on 2027-03-01 and 2027-03-02 only', async () => {
     await setCapacity(alice, 80)
     const apollo = await seedProject(x.db, alice, 'Apollo')
@@ -305,7 +305,7 @@ describe('TC-056: a person is marked overloaded on a day their load exceeds thei
 })
 
 describe('TC-057: a load equal to capacity is not an overload', () => {
-  // Pending: the person load view showing it is the person load chart's (SC-032).
+  // The person load view showing it is in e2e/tests/person-load.spec.ts (SC-032).
   it("shows alice's load of 80% on 2027-03-01, not overloaded and not red", async () => {
     await setCapacity(alice, 80)
     const apollo = await seedProject(x.db, alice, 'Apollo')
@@ -387,7 +387,7 @@ describe('TC-030: a task turns red when an assigned person takes a day off durin
 })
 
 describe("TC-058: a shared person's overload is red to every project involved", () => {
-  // Pending: the person load views of Apollo and Borealis are the person load chart's (SC-032).
+  // The person load views of Apollo and Borealis are in e2e/tests/person-load.spec.ts (SC-032).
   it("shows carol's overload on 2027-03-01 in red in both Apollo and Borealis, moving neither task", async () => {
     const bob = await seedAccount(x.db, { username: 'bob' })
     const carol = await seedAccount(x.db, { username: 'carol' })

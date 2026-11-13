@@ -4,6 +4,7 @@ import { AccountsPage } from './pages/AccountsPage.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
 import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
+import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
@@ -30,6 +31,7 @@ export function App() {
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="gantt" element={<GanttPage />} />
           <Route path="kanban" element={<KanbanPage />} />
+          <Route path="load" element={<PersonLoadPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
