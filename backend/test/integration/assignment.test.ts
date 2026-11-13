@@ -603,8 +603,9 @@ describe('test cases through the REST API', () => {
       await grantRole(x.db, carol, apollo, 'read-only')
       const t = await created({ title: 'T', eligibility: { any: [alice.id, bob.id] } })
 
-      // The TC's step 1 is in the browser, with the assignment editor (SC-100), which is pending.
-      // The save it makes is this request; the service decides the same whichever channel asks.
+      // The TC's step 1 is in the browser, with the assignment editor (SC-100), in
+      // e2e/tests/task-editors.spec.ts. The save it makes is this request; the service decides the
+      // same whichever channel asks.
       const notified = await x.db.select().from(notifications)
       const saved = await change(t, { assignees: [carol.id] })
       expect(saved.statusCode).toBe(200)
@@ -772,7 +773,8 @@ describe('test cases through the REST API', () => {
       })
 
       // The TC's steps are in the browser, with the eligibility and assignment editors (SC-099,
-      // SC-100), which are pending. What they mark is what the task read here reports.
+      // SC-100), in e2e/tests/task-editors.spec.ts. What they mark is what the task read here
+      // reports.
       expect((await readTask(t)).withoutReadAccess).toEqual([])
 
       await x.db

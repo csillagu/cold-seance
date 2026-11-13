@@ -496,9 +496,8 @@ describe('test cases through the REST API', () => {
     })
   })
 
-  // TC-221 (the UI offers 1% as an AI-only task's default load) is pending: it is a test of the
-  // assignment editor (SC-100) in the browser, part of the frontend lane (F5). It is not an
-  // `it.todo`, which the lint refuses.
+  // TC-221 (the UI offers 1% as an AI-only task's default load) is a test of the UI alone (SC-100):
+  // it is in e2e/tests/task-editors.spec.ts.
 
   it('refuses over REST what the service refuses, as 400', async () => {
     const t = await createTask({ title: 'T', aiShare: 50, assignees: [alice.id] })
