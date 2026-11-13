@@ -25,6 +25,9 @@ type Projects =
  * signed in may use; it and the members screen (SC-080) tell the layout, through
  * `useProjectsChanged()`, when the projects listed may have changed.
  *
+ * Below them, the navigation leads to the registered repositories (SC-085), which anyone signed in
+ * may register, and from there to each one's admins (SC-086).
+ *
  * The navigation also leads to the signed-in person's own GitHub account link (SC-077) and API
  * tokens (SC-078), and, for a system admin only, to account administration (SC-076). The pages
  * inside read who is signed in with `useSignedIn()`.
@@ -86,6 +89,10 @@ export function Layout() {
               <ProjectLinks projects={projects} />
               <NavLink to="/projects/new" className="layout__link">
                 New project
+              </NavLink>
+              <h2 className="layout__nav-heading">GitHub</h2>
+              <NavLink to="/repositories" className="layout__link">
+                Repositories
               </NavLink>
               {signedIn !== undefined && (
                 <>

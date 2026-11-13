@@ -88,26 +88,45 @@ export const repositoryRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
       services.repositories.getRepository(callerOf(request), request.params.repositoryId),
   )
 
-  routes.post<{ Params: { repositoryId: string }; Body: { accountId: string } }>(
+  routes.post<{
+    Params: { repositoryId: string }
+    Body: { accountId: string } | { username: string }
+  }>(
     '/:repositoryId/admins',
     {
       schema: {
+        description:
+          'Makes a person an admin of the repository, named by exactly one of `accountId` and ' +
+          '`username`. The username is matched regardless of case. Only its admins and system ' +
+          'admins can; refused with 404 if there is no such account.',
         params: repositoryParams,
         body: {
           type: 'object',
-          required: ['accountId'],
-          properties: { accountId: { type: 'string', format: 'uuid' } },
+          properties: {
+            accountId: { type: 'string', format: 'uuid' },
+            username: { type: 'string' },
+          },
+          minProperties: 1,
+          maxProperties: 1,
           additionalProperties: false,
         },
         response: { 200: repository },
       },
     },
-    async (request) =>
-      services.repositories.addAdmin(
-        callerOf(request),
-        request.params.repositoryId,
-        request.body.accountId,
-      ),
+    async (request) => {
+      const { body } = request
+      return 'username' in body
+        ? services.repositories.addAdminByUsername(
+            callerOf(request),
+            request.params.repositoryId,
+            body.username,
+          )
+        : services.repositories.addAdmin(
+            callerOf(request),
+            request.params.repositoryId,
+            body.accountId,
+          )
+    },
   )
 
   routes.delete<{ Params: AdminParams }>(

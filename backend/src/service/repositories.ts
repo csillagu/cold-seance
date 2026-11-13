@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import { accounts, repositories, repositoryAdmins } from '../db/schema.ts'
 import { checkRepository } from '../github/app-tokens.ts'
@@ -178,19 +178,45 @@ export class RepositoryService {
     repositoryId: string,
     accountId: string,
   ): Promise<RegisteredRepository> {
+    return this.#addAdmin(caller, repositoryId, (tx) =>
+      isUuid(accountId) ? this.#accountWhere(tx, eq(accounts.id, accountId)) : undefined,
+    )
+  }
+
+  /**
+   * As `addAdmin`, for the person whose username is `username`, so that an admin who cannot list
+   * the accounts names the person by the name they know them by (SC-086). The username is matched
+   * as at sign-in: trimmed and regardless of case. The caller is checked first, so that only those
+   * who may change the admins learn whether a username has an account.
+   */
+  async addAdminByUsername(
+    caller: Caller,
+    repositoryId: string,
+    username: string,
+  ): Promise<RegisteredRepository> {
+    const name = username.normalize('NFC').trim()
+    return this.#addAdmin(caller, repositoryId, (tx) =>
+      // PostgreSQL's lower() on both sides, as the unique index on usernames uses it.
+      this.#accountWhere(tx, sql`lower(${accounts.username}) = lower(${name})`),
+    )
+  }
+
+  async #addAdmin(
+    caller: Caller,
+    repositoryId: string,
+    findAccount: (
+      tx: Executor,
+    ) => Promise<{ id: string; username: string } | undefined> | undefined,
+  ): Promise<RegisteredRepository> {
     await this.#requireAccount(
       caller,
       "Only people with an account can change a repository's admins",
     )
     return this.#db.transaction(async (tx) => {
       const repository = await this.#lockForAdminChange(tx, caller, repositoryId)
-      const [account] = isUuid(accountId)
-        ? await tx
-            .select({ id: accounts.id, username: accounts.username })
-            .from(accounts)
-            .where(eq(accounts.id, accountId))
-        : []
+      const account = await findAccount(tx)
       if (!account) throw new ServiceError('not-found', 'There is no such account')
+      const accountId = account.id
       const added = await tx
         .insert(repositoryAdmins)
         .values({ repositoryId, accountId })
@@ -205,6 +231,17 @@ export class RepositoryService {
       }
       return this.#read(tx, repositoryId)
     })
+  }
+
+  async #accountWhere(
+    executor: Executor,
+    condition: SQL,
+  ): Promise<{ id: string; username: string } | undefined> {
+    const [account] = await executor
+      .select({ id: accounts.id, username: accounts.username })
+      .from(accounts)
+      .where(condition)
+    return account
   }
 
   /**

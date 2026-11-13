@@ -421,6 +421,34 @@ describe('the repository service', () => {
     })
   })
 
+  describe('addAdminByUsername', () => {
+    it('makes the person with the username an admin, matched trimmed and regardless of case', async () => {
+      const a = await registered(alice)
+      const changed = await service.addAdminByUsername(by(alice), a.id, '  BoB ')
+      expect(usernames(changed)).toEqual(['alice', 'bob'])
+      expect((await entriesFor(a.id)).at(-1)).toMatchObject({
+        action: 'repository.admin-added',
+        details: { accountId: bob.id, username: 'bob' },
+      })
+    })
+
+    it('refuses a username no account has', async () => {
+      const a = await registered(alice)
+      const error = await refused(
+        service.addAdminByUsername(by(alice), a.id, 'nobody'),
+        'not-found',
+      )
+      expect(error.message).toBe('There is no such account')
+    })
+
+    it('refuses someone who may not change the admins before saying whether the username exists', async () => {
+      const a = await registered(alice)
+      await refused(service.addAdminByUsername(by(bob), a.id, 'nobody'), 'forbidden')
+      await refused(service.addAdminByUsername(by(bob), a.id, 'carol'), 'forbidden')
+      expect(usernames(await service.getRepository(by(bob), a.id))).toEqual(['alice'])
+    })
+  })
+
   describe('removeAdmin', () => {
     it('lets an admin remove another admin, and records it', async () => {
       const a = await registered(alice)
