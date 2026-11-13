@@ -24,6 +24,11 @@ export interface StartOptions extends LoadConfigOptions {
   migrationsFolder?: string
   /** The built frontend to serve; `frontend/dist/` unless given (SC-028). */
   frontendDir?: string
+  /**
+   * The current time; the system clock unless given. Proposals expire by it (SC-046), so that a
+   * test deployment can set its clock forward, as TC-115 and TC-116 need.
+   */
+  now?: () => Date
 }
 
 /**
@@ -74,6 +79,7 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   const services = createServices(db, {
     github: gitHubRepositoryReach(github),
     planningChanges: planningMirror,
+    ...(options.now ? { now: options.now } : {}),
   })
   app = buildApp(
     options.server,

@@ -1,0 +1,120 @@
+/*
+ * The proposal conflict panel (SC-070) and the proposal editor (SC-071). The approved design
+ * (SRC-249, design/frontend/) does not draw them; they use its colours, type, radii and cards, as
+ * the proposal preview does, and the task editors' buttons and fields.
+ */
+.proposal-edit__section {
+  margin: 8px 0 16px;
+}
+
+.proposal-edit__conflicts,
+.proposal-edit__groups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.proposal-edit__conflict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border: 1px solid var(--red-border);
+  border-radius: var(--radius-button);
+  background: var(--red-bg);
+}
+
+.proposal-edit__conflict-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proposal-edit__conflict-change {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.proposal-edit__conflict-why {
+  color: var(--red-text);
+}
+
+.proposal-edit__conflict-group {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.proposal-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.proposal-edit__group {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.proposal-edit__group--editing {
+  border-color: var(--accent);
+}
+
+.proposal-edit__group-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proposal-edit__group-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.proposal-edit__changes {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.proposal-edit__change {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proposal-edit__change-title {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.proposal-edit__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.proposal-edit__change .task-editor__button--quiet {
+  justify-self: start;
+}
+
+.proposal-edit__error {
+  margin: 8px 0;
+  color: var(--red-text);
+}

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, type FakeAnswer, UNAUTHENTICATED } from '../test/fetch.ts'
@@ -75,6 +75,8 @@ function answers(overrides: Record<string, FakeAnswer> = {}) {
         return { status: 200, body: proposal }
       case `/api/proposals/${P1}/preview`:
         return { status: 200, body: preview }
+      case `/api/proposals/${P1}/conflicts`:
+        return { status: 200, body: { proposalId: P1, conflicts: [] } }
       case `/api/projects/${APOLLO}`:
         return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
       case `/api/projects/${APOLLO}/members`:
@@ -234,5 +236,230 @@ describe("the project's proposals (SC-034)", () => {
     fakeApi(answers({ [`/api/projects/${APOLLO}/proposals`]: { status: 200, body: [] } }))
     renderAt(`/projects/${APOLLO}/proposals`)
     expect(await screen.findByText('No proposal changes this project.')).toBeInTheDocument()
+  })
+})
+
+describe('the proposal conflict panel (SC-070) and editor (SC-071)', () => {
+  const G1 = '00000000-0000-4000-8000-0000000000c1'
+  const G2 = '00000000-0000-4000-8000-0000000000c2'
+  const move = {
+    id: 'c1',
+    kind: 'update-task',
+    projectId: APOLLO,
+    task: { taskId: A },
+    fields: { plannedStart: '2027-03-08', assignees: [BOB] },
+  }
+  const status = {
+    id: 'c2',
+    kind: 'set-status',
+    projectId: APOLLO,
+    task: { taskId: B },
+    status: 'in-progress',
+  }
+  const editable = {
+    ...proposal,
+    groups: [
+      { id: G1, changes: [move] },
+      { id: G2, changes: [status] },
+    ],
+  }
+  const conflict = {
+    groupId: G1,
+    changeId: 'c1',
+    taskId: A,
+    reason: 'edited',
+    inputs: ['plannedStart'],
+  }
+
+  /** The fake API with the editable proposal, `conflicts`, and the answer to each write. */
+  function editableAnswers(conflicts: unknown[] = [], write: FakeAnswer = { status: 200 }) {
+    const read = answers({
+      [`/api/proposals/${P1}`]: { status: 200, body: editable },
+      [`/api/proposals/${P1}/conflicts`]: { status: 200, body: { proposalId: P1, conflicts } },
+    })
+    return (method: string, path: string): FakeAnswer =>
+      method === 'GET' ? read(method, path) : { body: editable, ...write }
+  }
+
+  it('shows no conflict when no one else changed what the proposal changes', async () => {
+    fakeApi(editableAnswers())
+    renderAt(`/proposals/${P1}`)
+    expect(
+      await screen.findByText(
+        'None: no one else has changed what the proposal changes since it was proposed.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Conflicts' })).not.toBeInTheDocument()
+  })
+
+  it('shows each conflict, with the choice to resolve it or drop it', async () => {
+    fakeApi(editableAnswers([conflict]))
+    renderAt(`/proposals/${P1}`)
+    const list = await screen.findByRole('list', { name: 'Conflicts' })
+    const item = within(list).getByRole('listitem')
+    expect(item).toHaveAccessibleName(
+      'Change A: planned start 8 Mar 2027, assigned people as proposed',
+    )
+    expect(item).toHaveTextContent(
+      'Someone else changed the planned start of A after the change was proposed.',
+    )
+    expect(item).toHaveTextContent('In group 1')
+    expect(within(item).getByRole('button', { name: 'Resolve' })).toBeEnabled()
+    expect(within(item).getByRole('button', { name: 'Drop' })).toBeEnabled()
+  })
+
+  it('says a change to a deleted task conflicts', async () => {
+    const gone = '00000000-0000-4000-8000-0000000000dd'
+    fakeApi(
+      answers({
+        [`/api/proposals/${P1}`]: {
+          status: 200,
+          body: {
+            ...proposal,
+            groups: [{ id: G1, changes: [{ ...move, task: { taskId: gone } }] }],
+          },
+        },
+        [`/api/proposals/${P1}/conflicts`]: {
+          status: 200,
+          body: {
+            proposalId: P1,
+            conflicts: [{ ...conflict, taskId: gone, reason: 'deleted', inputs: [] }],
+          },
+        },
+      }),
+    )
+    renderAt(`/proposals/${P1}`)
+    const item = within(await screen.findByRole('list', { name: 'Conflicts' })).getByRole(
+      'listitem',
+    )
+    expect(item).toHaveTextContent('Change a deleted task: planned start 8 Mar 2027')
+    expect(item).toHaveTextContent('Its task was deleted after the change was proposed.')
+  })
+
+  it("resolves a conflict by editing its group, saving the group's whole new list", async () => {
+    const requests = fakeApi(editableAnswers([conflict]))
+    renderAt(`/proposals/${P1}`)
+    const list = await screen.findByRole('list', { name: 'Conflicts' })
+    fireEvent.click(within(list).getByRole('button', { name: 'Resolve' }))
+
+    const form = screen.getByRole('form', { name: 'Edit group 1' })
+    const start = within(form).getByLabelText('Planned start')
+    expect(start).toHaveValue('2027-03-08')
+    expect(form).toHaveTextContent('Kept as proposed: Assigned people.')
+    fireEvent.change(start, { target: { value: '2027-03-10' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save group' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('form', { name: 'Edit group 1' })).not.toBeInTheDocument(),
+    )
+    const writes = requests.filter((request) => request.method !== 'GET')
+    expect(writes).toEqual([
+      {
+        method: 'PUT',
+        path: `/api/proposals/${P1}/groups/${G1}`,
+        body: {
+          changes: [
+            {
+              kind: 'update-task',
+              task: { taskId: A },
+              fields: { plannedStart: '2027-03-10', assignees: [BOB] },
+            },
+          ],
+        },
+      },
+    ])
+    // The proposal, its conflicts and its preview are read again.
+    await waitFor(() =>
+      expect(requests.filter((r) => r.path === `/api/proposals/${P1}/conflicts`)).toHaveLength(2),
+    )
+  })
+
+  it('edits a status, and drops a group as a whole', async () => {
+    const requests = fakeApi(editableAnswers())
+    renderAt(`/proposals/${P1}`)
+    const group2 = await screen.findByRole('listitem', { name: 'Group 2' })
+    expect(group2).toHaveTextContent('Set B to in progress')
+    fireEvent.click(within(group2).getByRole('button', { name: 'Edit group' }))
+    const form = screen.getByRole('form', { name: 'Edit group 2' })
+    fireEvent.change(within(form).getByLabelText('Status'), { target: { value: 'on-hold' } })
+    // A group's only change cannot be left out on its own.
+    expect(within(form).getByRole('button', { name: 'Leave this change out' })).toBeDisabled()
+    fireEvent.click(within(form).getByRole('button', { name: 'Save group' }))
+    await waitFor(() => expect(screen.queryByRole('form')).not.toBeInTheDocument())
+
+    fireEvent.click(
+      within(screen.getByRole('listitem', { name: 'Group 1' })).getByRole('button', {
+        name: 'Drop group',
+      }),
+    )
+    await waitFor(() =>
+      expect(requests.filter((request) => request.method === 'DELETE')).toHaveLength(1),
+    )
+    expect(requests.filter((request) => request.method !== 'GET')).toEqual([
+      {
+        method: 'PUT',
+        path: `/api/proposals/${P1}/groups/${G2}`,
+        body: { changes: [{ kind: 'set-status', task: { taskId: B }, status: 'on-hold' }] },
+      },
+      { method: 'DELETE', path: `/api/proposals/${P1}/groups/${G1}`, body: undefined },
+    ])
+  })
+
+  it("shows the API's refusal, and keeps the group open", async () => {
+    const message = "Only the project's read-write members and admins can edit or reject a proposal"
+    fakeApi(
+      editableAnswers([], {
+        status: 403,
+        body: { statusCode: 403, error: 'Forbidden', message },
+      }),
+    )
+    renderAt(`/proposals/${P1}`)
+    const group1 = await screen.findByRole('listitem', { name: 'Group 1' })
+    fireEvent.click(within(group1).getByRole('button', { name: 'Edit group' }))
+    const form = screen.getByRole('form', { name: 'Edit group 1' })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save group' }))
+    expect(await within(form).findByRole('alert')).toHaveTextContent(message)
+  })
+
+  it('sends an emptied number field as none', async () => {
+    const requests = fakeApi(
+      answers({
+        [`/api/proposals/${P1}`]: {
+          status: 200,
+          body: {
+            ...proposal,
+            groups: [{ id: G1, changes: [{ ...move, fields: { durationWorkingDays: 3 } }] }],
+          },
+        },
+      }),
+    )
+    renderAt(`/proposals/${P1}`)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit group' }))
+    const form = screen.getByRole('form', { name: 'Edit group 1' })
+    fireEvent.change(within(form).getByLabelText('Duration in working days'), {
+      target: { value: '' },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save group' }))
+    await waitFor(() => expect(requests.some((r) => r.method === 'PUT')).toBe(true))
+    expect(requests.find((r) => r.method === 'PUT')?.body).toEqual({
+      changes: [
+        { kind: 'update-task', task: { taskId: A }, fields: { durationWorkingDays: null } },
+      ],
+    })
+  })
+
+  it('offers no edit to a proposal that no longer waits for review', async () => {
+    fakeApi(
+      answers({
+        [`/api/proposals/${P1}`]: { status: 200, body: { ...editable, status: 'rejected' } },
+        [`/api/proposals/${P1}/conflicts`]: {
+          status: 200,
+          body: { proposalId: P1, conflicts: [conflict] },
+        },
+      }),
+    )
+    renderAt(`/proposals/${P1}`)
+    await screen.findByRole('list', { name: 'Conflicts' })
+    expect(screen.queryByRole('button', { name: /Edit group|Drop|Resolve/ })).toBeNull()
   })
 })
