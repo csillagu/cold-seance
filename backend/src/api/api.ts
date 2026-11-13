@@ -23,6 +23,7 @@ import { receivingProjectRoutes } from './receiving-projects.ts'
 import { redFlagRoutes } from './red-flags.ts'
 import { repositoryRoutes } from './repositories.ts'
 import { sessionRoutes } from './session.ts'
+import { taskPeopleRoutes } from './task-people.ts'
 import { taskRelationRoutes } from './task-relations.ts'
 import {
   projectTaskRoutes,
@@ -88,6 +89,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/repository-requests', routes: repositoryRequestRoutes },
   { prefix: '/tasks', routes: taskRoutes },
+  { prefix: '/tasks', routes: taskPeopleRoutes },
   { prefix: '/tasks', routes: taskRelationRoutes },
   { prefix: '/tasks', routes: taskStatusRoutes },
   { prefix: '/tasks', routes: taskCancellationRoutes },

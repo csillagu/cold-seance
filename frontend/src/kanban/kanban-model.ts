@@ -5,9 +5,13 @@
  */
 import { type ApiRedFlag, type ApiTask, formatDay, type TaskStatus } from '../gantt/gantt-model.ts'
 
-/** A task as the API gives it, the fields the Kanban reads: the Gantt's, and its actual finish. */
+/**
+ * A task as the API gives it, the fields the Kanban reads: the Gantt's, its actual finish, and its
+ * person load, which the edit form shows for an AI-only task.
+ */
 export interface KanbanTask extends ApiTask {
   actualFinish: string | null
+  personLoad?: number | null
 }
 
 /** A project a Kanban shows tasks of. */

@@ -1,7 +1,10 @@
 import { type FormEvent, type ReactNode, useState } from 'react'
+import { Link } from 'react-router'
 import { ApiError } from '../api.ts'
 import { avatarColour } from '../gantt/avatar.ts'
 import type { PeopleById } from '../gantt/Gantt.tsx'
+import { PersonLoadField } from '../tasks/AssignmentEditor.tsx'
+import { AI_ONLY_DEFAULT_LOAD, AI_ONLY_SHARE } from '../tasks/assignment.ts'
 import { formatDay, type TaskStatus } from '../gantt/gantt-model.ts'
 import {
   COLUMNS,
@@ -21,6 +24,7 @@ export interface TaskChanges {
   plannedFinish?: string | null
   durationWorkingDays?: number | null
   aiShare?: number | null
+  personLoad?: number | null
   milestone?: { variant: 'fixed-date'; date: string }
   assignees?: string[]
 }
@@ -288,6 +292,13 @@ function Card({
             >
               Edit
             </button>
+            <Link
+              to={`/tasks/${encodeURIComponent(task.id)}`}
+              className="kanban__button kanban__link"
+              aria-label={`Open ${task.title}`}
+            >
+              Open
+            </Link>
             {moves.length > 0 ? (
               <label className="kanban__move">
                 <span className="kanban__hidden">Move {task.title} to</span>
@@ -345,6 +356,11 @@ function EditForm({
   const [duration, setDuration] = useState(task.durationWorkingDays?.toString() ?? '')
   const [finish, setFinish] = useState(task.plannedFinish ?? '')
   const [aiShare, setAiShare] = useState(task.aiShare?.toString() ?? '')
+  // An AI-only task's load can be any percentage; one becoming AI-only is offered 1% (FR-149).
+  const wasAiOnly = task.aiShare === AI_ONLY_SHARE
+  const [personLoad, setPersonLoad] = useState(
+    wasAiOnly ? (task.personLoad?.toString() ?? '') : String(AI_ONLY_DEFAULT_LOAD),
+  )
   const [milestoneDate, setMilestoneDate] = useState(task.milestone?.date ?? '')
   const [assignees, setAssignees] = useState<readonly string[]>(task.assignees)
   const [saving, setSaving] = useState(false)
@@ -378,6 +394,10 @@ function EditForm({
       }
       const share = numberOf(aiShare)
       if (share !== task.aiShare) changes.aiShare = share
+      if (share === AI_ONLY_SHARE) {
+        const load = numberOf(personLoad)
+        if (!wasAiOnly || load !== task.personLoad) changes.personLoad = load
+      }
       if (assignees.join() !== task.assignees.join()) changes.assignees = [...assignees]
     }
     setSaving(true)
@@ -447,6 +467,13 @@ function EditForm({
               onChange={(event) => setAiShare(event.target.value)}
             />
           </label>
+          {numberOf(aiShare) === AI_ONLY_SHARE ? (
+            <PersonLoadField
+              className="kanban__field"
+              value={personLoad}
+              onChange={setPersonLoad}
+            />
+          ) : null}
           <fieldset className="kanban__field kanban__assignees">
             <legend>Assigned</legend>
             {choices.length === 0 ? <span className="kanban__muted">No one to assign</span> : null}

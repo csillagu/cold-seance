@@ -1,0 +1,208 @@
+/*
+ * The eligibility expression and assignment editors (SC-099, SC-100), in the approved design's
+ * colours, radii and type (SRC-249): cards on the page surface, people as tags with an avatar, a
+ * person who cannot read the project marked in red.
+ */
+.task-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-editor__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-editor__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-editor__group {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--sec);
+}
+
+.task-editor__person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 4px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  background: var(--card);
+}
+
+.task-editor__person--marked {
+  border-color: var(--red-border);
+  background: var(--red-bg);
+}
+
+.task-editor__avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.task-editor__name {
+  font-weight: 500;
+}
+
+.task-editor__mark {
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
+  color: var(--red-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.task-editor__remove {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-tag);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.task-editor__remove:hover {
+  background: var(--sec);
+  color: var(--text);
+}
+
+.task-editor__load {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+}
+
+.task-editor__load input {
+  width: 64px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.task-editor__operator,
+.task-editor__add,
+.task-editor__field input {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.task-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 240px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.task-editor__button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.task-editor__button--quiet {
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.task-editor__button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.task-editor__button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.task-editor__empty,
+.task-editor__muted {
+  margin: 0;
+  color: var(--muted);
+}
+
+.task-editor__expression {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.task-editor__hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A task's page (TaskPage): one card per editor. */
+.task-page__card {
+  margin-top: 16px;
+  max-width: 760px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.task-page__heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.task-page__error {
+  margin: 0;
+  color: var(--red-text);
+}
