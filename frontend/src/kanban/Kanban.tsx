@@ -338,9 +338,9 @@ function numberOf(value: string): number | null {
 /**
  * The form a card turns into for "Edit": the fields the card shows that a person sets. Only what
  * was changed is sent. A milestone has its date and title; a fixed-date milestone's date can be
- * changed, a floating one's is set by the scheduler.
+ * changed, a floating one's is set by the scheduler. The Gantt's task editor uses it too (SC-067).
  */
-function EditForm({
+export function EditForm({
   task,
   members,
   onCancel,

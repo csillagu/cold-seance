@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, type FakeAnswer, UNAUTHENTICATED } from '../test/fetch.ts'
@@ -359,6 +359,47 @@ describe('the Gantt page (SC-031)', () => {
     )
     renderGantt()
     expect(await screen.findByRole('alert')).toHaveTextContent('The Gantt could not be loaded.')
+  })
+
+  it('edits a task in its editor, opened from its title, and reads the Gantt again (SC-067)', async () => {
+    const requests = fakeApi((method, path) =>
+      method === 'PATCH' ? { status: 200, body: tasks[0] } : answers()(method, path),
+    )
+    renderGantt()
+    const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+    fireEvent.click(within(gantt).getByRole('button', { name: 'Edit A' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit A' })
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'A2' } })
+    const before = requests.length
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(requests[before]).toEqual({
+      method: 'PATCH',
+      path: `/api/tasks/${A}`,
+      body: { title: 'A2' },
+    })
+    expect(requests.slice(before + 1).map((request) => request.path)).toContain(
+      `/api/projects/${APOLLO}/tasks`,
+    )
+  })
+
+  it('creates a task in the project with "New task" (SC-067)', async () => {
+    const requests = fakeApi((method, path) =>
+      method === 'POST' ? { status: 201, body: tasks[0] } : answers()(method, path),
+    )
+    renderGantt()
+    await screen.findByRole('table', { name: 'Gantt of Apollo' })
+    fireEvent.click(screen.getByRole('button', { name: 'New task' }))
+    const dialog = screen.getByRole('dialog', { name: 'New task' })
+    expect(within(dialog).queryByLabelText('Project')).toBeNull()
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'New work' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(requests).toContainEqual({
+      method: 'POST',
+      path: `/api/projects/${APOLLO}/tasks`,
+      body: { title: 'New work' },
+    })
   })
 
   it('sends someone who is not signed in to the sign-in page', async () => {
