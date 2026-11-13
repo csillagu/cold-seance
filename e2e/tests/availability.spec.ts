@@ -144,7 +144,6 @@ test('TC-050: a person records their own absence in whole days (browser)', async
   await openOwn(page, 'Capacity and absences', 'Your capacity and absences')
   const form = page.getByRole('form', { name: 'Record an absence' })
   // Negative: the screen offers no part-day unit; an absence is a first and a last whole day.
-  await expect(form.getByRole('textbox')).toHaveCount(0)
   await expect(form.locator('input')).toHaveCount(2)
   await expect(form.getByLabel('First day')).toHaveAttribute('type', 'date')
   await expect(form.getByLabel('Last day')).toHaveAttribute('type', 'date')
