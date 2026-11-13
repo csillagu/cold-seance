@@ -180,26 +180,110 @@ describe('the Gantt model (SC-031)', () => {
     ])
   })
 
-  it('leaves off unscheduled and cancelled tasks, which are another part of the Gantt (SC-064)', () => {
+  it('lays the unscheduled tasks apart, below the scheduled ones, in the order given (SC-064)', () => {
     const unscheduled = task('U')
     const floating = task('F', { milestone: { variant: 'floating', date: null } })
-    const cancelled = { ...b, status: 'cancelled' as const }
     const model = buildGanttModel(
-      [a, unscheduled, floating, cancelled],
-      [relations('A'), relations('U', ['A']), relations('F'), relations('B', ['A'])],
+      [unscheduled, a, floating, b],
+      [relations('U', ['A']), relations('A'), relations('F'), relations('B', ['A'])],
       [],
       calendar,
     )
-    expect(model.rows.map((row) => row.task.id)).toEqual(['A'])
-    expect(model.dependencies).toEqual([])
+    expect(model.rows.map((row) => row.task.id)).toEqual(['A', 'B'])
+    expect(model.unscheduled.map((row) => row.task.id)).toEqual(['U', 'F'])
+    // No dates are given to an unscheduled task, and no arrow is drawn to it.
+    expect(model.unscheduled[0]!.task.plannedStart).toBeNull()
+    expect(model.dependencies).toEqual([{ task: 'B', blocker: 'A', red: false }])
+  })
+
+  it('keeps cancelled tasks on the Gantt, on their dates (FR-129)', () => {
+    const cancelled = { ...b, status: 'cancelled' as const }
+    const cancelledUnscheduled = task('X', { status: 'cancelled' })
+    const model = buildGanttModel(
+      [a, cancelled, cancelledUnscheduled],
+      [relations('A'), relations('B', ['A']), relations('X')],
+      [],
+      calendar,
+    )
+    expect(model.rows.map((row) => [row.task.id, row.task.status, row.start, row.finish])).toEqual([
+      ['A', 'not-started', '2027-03-01', '2027-03-03'],
+      ['B', 'cancelled', '2027-03-04', '2027-03-05'],
+    ])
+    expect(model.unscheduled.map((row) => row.task.id)).toEqual(['X'])
+    expect(model.dependencies).toEqual([{ task: 'B', blocker: 'A', red: false }])
   })
 
   it('has no days when no task has dates', () => {
     expect(buildGanttModel([task('U')], [relations('U')], [], calendar)).toEqual({
       rows: [],
+      unscheduled: [{ task: task('U'), baseline: null }],
+      baseline: null,
       dependencies: [],
       days: [],
     })
+  })
+})
+
+describe('the baseline bars (SC-065)', () => {
+  // TC-068's plan: T saved in v1 on 2027-03-01 to 2027-03-03, since moved to 2027-03-08.
+  const t = task('T', {
+    plannedStart: '2027-03-08',
+    plannedFinish: '2027-03-10',
+    durationWorkingDays: 3,
+  })
+  const v1 = {
+    id: 'baseline-v1',
+    name: 'v1',
+    tasks: [{ taskId: 'T', plannedStart: '2027-03-01', plannedFinish: '2027-03-03' }],
+  }
+
+  it('gives each task the baseline holds dates for a bar on them', () => {
+    const model = buildGanttModel([t], [relations('T')], [], calendar, v1)
+    expect(model.baseline).toBe('v1')
+    expect(model.rows).toHaveLength(1)
+    expect(model.rows[0]).toMatchObject({
+      start: '2027-03-08',
+      finish: '2027-03-10',
+      baseline: { start: '2027-03-01', finish: '2027-03-03' },
+    })
+    // The timeline spans the baseline's days as well as the planned ones.
+    expect(model.days[0]!.date).toBe('2027-03-01')
+  })
+
+  it('draws no baseline bar with no baseline selected', () => {
+    const model = buildGanttModel([t], [relations('T')], [], calendar)
+    expect(model.baseline).toBeNull()
+    expect(model.rows[0]!.baseline).toBeNull()
+    expect(model.days[0]!.date).toBe('2027-03-08')
+  })
+
+  it("draws none for a task the baseline holds no dates for, and a milestone's on its day", () => {
+    const later = task('L', { plannedStart: '2027-03-08', plannedFinish: '2027-03-08' })
+    const milestone = task('M', { milestone: { variant: 'fixed-date', date: '2027-03-12' } })
+    const unscheduled = task('U')
+    const model = buildGanttModel(
+      [t, later, milestone, unscheduled],
+      [relations('T'), relations('L'), relations('M'), relations('U')],
+      [],
+      calendar,
+      {
+        ...v1,
+        tasks: [
+          ...v1.tasks,
+          { taskId: 'L', plannedStart: null, plannedFinish: null },
+          { taskId: 'M', plannedStart: '2027-03-11', plannedFinish: '2027-03-11' },
+          { taskId: 'U', plannedStart: '2027-03-02', plannedFinish: '2027-03-04' },
+        ],
+      },
+    )
+    expect(model.rows.map((row) => [row.task.id, row.baseline])).toEqual([
+      ['T', { start: '2027-03-01', finish: '2027-03-03' }],
+      ['L', null],
+      ['M', { start: '2027-03-11', finish: '2027-03-11' }],
+    ])
+    expect(model.unscheduled).toEqual([
+      { task: unscheduled, baseline: { start: '2027-03-02', finish: '2027-03-04' } },
+    ])
   })
 })
 

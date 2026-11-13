@@ -1,7 +1,8 @@
 /*
  * What the Gantt timeline (SC-031) draws, worked out from what the REST API gives: the rows in
- * order, the days the timeline spans, and which tasks and dependencies are red. Pure functions, so
- * that the drawing and its tests share them.
+ * order, the unscheduled and cancelled tasks (SC-064), a selected baseline's bars (SC-065), the
+ * days the timeline spans, and which tasks and dependencies are red. Pure functions, so that the
+ * drawing and its tests share them.
  */
 
 /** A task's status, as the API gives it. */
@@ -43,6 +44,19 @@ export interface ApiCalendar {
   holidays: string[]
 }
 
+/** A baseline as the API gives it (`GET /baselines/{id}`), the fields the Gantt reads. */
+export interface ApiBaseline {
+  id: string
+  name: string
+  tasks: { taskId: string; plannedStart: string | null; plannedFinish: string | null }[]
+}
+
+/** The days a task lay on in the selected baseline. */
+export interface BaselineBar {
+  start: string
+  finish: string
+}
+
 /** A row of the Gantt: a task drawn on its dates. */
 export interface GanttRow {
   task: ApiTask
@@ -58,6 +72,18 @@ export interface GanttRow {
   red: boolean
   /** Why it is red, in words, when the Gantt says so beside it. */
   note: string | null
+  /** Its bar in the selected baseline, if a baseline is selected and gives it dates (FR-050). */
+  baseline: BaselineBar | null
+}
+
+/**
+ * A row of the Gantt's unscheduled part: a task with no planned dates, or a milestone with no day
+ * (FR-004), laid below every scheduled task (FR-145).
+ */
+export interface UnscheduledRow {
+  task: ApiTask
+  /** Its bar in the selected baseline, if it had dates there (FR-050). */
+  baseline: BaselineBar | null
 }
 
 /** A dependency drawn between two rows: `task` is blocked by `blocker`. */
@@ -77,7 +103,12 @@ export interface GanttDay {
 
 /** Everything the Gantt draws. */
 export interface GanttModel {
+  /** The scheduled tasks, cancelled ones included (FR-129). */
   rows: GanttRow[]
+  /** The unscheduled tasks, cancelled ones included, in the order the API gives them. */
+  unscheduled: UnscheduledRow[]
+  /** The name of the selected baseline, or null for none. */
+  baseline: string | null
   dependencies: GanttDependency[]
   days: GanttDay[]
 }
@@ -120,7 +151,7 @@ export function formatMonth(date: string): string {
 
 /**
  * The days a task is drawn on: a milestone on its date, any other task from its planned start to
- * its planned finish. Null for a task without them, which this part of the Gantt leaves off.
+ * its planned finish. Null for a task without them, which the Gantt lays at the bottom.
  */
 function datesOf(task: ApiTask): { start: string; finish: string } | null {
   if (task.milestone) {
@@ -131,12 +162,29 @@ function datesOf(task: ApiTask): { start: string; finish: string } | null {
 }
 
 /**
- * Builds what the Gantt of a project draws from its tasks, their relations, its red flags and the
- * global calendar.
+ * The bars of a baseline, by task: the days each task lay on when it was saved (FR-050). A task
+ * the baseline holds no dates for has none.
+ */
+function baselineBars(baseline: ApiBaseline | null): Map<string, BaselineBar> {
+  const bars = new Map<string, BaselineBar>()
+  for (const task of baseline?.tasks ?? []) {
+    const start = task.plannedStart ?? task.plannedFinish
+    const finish = task.plannedFinish ?? task.plannedStart
+    if (start && finish) bars.set(task.taskId, { start, finish })
+  }
+  return bars
+}
+
+/**
+ * Builds what the Gantt of a project draws from its tasks, their relations, its red flags, the
+ * global calendar and, if one is selected, a baseline.
  *
- * - The rows are the project's tasks with dates that are not cancelled; unscheduled and
- *   cancelled tasks are another part of the Gantt's (SC-064). Each subtask follows its parent,
- *   indented, and otherwise the tasks keep the order the API gives them.
+ * - The rows are the project's tasks with dates, cancelled ones included, which the Gantt draws
+ *   faded (FR-129). Each subtask follows its parent, indented, and otherwise the tasks keep the
+ *   order the API gives them.
+ * - The unscheduled tasks, those with no planned dates and the milestones with no day, are listed
+ *   apart, to be laid below every scheduled task (FR-004, FR-145), in the order the API gives them.
+ * - With a baseline selected, each task it gives dates for has a baseline bar on them (FR-050).
  * - A task is red when a red flag of the project names it: its assigned people cannot do it in
  *   its time (FR-020), it is a fixed-date milestone that work it depends on would push (FR-013),
  *   or it starts before another project's milestone it depends on.
@@ -151,12 +199,15 @@ export function buildGanttModel(
   relations: readonly ApiRelations[],
   flags: readonly ApiRedFlag[],
   calendar: ApiCalendar,
+  baseline: ApiBaseline | null = null,
 ): GanttModel {
+  const bars = baselineBars(baseline)
   const shown = new Map<string, { task: ApiTask; start: string; finish: string }>()
+  const unscheduled: UnscheduledRow[] = []
   for (const task of tasks) {
-    if (task.status === 'cancelled') continue
     const dates = datesOf(task)
     if (dates) shown.set(task.id, { task, ...dates })
+    else unscheduled.push({ task, baseline: bars.get(task.id) ?? null })
   }
 
   const parentOf = new Map<string, string>()
@@ -205,6 +256,7 @@ export function buildGanttModel(
       finish: entry.finish,
       red: redTasks.has(id),
       note: redTasks.get(id) ?? null,
+      baseline: bars.get(id) ?? null,
     })
     for (const child of children) place(child, depth + 1)
   }
@@ -225,7 +277,18 @@ export function buildGanttModel(
     }
   }
 
-  return { rows, dependencies, days: daysOf(rows, calendar) }
+  const spans: BaselineBar[] = [
+    ...rows.map((row) => ({ start: row.start, finish: row.finish })),
+    ...rows.flatMap((row) => (row.baseline ? [row.baseline] : [])),
+    ...unscheduled.flatMap((row) => (row.baseline ? [row.baseline] : [])),
+  ]
+  return {
+    rows,
+    unscheduled,
+    baseline: baseline?.name ?? null,
+    dependencies,
+    days: daysOf(spans, calendar),
+  }
 }
 
 /**
@@ -245,12 +308,15 @@ export function arrowPath(
   return `M${from.x} ${from.y} H${from.x + 6} V${rowGap} H${to.x - 10} V${to.y} H${to.x}`
 }
 
-/** The days the timeline spans, with the non-working ones of the global calendar marked. */
-function daysOf(rows: readonly GanttRow[], calendar: ApiCalendar): GanttDay[] {
-  if (rows.length === 0) return []
-  let first = rows[0]!.start
-  let last = rows[0]!.finish
-  for (const row of rows) {
+/**
+ * The days the timeline spans, so that every bar fits, the baseline's too, with the non-working
+ * ones of the global calendar marked.
+ */
+function daysOf(spans: readonly BaselineBar[], calendar: ApiCalendar): GanttDay[] {
+  if (spans.length === 0) return []
+  let first = spans[0]!.start
+  let last = spans[0]!.finish
+  for (const row of spans) {
     if (row.start < first) first = row.start
     if (row.finish > last) last = row.finish
   }

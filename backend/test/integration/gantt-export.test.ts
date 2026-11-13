@@ -103,8 +103,8 @@ describe('the Mermaid Gantt exporter', () => {
       // Negative: no load figure for alice, and no red flag or red marking.
       expect(chart).not.toMatch(/%|alice|load|crit|red/i)
 
-      // Step 2, GitHub rendering the chart, is not tested here.
-      // Pending: the export dialog, SC-096 (node F17), and GitHub's rendered view of the file.
+      // The export dialog (SC-096) and step 2, the chart drawn as GitHub's rendered view of the
+      // file draws it, are tested in e2e/tests/gantt-unscheduled-baseline-export.spec.ts.
     })
   })
 
