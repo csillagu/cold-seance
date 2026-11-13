@@ -36,6 +36,7 @@ function stubbed() {
   const store = {
     listMembers: vi.spyOn(services.projectRoles, 'listMembers'),
     setRole: vi.spyOn(services.projectRoles, 'setRole'),
+    setRoleByUsername: vi.spyOn(services.projectRoles, 'setRoleByUsername'),
     removeMember: vi.spyOn(services.projectRoles, 'removeMember'),
   }
   const app = buildApp({}, { authenticators: [asAlice], services })
@@ -88,6 +89,53 @@ describe('GET /api/projects/:projectId/members', () => {
     const response = await app.inject({ method: 'GET', url: `/api/projects/${APOLLO}/members` })
     expect(response.statusCode).toBe(401)
     expect(store.listMembers).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/projects/:projectId/members', () => {
+  it('hands the store the project, the username and the role, and sends the member', async () => {
+    const { app, store } = stubbed()
+    store.setRoleByUsername.mockResolvedValue(BOB_MEMBER)
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${APOLLO}/members`,
+      headers: alice,
+      payload: { username: 'bob', role: 'read-write' },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(BOB_MEMBER)
+    expect(store.setRoleByUsername).toHaveBeenCalledWith(caller, APOLLO, 'bob', 'read-write')
+  })
+
+  it.each([
+    ['a role outside the four', { username: 'bob', role: 'owner' }],
+    ['no username', { role: 'read-only' }],
+    ['no role', { username: 'bob' }],
+  ])('refuses %s before the store is asked', async (_, payload) => {
+    const { app, store } = stubbed()
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${APOLLO}/members`,
+      headers: alice,
+      payload,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(store.setRoleByUsername).not.toHaveBeenCalled()
+  })
+
+  it("answers 404 with the store's message when no account has the username", async () => {
+    const { app, store } = stubbed()
+    store.setRoleByUsername.mockRejectedValue(
+      new ServiceError('not-found', 'There is no such account'),
+    )
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${APOLLO}/members`,
+      headers: alice,
+      payload: { username: 'nobody', role: 'read-only' },
+    })
+    expect(response.statusCode).toBe(404)
+    expect(response.json().message).toBe('There is no such account')
   })
 })
 
@@ -179,7 +227,7 @@ describe('the OpenAPI description', () => {
     const { app } = stubbed()
     const response = await app.inject({ method: 'GET', url: '/api/openapi.json', headers: alice })
     const paths = response.json().paths
-    expect(Object.keys(paths['/api/projects/{projectId}/members'])).toEqual(['get'])
+    expect(Object.keys(paths['/api/projects/{projectId}/members']).sort()).toEqual(['get', 'post'])
     expect(Object.keys(paths['/api/projects/{projectId}/members/{accountId}']).sort()).toEqual([
       'delete',
       'put',

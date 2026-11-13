@@ -267,6 +267,48 @@ describe('the project role store', () => {
     })
   })
 
+  describe('setRoleByUsername', () => {
+    it('gives the person with the username the role, matching the name as sign-in does', async () => {
+      const p = await seedProject(x.db, alice)
+      expect(await store.setRoleByUsername(by(alice), p, ' BOB ', 'contributor')).toEqual({
+        accountId: bob.id,
+        username: 'bob',
+        role: 'contributor',
+      })
+      expect(await store.roleOf(bob.id, p)).toBe('contributor')
+      await store.setRoleByUsername(by(alice), p, 'bob', 'read-write')
+      expect(await store.roleOf(bob.id, p)).toBe('read-write')
+      expect((await entriesOf(p)).map((e) => e.action)).toEqual([
+        'project-member.role-set',
+        'project-member.role-set',
+      ])
+    })
+
+    it('refuses a username no account has', async () => {
+      const p = await seedProject(x.db, alice)
+      const error = await refused(
+        store.setRoleByUsername(by(alice), p, 'nobody', 'read-only'),
+        'not-found',
+      )
+      expect(error.message).toBe('There is no such account')
+      expect(await entriesOf(p)).toHaveLength(0)
+    })
+
+    it('refuses a non-admin before it looks the username up, so they learn nothing of it', async () => {
+      const p = await seedProject(x.db, alice)
+      await grantRole(x.db, bob, p, 'read-write')
+      await refused(store.setRoleByUsername(by(bob), p, 'nobody', 'read-only'), 'forbidden')
+      await refused(store.setRoleByUsername(by(carol), p, 'nobody', 'read-only'), 'not-visible')
+      expect(await entriesOf(p)).toHaveLength(0)
+    })
+
+    it("keeps the project's last admin, as setRole does", async () => {
+      const p = await seedProject(x.db, alice)
+      await refused(store.setRoleByUsername(by(alice), p, 'alice', 'read-only'), 'conflict')
+      expect(await store.roleOf(alice.id, p)).toBe('admin')
+    })
+  })
+
   describe('removeMember', () => {
     it("removes a member's direct role and records it", async () => {
       const p = await seedProject(x.db, alice)

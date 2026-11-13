@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 import { api } from '../api.ts'
+import { ProjectsChangedContext } from '../projects-changed.ts'
 import { type SignedInAccount, SignedInContext } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import './layout.css'
@@ -20,6 +21,10 @@ type Projects =
  * inside it (SRC-223), and each can be reached from the navigation (SRC-222). The header's project
  * search bar (SC-114) and signed-in person menu (SC-115) are components of their own.
  *
+ * Below the projects, the navigation leads to the project creation form (SC-079), which anyone
+ * signed in may use; it and the members screen (SC-080) tell the layout, through
+ * `useProjectsChanged()`, when the projects listed may have changed.
+ *
  * The navigation also leads to the signed-in person's own GitHub account link (SC-077) and API
  * tokens (SC-078), and, for a system admin only, to account administration (SC-076). The pages
  * inside read who is signed in with `useSignedIn()`.
@@ -30,6 +35,9 @@ export function Layout() {
   const toSignIn = useSignInRedirect()
   const [projects, setProjects] = useState<Projects>({ state: 'loading' })
   const [signedIn, setSignedIn] = useState<SignedInAccount | undefined>()
+  // Counts the changes the pages report to the projects, so that each lists them afresh.
+  const [projectsVersion, setProjectsVersion] = useState(0)
+  const projectsChanged = useCallback(() => setProjectsVersion((version) => version + 1), [])
 
   useEffect(() => {
     const abort = new AbortController()
@@ -40,6 +48,11 @@ export function Layout() {
         setProjects({ state: 'failed' })
       },
     )
+    return () => abort.abort()
+  }, [toSignIn, projectsVersion])
+
+  useEffect(() => {
+    const abort = new AbortController()
     api<SignedInAccount>('/session', { signal: abort.signal }).then(
       setSignedIn,
       (error: unknown) => {
@@ -53,48 +66,53 @@ export function Layout() {
 
   return (
     <SignedInContext value={signedIn}>
-      <div className="layout">
-        <header className="layout__header">
-          <Link to="/" className="layout__brand">
-            <span className="layout__mark" aria-hidden="true" />
-            cold-seance
-          </Link>
-          <div className="layout__header-end" />
-        </header>
-        <div className="layout__body">
-          <nav className="layout__nav" aria-label="Navigation">
-            <NavLink to="/" end className="layout__link">
-              Start
-            </NavLink>
-            <h2 className="layout__nav-heading" id="nav-projects">
-              Projects
-            </h2>
-            <ProjectLinks projects={projects} />
-            {signedIn !== undefined && (
-              <>
-                <h2 className="layout__nav-heading">Your account</h2>
-                <NavLink to="/settings/github" className="layout__link">
-                  GitHub account
-                </NavLink>
-                <NavLink to="/tokens" className="layout__link">
-                  API tokens
-                </NavLink>
-              </>
-            )}
-            {signedIn?.systemAdmin === true && (
-              <>
-                <h2 className="layout__nav-heading">Administration</h2>
-                <NavLink to="/accounts" className="layout__link">
-                  Accounts
-                </NavLink>
-              </>
-            )}
-          </nav>
-          <main className="layout__content">
-            <Outlet />
-          </main>
+      <ProjectsChangedContext value={projectsChanged}>
+        <div className="layout">
+          <header className="layout__header">
+            <Link to="/" className="layout__brand">
+              <span className="layout__mark" aria-hidden="true" />
+              cold-seance
+            </Link>
+            <div className="layout__header-end" />
+          </header>
+          <div className="layout__body">
+            <nav className="layout__nav" aria-label="Navigation">
+              <NavLink to="/" end className="layout__link">
+                Start
+              </NavLink>
+              <h2 className="layout__nav-heading" id="nav-projects">
+                Projects
+              </h2>
+              <ProjectLinks projects={projects} />
+              <NavLink to="/projects/new" className="layout__link">
+                New project
+              </NavLink>
+              {signedIn !== undefined && (
+                <>
+                  <h2 className="layout__nav-heading">Your account</h2>
+                  <NavLink to="/settings/github" className="layout__link">
+                    GitHub account
+                  </NavLink>
+                  <NavLink to="/tokens" className="layout__link">
+                    API tokens
+                  </NavLink>
+                </>
+              )}
+              {signedIn?.systemAdmin === true && (
+                <>
+                  <h2 className="layout__nav-heading">Administration</h2>
+                  <NavLink to="/accounts" className="layout__link">
+                    Accounts
+                  </NavLink>
+                </>
+              )}
+            </nav>
+            <main className="layout__content">
+              <Outlet />
+            </main>
+          </div>
         </div>
-      </div>
+      </ProjectsChangedContext>
     </SignedInContext>
   )
 }
