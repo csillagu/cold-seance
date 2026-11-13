@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react'
 import {
   arrowPath,
+  type BaselineBar,
   daysBetween,
   formatDay,
   formatMonth,
   type GanttDependency,
   type GanttModel,
   type GanttRow,
+  type UnscheduledRow,
 } from './gantt-model.ts'
 import { avatarColour } from './avatar.ts'
 import './gantt.css'
@@ -14,6 +16,8 @@ import './gantt.css'
 /** The width of a day on the timeline, and the height of a row, in pixels, as the design draws them. */
 const DAY_WIDTH = 44
 const ROW_HEIGHT = 40
+/** The height of the heading row of the unscheduled tasks. */
+const GROUP_HEIGHT = 32
 
 /** Where a bar sits within its row, and how tall it is. */
 const BAR_TOP = 8
@@ -38,17 +42,22 @@ interface GanttProps {
  * them as arrows, the milestones as diamonds, and constraint violations and tasks whose assigned
  * people cannot do them in red (FR-049, FR-013, FR-020), as the approved design draws it (SRC-249).
  * A table of the tasks on the left, the timeline on the right; the panel scrolls sideways, with the
- * table kept in view.
+ * table kept in view. Below the scheduled tasks, the unscheduled ones (SC-064, FR-004, FR-145);
+ * cancelled tasks are drawn faded (FR-129); a selected baseline's bars lie under the planned ones
+ * (SC-065, FR-050).
  */
 export function Gantt({ name, model, people, today }: GanttProps) {
-  const { rows, days, dependencies } = model
-  const first = days[0]?.date
-  if (!first) {
-    return <p className="page__note">No task of this project has planned dates yet.</p>
+  const { rows, unscheduled, days, dependencies, baseline } = model
+  if (rows.length === 0 && unscheduled.length === 0) {
+    return <p className="page__note">This project has no tasks yet.</p>
   }
+  const first = days[0]?.date ?? today
   const timelineWidth = days.length * DAY_WIDTH
   const todayIndex = daysBetween(first, today)
   const showToday = todayIndex >= 0 && todayIndex < days.length
+  const bodyHeight =
+    rows.length * ROW_HEIGHT +
+    (unscheduled.length > 0 ? GROUP_HEIGHT + unscheduled.length * ROW_HEIGHT : 0)
 
   return (
     <div className="gantt">
@@ -104,12 +113,35 @@ export function Gantt({ name, model, people, today }: GanttProps) {
           </div>
           <div role="rowgroup" className="gantt__body">
             {rows.map((row) => (
-              <TaskRow key={row.task.id} row={row} first={first} people={people} />
+              <TaskRow
+                key={row.task.id}
+                row={row}
+                first={first}
+                people={people}
+                baseline={baseline}
+              />
+            ))}
+            {unscheduled.length > 0 && (
+              <div role="row" aria-label="Unscheduled" className="gantt__row gantt__group">
+                <div role="rowheader" className="gantt__left gantt__group-left">
+                  Unscheduled<span className="gantt__group-note">no planned dates</span>
+                </div>
+                <div className="gantt__group-lane" />
+              </div>
+            )}
+            {unscheduled.map((row) => (
+              <UnscheduledTaskRow
+                key={row.task.id}
+                row={row}
+                first={first}
+                people={people}
+                baseline={baseline}
+              />
             ))}
             <div
               className="gantt__overlay"
               aria-hidden="true"
-              style={{ width: timelineWidth, height: rows.length * ROW_HEIGHT }}
+              style={{ width: timelineWidth, height: bodyHeight }}
             >
               {days.map(
                 (day, index) =>
@@ -137,7 +169,7 @@ export function Gantt({ name, model, people, today }: GanttProps) {
           </div>
         </div>
       </div>
-      <Legend />
+      <Legend baseline={baseline} />
     </div>
   )
 }
@@ -167,7 +199,7 @@ const STATUS_WORDS: Record<GanttRow['task']['status'], string> = {
   cancelled: 'cancelled',
 }
 
-/** What a bar says to a screen reader: the task, its dates, and why it is red. */
+/** What a bar says to a screen reader: the task, its dates, why it is red, and if it is cancelled. */
 function barLabel(row: GanttRow): string {
   const { task } = row
   const when = task.milestone
@@ -178,14 +210,128 @@ function barLabel(row: GanttRow): string {
       ? ', in red: pushed past its date'
       : ', in red: a constraint is violated or its assigned people cannot do it in its time'
     : ''
-  return `${task.title}: ${when}${red}`
+  const cancelled = task.status === 'cancelled' ? ', cancelled' : ''
+  return `${task.title}: ${when}${red}${cancelled}`
 }
 
-function TaskRow({ row, first, people }: { row: GanttRow; first: string; people: PeopleById }) {
+/** A task's cells in the table on the left: its title, its assigned people, its start and days. */
+function TaskCells({
+  task,
+  depth,
+  parent,
+  start,
+  people,
+}: {
+  task: GanttRow['task']
+  depth: number
+  parent: boolean
+  /** The first day it is drawn on, or null for an unscheduled task. */
+  start: string | null
+  people: PeopleById
+}) {
+  const assignees = task.assignees.map((id) => ({ id, name: people.get(id) }))
+  return (
+    <div className="gantt__left" style={{ paddingLeft: 16 + depth * 24 }}>
+      <span role="cell" className={'gantt__title' + (parent ? ' gantt__title--parent' : '')}>
+        {task.milestone ? (
+          <span
+            className={
+              'gantt__diamond-icon' +
+              (task.milestone.variant === 'floating' ? ' gantt__diamond-icon--floating' : '')
+            }
+            aria-hidden="true"
+          />
+        ) : (
+          <span
+            className={`gantt__status gantt__status--${task.status}`}
+            title={STATUS_WORDS[task.status]}
+            aria-hidden="true"
+          />
+        )}
+        <span className="gantt__title-text">{task.title}</span>
+        {task.milestone ? (
+          <span className="gantt__tag">
+            {task.milestone.variant === 'fixed-date' ? 'fixed' : 'floating'}
+          </span>
+        ) : task.status === 'on-hold' ? (
+          <span className="gantt__tag gantt__tag--hold">on hold</span>
+        ) : task.aiShare ? (
+          <span className="gantt__tag">AI {task.aiShare}%</span>
+        ) : null}
+      </span>
+      <span role="cell" className="gantt__people">
+        {assignees.length === 0 ? (
+          <span className="gantt__none">—</span>
+        ) : (
+          assignees.map(({ id, name }) => (
+            <span
+              key={id}
+              className="gantt__avatar"
+              title={name ?? 'Someone who is not a member'}
+              style={{ background: avatarColour(id) }}
+            >
+              {name ? name.slice(0, 2).toUpperCase() : '?'}
+            </span>
+          ))
+        )}
+      </span>
+      <span role="cell" className="gantt__mono">
+        {start === null ? <span className="gantt__none">—</span> : formatDay(start)}
+      </span>
+      <span role="cell" className="gantt__mono gantt__num">
+        {task.milestone || task.durationWorkingDays === null ? (
+          <span className="gantt__none">—</span>
+        ) : (
+          task.durationWorkingDays
+        )}
+      </span>
+    </div>
+  )
+}
+
+/** The bar of a task in the selected baseline, under its planned bar (FR-050). */
+function BaselineBarOf({
+  title,
+  bar,
+  name,
+  first,
+}: {
+  title: string
+  bar: BaselineBar
+  name: string
+  first: string
+}) {
+  const start = daysBetween(first, bar.start)
+  const length = daysBetween(bar.start, bar.finish) + 1
+  const label = `Baseline ${name} of ${title}: ${formatDay(bar.start, true)} to ${formatDay(bar.finish, true)}`
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      data-start={bar.start}
+      data-finish={bar.finish}
+      className="gantt__baseline"
+      style={{ left: start * DAY_WIDTH + 4, width: length * DAY_WIDTH - 8 }}
+    />
+  )
+}
+
+function TaskRow({
+  row,
+  first,
+  people,
+  baseline,
+}: {
+  row: GanttRow
+  first: string
+  people: PeopleById
+  baseline: string | null
+}) {
   const { task } = row
   const start = daysBetween(first, row.start)
   const length = daysBetween(row.start, row.finish) + 1
-  const assignees = task.assignees.map((id) => ({ id, name: people.get(id) }))
+  const cancelled = task.status === 'cancelled'
 
   return (
     <div
@@ -193,65 +339,25 @@ function TaskRow({ row, first, people }: { row: GanttRow; first: string; people:
       aria-label={task.title}
       data-task-id={task.id}
       data-red={row.red}
-      className={'gantt__row' + (row.red ? ' gantt__row--red' : '')}
+      data-cancelled={cancelled}
+      className={
+        'gantt__row' +
+        (row.red ? ' gantt__row--red' : '') +
+        (cancelled ? ' gantt__row--cancelled' : '')
+      }
     >
-      <div className="gantt__left" style={{ paddingLeft: 16 + row.depth * 24 }}>
-        <span role="cell" className={'gantt__title' + (row.parent ? ' gantt__title--parent' : '')}>
-          {task.milestone ? (
-            <span
-              className={
-                'gantt__diamond-icon' +
-                (task.milestone.variant === 'floating' ? ' gantt__diamond-icon--floating' : '')
-              }
-              aria-hidden="true"
-            />
-          ) : (
-            <span
-              className={`gantt__status gantt__status--${task.status}`}
-              title={STATUS_WORDS[task.status]}
-              aria-hidden="true"
-            />
-          )}
-          <span className="gantt__title-text">{task.title}</span>
-          {task.milestone ? (
-            <span className="gantt__tag">
-              {task.milestone.variant === 'fixed-date' ? 'fixed' : 'floating'}
-            </span>
-          ) : task.status === 'on-hold' ? (
-            <span className="gantt__tag gantt__tag--hold">on hold</span>
-          ) : task.aiShare ? (
-            <span className="gantt__tag">AI {task.aiShare}%</span>
-          ) : null}
-        </span>
-        <span role="cell" className="gantt__people">
-          {assignees.length === 0 ? (
-            <span className="gantt__none">—</span>
-          ) : (
-            assignees.map(({ id, name }) => (
-              <span
-                key={id}
-                className="gantt__avatar"
-                title={name ?? 'Someone who is not a member'}
-                style={{ background: avatarColour(id) }}
-              >
-                {name ? name.slice(0, 2).toUpperCase() : '?'}
-              </span>
-            ))
-          )}
-        </span>
-        <span role="cell" className="gantt__mono">
-          {formatDay(row.start)}
-        </span>
-        <span role="cell" className="gantt__mono gantt__num">
-          {task.milestone || task.durationWorkingDays === null ? (
-            <span className="gantt__none">—</span>
-          ) : (
-            task.durationWorkingDays
-          )}
-        </span>
-      </div>
+      <TaskCells
+        task={task}
+        depth={row.depth}
+        parent={row.parent}
+        start={row.start}
+        people={people}
+      />
       <div role="cell" className="gantt__lane">
         <Bar row={row} left={start * DAY_WIDTH} width={length * DAY_WIDTH} />
+        {baseline !== null && row.baseline && (
+          <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />
+        )}
         {row.note && (
           <span
             className="gantt__note"
@@ -263,6 +369,40 @@ function TaskRow({ row, first, people }: { row: GanttRow; first: string; people:
           >
             {row.note}
           </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** An unscheduled task, below the scheduled ones: no bar, as it has no planned dates (FR-004). */
+function UnscheduledTaskRow({
+  row,
+  first,
+  people,
+  baseline,
+}: {
+  row: UnscheduledRow
+  first: string
+  people: PeopleById
+  baseline: string | null
+}) {
+  const { task } = row
+  const cancelled = task.status === 'cancelled'
+  return (
+    <div
+      role="row"
+      aria-label={task.title}
+      data-task-id={task.id}
+      data-unscheduled="true"
+      data-cancelled={cancelled}
+      className={'gantt__row' + (cancelled ? ' gantt__row--cancelled' : '')}
+    >
+      <TaskCells task={task} depth={0} parent={false} start={null} people={people} />
+      <div role="cell" className="gantt__lane">
+        <span className="gantt__unscheduled">No planned dates{cancelled ? ', cancelled' : ''}</span>
+        {baseline !== null && row.baseline && (
+          <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />
         )}
       </div>
     </div>
@@ -305,7 +445,8 @@ function Bar({ row, left, width }: { row: GanttRow; left: number; width: number 
       className={
         'gantt__bar' +
         (task.status === 'on-hold' ? ' gantt__bar--hold' : '') +
-        (row.red ? ' gantt__bar--red' : '')
+        (row.red ? ' gantt__bar--red' : '') +
+        (task.status === 'cancelled' ? ' gantt__bar--cancelled' : '')
       }
       style={style}
     >
@@ -410,13 +551,19 @@ function Dependencies({
   )
 }
 
-function Legend() {
+function Legend({ baseline }: { baseline: string | null }) {
   return (
     <ul className="gantt__legend" aria-label="Legend">
       <li>
         <span className="gantt__key gantt__key--planned" />
         Planned
       </li>
+      {baseline !== null && (
+        <li>
+          <span className="gantt__key-baseline" />
+          Baseline {baseline}
+        </li>
+      )}
       <li>
         <span className="gantt__key gantt__key--ai">
           <span />
@@ -426,6 +573,10 @@ function Legend() {
       <li>
         <span className="gantt__key gantt__key--hold" />
         On hold
+      </li>
+      <li>
+        <span className="gantt__key gantt__key--cancelled" />
+        Cancelled
       </li>
       <li>
         <span className="gantt__key gantt__key--red" />

@@ -426,6 +426,69 @@
   fill: var(--red);
 }
 
+/* Cancelled tasks, faded (SC-064, FR-129): the table's cells at half, the bar at a quarter */
+.gantt__row--cancelled .gantt__left > * {
+  opacity: 0.5;
+}
+
+.gantt__row--cancelled .gantt__title-text {
+  text-decoration: line-through;
+}
+
+.gantt__bar--cancelled {
+  opacity: 0.25;
+}
+
+.gantt__row--cancelled .gantt__milestone,
+.gantt__row--cancelled .gantt__parent {
+  opacity: 0.25;
+}
+
+/* The unscheduled tasks, below the scheduled ones (SC-064, FR-145) */
+.gantt__group {
+  height: 32px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.gantt__group-left {
+  display: flex;
+  gap: 8px;
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gantt__group-note {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.gantt__group-lane {
+  flex: 1 0 auto;
+}
+
+.gantt__unscheduled {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* A selected baseline's bar, under the planned one (SC-065, FR-050) */
+.gantt__baseline {
+  position: absolute;
+  top: 30px;
+  height: 5px;
+  box-sizing: border-box;
+  border-radius: 2px;
+  background: var(--gantt-neutral);
+}
+
 /* Legend */
 .gantt__legend {
   margin: 14px 0 0;
@@ -468,6 +531,17 @@
   );
 }
 
+.gantt__key--cancelled {
+  opacity: 0.25;
+}
+
+.gantt__key-baseline {
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--gantt-neutral);
+}
+
 .gantt__key--red {
   background: var(--red);
 }
@@ -483,4 +557,58 @@
 .gantt__key-diamond--floating {
   border: 2px solid var(--text);
   background: transparent;
+}
+
+/* The toolbar above the Gantt: the baseline selector and the export (SC-065, SC-096) */
+.gantt__toolbar {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.gantt__toolbar + .gantt {
+  margin-top: 12px;
+}
+
+.gantt__control,
+.gantt__button {
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--gantt-text2, var(--text));
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.gantt__control select {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gantt__button {
+  cursor: pointer;
+}
+
+.gantt__button--primary {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gantt__status-text {
+  color: var(--muted);
 }
