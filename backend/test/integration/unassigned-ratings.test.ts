@@ -202,8 +202,8 @@ describe('test cases through the REST API', () => {
   const assigneesOf = async (taskId: string) =>
     (await api(alice, 'GET', `/api/tasks/${taskId}`)).json<{ assignees: string[] }>().assignees
 
-  // Pending, for TC-060, TC-061 and TC-062: showing U in its colour in the person load view in the
-  // browser, as alice opens it for 2027-03-01 to 2027-03-05 (SC-069, node F20).
+  // For TC-060, TC-061 and TC-062, showing U in its colour in the person load view in the browser,
+  // as alice opens it for 2027-03-01 to 2027-03-05, is in e2e/tests/person-load.spec.ts (SC-069).
 
   describe('TC-060: an unassigned task is red when every eligible combination overloads someone', () => {
     it('rates U red, not amber or green, and leaves it unassigned', async () => {
