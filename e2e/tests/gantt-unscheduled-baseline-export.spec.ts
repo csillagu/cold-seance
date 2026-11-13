@@ -5,7 +5,7 @@ import { type Account, expect, test } from '../fixtures.ts'
 // The Gantt's unscheduled and cancelled tasks (SC-064), its baseline bars (SC-065) and its export
 // dialog (SC-096): the browser steps of the test cases they make pass. The inputs are put in place
 // through the REST API, in the browser's own session, until the screens that make them are built
-// (cancelling a task, F12; saving a baseline, F21).
+// (saving a baseline, F21); TC-192 cancels its task with the cancel action (SC-102).
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
@@ -143,9 +143,12 @@ test('TC-192: a cancelled task stays on the Gantt, faded', async ({ browser, dep
   let gantt = await openGantt(page, 'Apollo')
   const before = await opacityOf(bar(gantt, 'U'))
 
-  // Step 1: as alice, cancel T. The cancel action is node F12's; until then it goes through the
-  // REST API.
-  await call(page, 'POST', `/tasks/${t}/cancel`)
+  // Step 1: as alice, cancel T, with the cancel action on its page (SC-102).
+  await page.goto(`/tasks/${t}`)
+  const status = page.getByRole('region', { name: 'Status' })
+  await status.getByRole('button', { name: 'Cancel task' }).click()
+  await status.getByRole('button', { name: 'Cancel the task' }).click()
+  await expect(page.getByLabel('Status: Cancelled')).toBeVisible()
 
   // Step 2: open the Gantt of Apollo.
   gantt = await openGantt(page, 'Apollo')

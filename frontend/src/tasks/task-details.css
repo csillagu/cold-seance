@@ -1,0 +1,70 @@
+/*
+ * The task details editor and the task cancel action (SC-098, SC-102), in the approved design's
+ * colours, radii and type (SRC-249), alongside the eligibility and assignment editors' cards.
+ */
+.task-details__wide {
+  max-width: 100%;
+}
+
+.task-details textarea,
+.task-details__select select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.task-details__select select {
+  height: 32px;
+  padding: 0 8px;
+}
+
+.task-details__dates {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-details__legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-details__row {
+  align-items: flex-end;
+}
+
+.task-details__status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-tag);
+  background: var(--sec);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-details__status--cancelled {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.task-details__button--danger {
+  border-color: var(--red-border);
+  color: var(--red-text);
+}
+
+.task-details__confirm {
+  margin: 0;
+}

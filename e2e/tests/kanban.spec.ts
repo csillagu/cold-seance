@@ -2,9 +2,8 @@ import type { Browser, Locator, Page } from '@playwright/test'
 import { type Account, expect, test } from '../fixtures.ts'
 
 // The Kanban view (SC-030): the browser steps of the test cases it makes pass, in full or in
-// part. The inputs are put in place through the REST API, in the browser's own session, until the
-// screens that make them are built (task creation, F12); the changes the test cases make on the
-// Kanban are made on it.
+// part. The inputs are put in place through the REST API, in the browser's own session; the
+// changes the test cases make on the Kanban are made on it.
 //
 // Pending: the parts on the Kanban of TC-084, TC-085, TC-086 and TC-087, which open "a personal
 // Kanban view of alice's covering Apollo and Borealis": saved views (SC-020, B06) and their editor

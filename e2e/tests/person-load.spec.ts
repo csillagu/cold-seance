@@ -5,8 +5,7 @@ import { type Account, type Deployment, expect, test } from '../fixtures.ts'
 
 // The person load view (SC-032) and its unassigned task rating panel (SC-069): the browser steps
 // of the test cases they make pass, in full or in part. The inputs are put in place through the
-// REST API, in the browser's own session, and capacities straight in the database, until the
-// screens that set them are built (task creation, F12; capacity, F10).
+// REST API, in the browser's own session, and capacities straight in the database.
 //
 // The REST side of TC-056, TC-057, TC-058, TC-060, TC-061, TC-062 and TC-063 is in
 // backend/test/integration/ (B02, B03). The other views of TC-064 and TC-154 are in kanban.spec.ts
