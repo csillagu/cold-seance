@@ -29,8 +29,8 @@ interface MemberParams {
 
 /**
  * The routes of a project's members (SC-014, SC-026): list the people who hold a role in a
- * project directly, give someone a role there, and take it away. They only translate the request;
- * the project role store decides who may do what (DD-039).
+ * project directly, give someone a role there, by account id or by username, and take it away.
+ * They only translate the request; the project role store decides who may do what (DD-039).
  */
 export const projectMemberRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
   group,
@@ -50,6 +50,43 @@ export const projectMemberRoutes: FastifyPluginAsync<RouteGroupOptions> = async 
     },
     async (request) =>
       services.projectRoles.listMembers(callerOf(request), request.params.projectId),
+  )
+
+  group.post<{ Params: { projectId: string }; Body: { username: string; role: ProjectRole } }>(
+    '/:projectId/members',
+    {
+      schema: {
+        description:
+          'Gives the person with the username `username` the role in the project, adding them as ' +
+          'a member or changing their role, as the PUT on their account id does. The username is ' +
+          'matched regardless of case. Only the project’s admins can; refused with 404 if no ' +
+          'account has the username.',
+        params: {
+          type: 'object',
+          required: ['projectId'],
+          properties: { projectId: { type: 'string', format: 'uuid' } },
+        },
+        body: {
+          type: 'object',
+          required: ['username', 'role'],
+          properties: {
+            username: { type: 'string' },
+            role: { type: 'string', enum: [...PROJECT_ROLES] },
+          },
+          additionalProperties: false,
+        },
+        response: { 200: member },
+      },
+    },
+    async (request) => {
+      const { username, role } = request.body
+      return services.projectRoles.setRoleByUsername(
+        callerOf(request),
+        request.params.projectId,
+        username,
+        role,
+      )
+    },
   )
 
   group.put<{ Params: MemberParams; Body: { role: ProjectRole } }>(

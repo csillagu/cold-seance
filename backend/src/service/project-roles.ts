@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import { accounts, PROJECT_ROLES, projectMembers } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
@@ -173,6 +173,38 @@ export class ProjectRoleService implements ProjectRoles {
     accountId: string,
     role: string,
   ): Promise<ProjectMember> {
+    return this.#setRole(caller, projectId, role, (tx) =>
+      isUuid(accountId) ? this.#accountWhere(eq(accounts.id, accountId), tx) : undefined,
+    )
+  }
+
+  /**
+   * As `setRole`, for the person whose username is `username`, so that an admin can add someone
+   * by the name they know them by (SC-080). The username is matched as at sign-in: trimmed and
+   * regardless of case. The caller is checked first, so that only the project's admins learn
+   * whether a username has an account.
+   */
+  async setRoleByUsername(
+    caller: Caller,
+    projectId: string,
+    username: string,
+    role: string,
+  ): Promise<ProjectMember> {
+    const name = username.normalize('NFC').trim()
+    return this.#setRole(caller, projectId, role, (tx) =>
+      // PostgreSQL's lower() on both sides, as the unique index on usernames uses it.
+      this.#accountWhere(sql`lower(${accounts.username}) = lower(${name})`, tx),
+    )
+  }
+
+  async #setRole(
+    caller: Caller,
+    projectId: string,
+    role: string,
+    findAccount: (
+      tx: Executor,
+    ) => Promise<{ id: string; username: string } | undefined> | undefined,
+  ): Promise<ProjectMember> {
     return this.#db.transaction(async (tx) => {
       // The caller is checked before the admins are locked, so that no one else can hold up a
       // project's admins, and again once they are, so that the check still holds at the change.
@@ -182,8 +214,9 @@ export class ProjectRoleService implements ProjectRoles {
       if (!isProjectRole(role)) {
         throw new ServiceError('invalid', `A project role is one of ${PROJECT_ROLES.join(', ')}`)
       }
-      const account = isUuid(accountId) ? await this.#account(accountId, tx) : undefined
+      const account = await findAccount(tx)
       if (!account) throw new ServiceError('not-found', 'There is no such account')
+      const accountId = account.id
       const [current] = await tx
         .select({ role: projectMembers.role })
         .from(projectMembers)
@@ -268,11 +301,11 @@ export class ProjectRoleService implements ProjectRoles {
     return rows.map((row) => row.accountId)
   }
 
-  async #account(accountId: string, executor: Executor) {
+  async #accountWhere(condition: SQL, executor: Executor) {
     const [account] = await executor
-      .select({ username: accounts.username })
+      .select({ id: accounts.id, username: accounts.username })
       .from(accounts)
-      .where(eq(accounts.id, accountId))
+      .where(condition)
     return account
   }
 

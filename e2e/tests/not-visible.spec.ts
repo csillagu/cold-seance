@@ -26,20 +26,10 @@ test('TC-025: opening a project one cannot see says it is not visible', async ({
   // Inputs: project Borealis, created by bob, where alice has no role; its address in the UI,
   // taken from bob's browser.
   const bobsPage = await signedIn(browser, deployment.url, bob)
-  // The project creation form is node F05's; until then bob's browser creates it through the API.
-  const created = await bobsPage.evaluate(
-    async () =>
-      (
-        await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: 'Borealis' }),
-        })
-      ).status,
-  )
-  expect(created).toBe(201)
-  await bobsPage.reload()
-  await bobsPage.getByRole('navigation').getByRole('link', { name: 'Borealis' }).click()
+  // bob creates it on the project creation form (SC-079), which opens its page.
+  await bobsPage.getByRole('navigation').getByRole('link', { name: 'New project' }).click()
+  await bobsPage.getByLabel('Project name').fill('Borealis')
+  await bobsPage.getByRole('button', { name: 'Create project' }).click()
   await expect(bobsPage.getByRole('heading', { level: 1 })).toHaveText('Borealis')
   const address = new URL(bobsPage.url()).pathname
   expect(address).toMatch(/^\/projects\/[0-9a-f-]{36}$/)
