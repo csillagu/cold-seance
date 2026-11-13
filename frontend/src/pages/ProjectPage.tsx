@@ -20,7 +20,7 @@ type Project =
 
 /**
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
- * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load` or `/projects/<id>/proposals`, with a
+ * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load`, `/projects/<id>/variance` or `/projects/<id>/proposals`, with a
  * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, and the screen
  * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`.
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
@@ -82,6 +82,9 @@ export function ProjectPage() {
         </NavLink>
         <NavLink to="load" className="page__view-link">
           Person load
+        </NavLink>
+        <NavLink to="variance" className="page__view-link">
+          Baseline variance
         </NavLink>
         <NavLink to="proposals" className="page__view-link">
           Proposals

@@ -20,6 +20,7 @@ import { StartPage } from './pages/StartPage.tsx'
 import { TaskPage } from './pages/TaskPage.tsx'
 import { TokensPage } from './pages/TokensPage.tsx'
 import { UnknownPage } from './pages/UnknownPage.tsx'
+import { VariancePage } from './pages/VariancePage.tsx'
 import { SIGN_IN_PATH } from './sign-in-redirect.ts'
 
 /**
@@ -45,6 +46,7 @@ export function App() {
           <Route path="members" element={<MembersPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
           <Route path="tasks/new" element={<NewTaskPage />} />
+          <Route path="variance" element={<VariancePage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />
