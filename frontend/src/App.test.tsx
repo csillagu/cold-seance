@@ -6,6 +6,7 @@ import { type FakeAnswer, fakeApi, UNAUTHENTICATED } from './test/fetch.ts'
 
 const APOLLO = { id: '6f1c2d4e-0000-4000-8000-000000000001', name: 'Apollo' }
 const BOREALIS = '6f1c2d4e-0000-4000-8000-000000000002'
+const ALICE = { id: '6f1c2a5e-0000-4000-8000-000000000001', username: 'alice', systemAdmin: false }
 
 /** Where the router is, so a test can see where a page sent the browser. */
 function Where() {
@@ -24,6 +25,7 @@ function renderAt(path: string) {
 
 /** A signed-in person's API: `Apollo` is visible to them, `Borealis` is not. */
 const signedIn = (method: string, path: string): FakeAnswer => {
+  if (method === 'GET' && path === '/api/session') return { status: 200, body: ALICE }
   if (method === 'GET' && path === '/api/projects') return { status: 200, body: [APOLLO] }
   if (method === 'GET' && path === `/api/projects/${APOLLO.id}`)
     return { status: 200, body: APOLLO }
@@ -94,6 +96,37 @@ describe('the layout (SC-113)', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'This page does not exist' }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('the navigation to the account screens', () => {
+  it('leads a person to their own GitHub account link and API tokens, but not to account administration', async () => {
+    fakeApi(signedIn)
+    renderAt('/')
+    const navigation = screen.getByRole('navigation', { name: 'Navigation' })
+    expect(await within(navigation).findByRole('link', { name: 'GitHub account' })).toHaveAttribute(
+      'href',
+      '/settings/github',
+    )
+    expect(within(navigation).getByRole('link', { name: 'API tokens' })).toHaveAttribute(
+      'href',
+      '/tokens',
+    )
+    expect(within(navigation).queryByRole('link', { name: 'Accounts' })).toBeNull()
+  })
+
+  it('leads a system admin to account administration (SC-076)', async () => {
+    fakeApi((method, path) =>
+      method === 'GET' && path === '/api/session'
+        ? { status: 200, body: { ...ALICE, systemAdmin: true } }
+        : signedIn(method, path),
+    )
+    renderAt('/')
+    const navigation = screen.getByRole('navigation', { name: 'Navigation' })
+    expect(await within(navigation).findByRole('link', { name: 'Accounts' })).toHaveAttribute(
+      'href',
+      '/accounts',
+    )
   })
 })
 

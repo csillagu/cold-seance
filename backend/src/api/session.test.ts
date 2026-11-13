@@ -33,12 +33,13 @@ function stubbed() {
   const services = createServices(db)
   const signIn = vi.spyOn(services.sessions, 'signIn')
   const signOut = vi.spyOn(services.sessions, 'signOut')
+  const ownAccount = vi.spyOn(services.accounts, 'ownAccount')
   const app = buildApp({}, { authenticators: [named], services })
   closers.push(async () => {
     await app.close()
     await close()
   })
-  return { app, signIn, signOut }
+  return { app, signIn, signOut, ownAccount }
 }
 
 describe('the session cookie', () => {
@@ -108,6 +109,28 @@ describe('the cleared session cookie', () => {
       'Secure',
       'SameSite=Strict',
     ])
+  })
+})
+
+describe('GET /api/session', () => {
+  it("answers the caller's own account", async () => {
+    const { app, ownAccount } = stubbed()
+    ownAccount.mockResolvedValue({ id: ALICE, username: 'alice', systemAdmin: false })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/session',
+      headers: { 'x-caller': ALICE },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ id: ALICE, username: 'alice', systemAdmin: false })
+    expect(ownAccount).toHaveBeenCalledWith({ accountId: ALICE, channel: 'ui' })
+  })
+
+  it('refuses a caller no authenticator recognises, before the service is asked', async () => {
+    const { app, ownAccount } = stubbed()
+    const response = await app.inject({ method: 'GET', url: '/api/session' })
+    expect(response.statusCode).toBe(401)
+    expect(ownAccount).not.toHaveBeenCalled()
   })
 })
 

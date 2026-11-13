@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 import { api } from '../api.ts'
+import { type SignedInAccount, SignedInContext } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import './layout.css'
 
@@ -19,11 +20,16 @@ type Projects =
  * inside it (SRC-223), and each can be reached from the navigation (SRC-222). The header's project
  * search bar (SC-114) and signed-in person menu (SC-115) are components of their own.
  *
+ * The navigation also leads to the signed-in person's own GitHub account link (SC-077) and API
+ * tokens (SC-078), and, for a system admin only, to account administration (SC-076). The pages
+ * inside read who is signed in with `useSignedIn()`.
+ *
  * Someone who is not signed in is sent to the sign-in page, and comes back here once signed in.
  */
 export function Layout() {
   const toSignIn = useSignInRedirect()
   const [projects, setProjects] = useState<Projects>({ state: 'loading' })
+  const [signedIn, setSignedIn] = useState<SignedInAccount | undefined>()
 
   useEffect(() => {
     const abort = new AbortController()
@@ -34,33 +40,62 @@ export function Layout() {
         setProjects({ state: 'failed' })
       },
     )
+    api<SignedInAccount>('/session', { signal: abort.signal }).then(
+      setSignedIn,
+      (error: unknown) => {
+        if (abort.signal.aborted) return
+        // Without it, the navigation leaves out what depends on who is signed in.
+        toSignIn(error)
+      },
+    )
     return () => abort.abort()
   }, [toSignIn])
 
   return (
-    <div className="layout">
-      <header className="layout__header">
-        <Link to="/" className="layout__brand">
-          <span className="layout__mark" aria-hidden="true" />
-          cold-seance
-        </Link>
-        <div className="layout__header-end" />
-      </header>
-      <div className="layout__body">
-        <nav className="layout__nav" aria-label="Navigation">
-          <NavLink to="/" end className="layout__link">
-            Start
-          </NavLink>
-          <h2 className="layout__nav-heading" id="nav-projects">
-            Projects
-          </h2>
-          <ProjectLinks projects={projects} />
-        </nav>
-        <main className="layout__content">
-          <Outlet />
-        </main>
+    <SignedInContext value={signedIn}>
+      <div className="layout">
+        <header className="layout__header">
+          <Link to="/" className="layout__brand">
+            <span className="layout__mark" aria-hidden="true" />
+            cold-seance
+          </Link>
+          <div className="layout__header-end" />
+        </header>
+        <div className="layout__body">
+          <nav className="layout__nav" aria-label="Navigation">
+            <NavLink to="/" end className="layout__link">
+              Start
+            </NavLink>
+            <h2 className="layout__nav-heading" id="nav-projects">
+              Projects
+            </h2>
+            <ProjectLinks projects={projects} />
+            {signedIn !== undefined && (
+              <>
+                <h2 className="layout__nav-heading">Your account</h2>
+                <NavLink to="/settings/github" className="layout__link">
+                  GitHub account
+                </NavLink>
+                <NavLink to="/tokens" className="layout__link">
+                  API tokens
+                </NavLink>
+              </>
+            )}
+            {signedIn?.systemAdmin === true && (
+              <>
+                <h2 className="layout__nav-heading">Administration</h2>
+                <NavLink to="/accounts" className="layout__link">
+                  Accounts
+                </NavLink>
+              </>
+            )}
+          </nav>
+          <main className="layout__content">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </SignedInContext>
   )
 }
 

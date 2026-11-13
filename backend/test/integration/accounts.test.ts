@@ -308,6 +308,27 @@ describe('the account service', () => {
       })
     })
   })
+
+  describe('ownAccount', () => {
+    it('gives anyone their own account, and whether they are a system admin', async () => {
+      expect(await service.ownAccount(by(alice))).toEqual({
+        id: alice.id,
+        username: 'alice',
+        systemAdmin: false,
+      })
+      expect(await service.ownAccount(by(root))).toEqual({
+        id: root.id,
+        username: 'root',
+        systemAdmin: true,
+      })
+    })
+
+    it('answers not-found for a caller whose account does not exist', async () => {
+      await expect(
+        service.ownAccount({ accountId: '00000000-0000-4000-8000-000000000000', channel: 'ui' }),
+      ).rejects.toMatchObject({ kind: 'not-found' })
+    })
+  })
 })
 
 // The test cases, each on a fresh test deployment: an empty, migrated database, with the first
@@ -359,8 +380,8 @@ describe('test cases through the REST API', () => {
     expect((await createErin(as(erin))).statusCode).toBe(403)
   })
 
-  // Pending: the browser offering alice no way to create accounts is the account screen's
-  // (SC-076, node F03).
+  // The browser offering alice no way to create accounts is the account screen's (SC-076), in
+  // e2e/tests/accounts.spec.ts.
   it('TC-175: someone who is not a system admin cannot create an account', async () => {
     const alice = await seedAccount(x.db, { username: 'alice' })
     // alice is the admin of Apollo, which she creates.

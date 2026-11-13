@@ -45,11 +45,11 @@ export function setSessionCookie(reply: FastifyReply, sessionId: string): void {
 }
 
 /**
- * The routes of the browser's session (SC-026): sign in (SC-052) and sign out (SC-107). Signing in
- * is the one route a caller reaches without being signed in already, so it is public; signing out
- * is reached by an authenticated caller, and ends the session whose cookie the request carries if
- * it is the caller's own. Both only translate the request, and the session service decides
- * (DD-039).
+ * The routes of the browser's session (SC-026): sign in (SC-052), read who is signed in (for the
+ * account screens, SC-076, SC-077), and sign out (SC-107). Signing in is the one route a caller
+ * reaches without being signed in already, so it is public; signing out is reached by an
+ * authenticated caller, and ends the session whose cookie the request carries if it is the
+ * caller's own. They only translate the request, and the services decide (DD-039).
  */
 export const sessionRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
   group.post<{ Body: { username: string; password: string } }>(
@@ -71,6 +71,27 @@ export const sessionRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group
       setSessionCookie(reply, sessionId)
       return reply.code(204).send()
     },
+  )
+
+  group.get(
+    '/',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            description: 'The account the request is made for: who is signed in.',
+            required: ['id', 'username', 'systemAdmin'],
+            properties: {
+              id: { type: 'string', format: 'uuid' },
+              username: { type: 'string' },
+              systemAdmin: { type: 'boolean' },
+            },
+          },
+        },
+      },
+    },
+    async (request) => services.accounts.ownAccount(callerOf(request)),
   )
 
   group.delete(
