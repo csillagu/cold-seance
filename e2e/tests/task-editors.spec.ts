@@ -3,14 +3,9 @@ import { type Account, type Deployment, expect, test } from '../fixtures.ts'
 
 // The eligibility expression editor (SC-099) and the assignment editor (SC-100), on a task's page:
 // the browser steps of the test cases they make pass, in full or in part. The inputs are put in
-// place through the REST API, in the browser's own session, until the screen that creates tasks is
-// built (task creation, F12); the changes the test cases make are made in the editors. The REST
-// sides of these test cases are in backend/test/integration/assignment.test.ts and
-// person-load.test.ts.
-//
-// Pending: TC-221 starts "creating a task" in the browser; no screen creates tasks yet (SC-098,
-// F12). Here 1% is offered where an existing task's AI share is set to 100% on the Kanban, with
-// the same field (PersonLoadField) the creation screen is to use.
+// place through the REST API, in the browser's own session; the changes the test cases make are
+// made in the editors. The REST sides of these test cases are in
+// backend/test/integration/assignment.test.ts and person-load.test.ts.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
@@ -347,10 +342,10 @@ test("TC-221: the UI offers 1% as an AI-only task's default load", async ({
   browser,
   deployment,
 }) => {
-  const { page, createTask } = await apolloWith(browser, deployment, [])
-  const t = await createTask({ title: 'T' })
+  const { page, apollo } = await apolloWith(browser, deployment, [])
 
-  // Step 1: set the task's AI share to 100%, on its Kanban card (see the note at the top).
+  // Step 1: start creating a task in Apollo, on its creation screen (SC-098), and set its AI share
+  // to 100%.
   await page.goto('/')
   await page
     .getByRole('navigation', { name: 'Navigation' })
@@ -358,16 +353,34 @@ test("TC-221: the UI offers 1% as an AI-only task's default load", async ({
     .click()
   await page
     .getByRole('navigation', { name: 'Views' })
-    .getByRole('link', { name: 'Kanban' })
+    .getByRole('link', { name: 'New task' })
     .click()
-  await page.getByRole('button', { name: 'Edit T' }).click()
-  await page.getByLabel('AI share in percent').fill('100')
+  const form = page.getByRole('form', { name: 'New task' })
+  await form.getByLabel('Title').fill('T')
+  await form.getByLabel('AI share in percent').fill('100')
 
   // Step 2: the person-load field, before typing in it, offers 1%; not 0% or 100%.
-  const load = page.getByLabel('Person load in percent')
+  const load = form.getByLabel('Person load in percent')
   await expect(load).toHaveValue('1')
 
-  // Saved as offered.
+  // Created as offered.
+  await form.getByRole('button', { name: 'Create task' }).click()
+  await expect(page.getByRole('heading', { name: 'T', level: 1 })).toBeVisible()
+  expect(await call(page, 'GET', `/projects/${apollo}/tasks`)).toMatchObject([{ personLoad: 1 }])
+
+  // An existing task's AI share set to 100% on its Kanban card is offered 1% the same way.
+  await page
+    .getByRole('navigation', { name: 'Navigation' })
+    .getByRole('link', { name: 'Apollo' })
+    .click()
+  const t = idOf(await call(page, 'POST', `/projects/${apollo}/tasks`, { title: 'U' }))
+  await page
+    .getByRole('navigation', { name: 'Views' })
+    .getByRole('link', { name: 'Kanban' })
+    .click()
+  await page.getByRole('button', { name: 'Edit U' }).click()
+  await page.getByLabel('AI share in percent').fill('100')
+  await expect(page.getByLabel('Person load in percent')).toHaveValue('1')
   await page.getByRole('button', { name: 'Save' }).click()
   await expect.poll(async () => (await readTask(page, t))['personLoad']).toBe(1)
 

@@ -73,6 +73,8 @@ export const test = base.extend<{ deployment: Deployment }>({
         server: { logger: false },
         now,
         repositoryReach: github.reach,
+        // The planning mirror calls the fake too, not GitHub, once a task has a repository.
+        githubClient: github.client,
       })
       try {
         // Any free port, so that tests can run side by side.

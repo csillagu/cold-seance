@@ -8,6 +8,7 @@ import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { NewProjectPage } from './pages/NewProjectPage.tsx'
+import { NewTaskPage } from './pages/NewTaskPage.tsx'
 import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
@@ -43,6 +44,7 @@ export function App() {
           <Route path="load" element={<PersonLoadPage />} />
           <Route path="members" element={<MembersPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
+          <Route path="tasks/new" element={<NewTaskPage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />

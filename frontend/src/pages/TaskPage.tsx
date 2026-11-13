@@ -1,10 +1,13 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
+import type { TaskStatus } from '../gantt/gantt-model.ts'
+import { COLUMNS } from '../kanban/kanban-model.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { AssignmentEditor, PersonLoadField } from '../tasks/AssignmentEditor.tsx'
 import { EligibilityEditor } from '../tasks/EligibilityEditor.tsx'
 import type { PeopleOnTask, Person } from '../tasks/PersonChip.tsx'
+import { RepositoryField, TaskDetailsFields } from '../tasks/TaskDetailsFields.tsx'
 import {
   AI_ONLY_SHARE,
   type AssignmentChanges,
@@ -13,6 +16,14 @@ import {
   assignmentDraftOf,
   percentageOf,
 } from '../tasks/assignment.ts'
+import {
+  type DetailedTask,
+  type DetailsDraft,
+  detailsChanges,
+  detailsDraftOf,
+  detailsProblem,
+  type Repository,
+} from '../tasks/task-details.ts'
 import {
   draftOf,
   draftProblem,
@@ -23,16 +34,16 @@ import {
 } from '../tasks/eligibility.ts'
 import { NOT_VISIBLE } from './ProjectPage.tsx'
 import '../tasks/task-editors.css'
+import '../tasks/task-details.css'
 import './pages.css'
 
 /** A task as the REST API gives it, the fields this page reads. */
-interface Task {
+interface Task extends DetailedTask {
   id: string
   projectId: string
-  title: string
-  aiShare: number | null
-  personLoad: number | null
-  milestone: unknown
+  status: TaskStatus
+  repositoryId: string | null
+  githubIssue: { repositoryId: string; number: number } | null
   eligibility: Eligibility | null
   assignees: string[]
   loadOverrides: Record<string, number>
@@ -53,11 +64,15 @@ type State =
   | { state: 'not-visible'; message: string }
   | { state: 'failed' }
 
+/** Sends a change of the task to the REST API, below `/tasks/<id>`; rejects with its refusal. */
+type Send = (below: string, method: string, body?: unknown) => Promise<void>
+
 /**
- * A task's page, at `/tasks/<id>`: who can do the task, in the eligibility expression editor
- * (SC-099), and who will do it, in the assignment editor (SC-100), each saved on its own through
- * the REST API, which decides by the viewer's role in the task's project what may be changed. The
- * Kanban's cards lead here. Someone the task's project is not visible to is told so, in the API's
+ * A task's page, at `/tasks/<id>`: its fields, in the task details editor (SC-098), the
+ * repository it is assigned to, its status and the action that cancels it (SC-102), who can do
+ * it, in the eligibility expression editor (SC-099), and who will do it, in the assignment editor
+ * (SC-100), each saved on its own through the REST API, which decides by the viewer's role in the
+ * task's project what may be changed, and whose refusal is shown. The Kanban's cards lead here. Someone the task's project is not visible to is told so, in the API's
  * words, and shown nothing of it (FR-017).
  */
 export function TaskPage() {
@@ -97,11 +112,11 @@ export function TaskPage() {
     return () => abort.abort()
   }, [load, toSignIn])
 
-  /** Saves changes to the task, then reads it again; rejects with the API's refusal. */
-  const save = useCallback(
-    async (changes: Record<string, unknown>) => {
+  /** Sends a change of the task, then reads it again; rejects with the API's refusal. */
+  const send: Send = useCallback(
+    async (below, method, body) => {
       try {
-        await api(`/tasks/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: changes })
+        await api(`/tasks/${encodeURIComponent(taskId)}${below}`, { method, body })
       } catch (error) {
         if (toSignIn(error)) return
         throw error
@@ -112,6 +127,7 @@ export function TaskPage() {
     },
     [load, taskId, toSignIn],
   )
+  const save = useCallback((changes: Record<string, unknown>) => send('', 'PATCH', changes), [send])
 
   switch (loaded.state) {
     case 'loading':
@@ -131,7 +147,7 @@ export function TaskPage() {
     case 'loaded':
       break
   }
-  return <TaskEditors {...loaded} save={save} />
+  return <TaskEditors {...loaded} save={save} send={send} />
 }
 
 function TaskEditors({
@@ -140,7 +156,8 @@ function TaskEditors({
   members,
   onTask,
   save,
-}: Loaded & { save: (changes: Record<string, unknown>) => Promise<void> }) {
+  send,
+}: Loaded & { save: (changes: Record<string, unknown>) => Promise<void>; send: Send }) {
   const people: PeopleOnTask = useMemo(() => {
     const names = new Map<string, string>()
     for (const person of [...onTask, ...members]) names.set(person.accountId, person.username)
@@ -158,6 +175,9 @@ function TaskEditors({
         <Link to={`/projects/${encodeURIComponent(project.id)}/kanban`}>{project.name}</Link>
       </p>
       <h1 className="page__title">{task.title}</h1>
+      <StatusSection key={`s-${task.status}`} task={task} projectName={project.name} send={send} />
+      <DetailsSection key={`d-${JSON.stringify(task)}`} task={task} save={save} />
+      <RepositorySection key={`r-${task.repositoryId ?? ''}`} task={task} send={send} />
       {task.milestone ? (
         <p className="page__note">
           A milestone takes no time: no one can be eligible for it or assigned to it.
@@ -317,5 +337,187 @@ function Footer({
         </button>
       </div>
     </>
+  )
+}
+
+/** How the page names each status: as the Kanban's columns do. */
+function statusWord(status: TaskStatus): string {
+  return COLUMNS.find((column) => column.status === status)?.name ?? status
+}
+
+/**
+ * The task's status and the action that cancels it (SC-102, FR-027). Cancelling asks once more,
+ * then the task shows as cancelled; it stays in its project. A finished or cancelled task offers
+ * no cancelling. Whether the viewer's role allows it is the REST API's to decide.
+ */
+function StatusSection({
+  task,
+  projectName,
+  send,
+}: {
+  task: Task
+  projectName: string
+  send: Send
+}) {
+  const [asking, setAsking] = useState(false)
+  const { saving, error, run } = useSaving()
+  const cancelled = task.status === 'cancelled'
+
+  return (
+    <section className="task-page__card" aria-labelledby="status-heading">
+      <h2 id="status-heading" className="task-page__heading">
+        Status
+      </h2>
+      <div className="task-editor__row">
+        <span
+          className={'task-details__status' + (cancelled ? ' task-details__status--cancelled' : '')}
+          aria-label={`Status: ${statusWord(task.status)}`}
+        >
+          {statusWord(task.status)}
+        </span>
+        {cancelled ? (
+          <span className="task-editor__muted">
+            The task is cancelled; it stays in {projectName}.
+          </span>
+        ) : null}
+      </div>
+      {error ? (
+        <p role="alert" className="task-page__error">
+          {error}
+        </p>
+      ) : null}
+      {cancelled || task.status === 'done' ? null : asking ? (
+        <div className="task-editor__row">
+          <p className="task-details__confirm">
+            Cancel {task.title}? It stays in {projectName}, cancelled.
+          </p>
+          <button
+            type="button"
+            className="task-editor__button task-details__button--danger"
+            disabled={saving}
+            onClick={() => void run(() => send('/cancel', 'POST', {}))}
+          >
+            Cancel the task
+          </button>
+          <button
+            type="button"
+            className="task-editor__button task-editor__button--quiet"
+            disabled={saving}
+            onClick={() => setAsking(false)}
+          >
+            Keep it
+          </button>
+        </div>
+      ) : (
+        <div className="task-editor__row">
+          <button
+            type="button"
+            className="task-editor__button task-details__button--danger"
+            onClick={() => setAsking(true)}
+          >
+            Cancel task
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** The task details editor (SC-098): the task's own fields, saved together. */
+function DetailsSection({
+  task,
+  save,
+}: {
+  task: Task
+  save: (changes: Record<string, unknown>) => Promise<void>
+}) {
+  const [draft, setDraft] = useState<DetailsDraft>(() => detailsDraftOf(task))
+  const { saving, error, setError, run } = useSaving()
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const problem = detailsProblem(draft)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    const changes = detailsChanges(task, draft)
+    if (Object.keys(changes).length === 0) return
+    void run(() => save(changes))
+  }
+
+  return (
+    <form
+      className="task-page__card"
+      aria-labelledby="details-heading"
+      noValidate
+      onSubmit={submit}
+    >
+      <h2 id="details-heading" className="task-page__heading">
+        Details
+      </h2>
+      <TaskDetailsFields
+        draft={draft}
+        onChange={setDraft}
+        milestone={Boolean(task.milestone)}
+        // An AI-only task's person load is set in its assignment; one becoming AI-only gets it here.
+        offerPersonLoad={task.aiShare !== AI_ONLY_SHARE}
+      />
+      <Footer saving={saving} error={error} label="Save details" />
+    </form>
+  )
+}
+
+/**
+ * The repository the task is assigned to (FR-141): one of those its project pulls issues from.
+ * Once assigned, its GitHub issue is created; the task keeps a repository once it has one.
+ */
+function RepositorySection({ task, send }: { task: Task; send: Send }) {
+  const toSignIn = useSignInRedirect()
+  const [repositories, setRepositories] = useState<Repository[] | 'failed' | null>(null)
+  const [chosen, setChosen] = useState(task.repositoryId ?? '')
+  const { saving, error, run } = useSaving()
+
+  useEffect(() => {
+    const abort = new AbortController()
+    api<Repository[]>(`/projects/${encodeURIComponent(task.projectId)}/repositories`, {
+      signal: abort.signal,
+    }).then(setRepositories, (failure: unknown) => {
+      if (!abort.signal.aborted && !toSignIn(failure)) setRepositories('failed')
+    })
+    return () => abort.abort()
+  }, [task.projectId, toSignIn])
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (chosen === '' || chosen === task.repositoryId) return
+    void run(() => send('/repository', 'PUT', { repositoryId: chosen }))
+  }
+
+  const offered = repositories === null || repositories === 'failed' ? null : repositories
+  return (
+    <form className="task-page__card" aria-labelledby="repository-heading" onSubmit={submit}>
+      <h2 id="repository-heading" className="task-page__heading">
+        Repository
+      </h2>
+      {task.githubIssue ? (
+        <p className="task-editor__muted">Linked to GitHub issue #{task.githubIssue.number}.</p>
+      ) : null}
+      {repositories === 'failed' ? (
+        <p className="task-editor__muted">The repositories could not be loaded.</p>
+      ) : offered === null ? null : offered.length === 0 && task.repositoryId === null ? (
+        <p className="task-editor__muted">The project pulls issues from no repository.</p>
+      ) : (
+        <>
+          <RepositoryField
+            value={chosen}
+            repositories={offered}
+            allowNone={task.repositoryId === null}
+            onChange={setChosen}
+          />
+          <Footer saving={saving} error={error} label="Assign to repository" />
+        </>
+      )}
+    </form>
   )
 }

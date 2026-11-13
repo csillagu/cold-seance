@@ -30,6 +30,14 @@ function baseTask(fields: Partial<Task> = {}): Task {
     id: T,
     projectId: APOLLO,
     title: 'Write guide',
+    description: '',
+    status: 'not-started',
+    plannedStart: null,
+    plannedFinish: null,
+    durationWorkingDays: null,
+    effort: null,
+    repositoryId: null,
+    githubIssue: null,
     aiShare: null,
     personLoad: 100,
     milestone: null,
@@ -40,6 +48,9 @@ function baseTask(fields: Partial<Task> = {}): Task {
     ...fields,
   }
 }
+
+const TC_REPO = '00000000-0000-4000-8000-0000000000e1'
+const REPOSITORIES = [{ id: TC_REPO, githubId: 1, owner: 'csillagu', name: 'tc-repo' }]
 
 const notFound: FakeAnswer = {
   status: 404,
@@ -80,6 +91,22 @@ function serve(
           canReadProject: !current.withoutReadAccess.includes(id),
         })),
       }
+    }
+    if (method === 'GET' && path === `/api/projects/${APOLLO}/repositories`) {
+      return { status: 200, body: REPOSITORIES }
+    }
+    if (method === 'POST' && path === `/api/tasks/${T}/cancel`) {
+      if (refusal) return refusal
+      current = { ...current, status: 'cancelled' }
+      return { status: 200, body: current }
+    }
+    if (method === 'PUT' && path === `/api/tasks/${T}/repository`) {
+      if (refusal) return refusal
+      const body = requests.at(-1)?.body
+      if (typeof body === 'object' && body !== null && 'repositoryId' in body) {
+        current = { ...current, repositoryId: String(body.repositoryId) }
+      }
+      return { status: 200, body: current }
     }
     if (method === 'PATCH' && path === `/api/tasks/${T}`) {
       if (refusal) return refusal
@@ -312,5 +339,163 @@ describe('a task the editors do not apply to', () => {
     }))
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent('This project is not visible to you')
+  })
+})
+
+describe('the task details editor (SC-098)', () => {
+  it("shows the task's fields and saves only what was changed (TC-170)", async () => {
+    const { requests } = serve(
+      baseTask({
+        title: 'Draft',
+        description: 'First pass',
+        plannedStart: '2027-03-04',
+        plannedFinish: '2027-03-08',
+        durationWorkingDays: 3,
+      }),
+    )
+    renderPage()
+    await screen.findByRole('heading', { name: 'Draft', level: 1 })
+    const details = screen.getByRole('form', { name: 'Details' })
+    expect(within(details).getByLabelText('Description')).toHaveValue('First pass')
+    expect(within(details).getByLabelText('Duration in working days')).toHaveValue(3)
+    // With a duration, the finish is the scheduler's: no field for it.
+    expect(within(details).queryByLabelText('Planned finish')).not.toBeInTheDocument()
+
+    fireEvent.change(within(details).getByLabelText('Title'), { target: { value: 'Final' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(patches(requests)).toHaveLength(1))
+    expect(patches(requests)[0]?.body).toEqual({ title: 'Final' })
+    expect(await screen.findByRole('heading', { name: 'Final', level: 1 })).toBeInTheDocument()
+  })
+
+  it('refuses a duration that is not whole working days, sending nothing (TC-002)', async () => {
+    const { requests } = serve(baseTask({ durationWorkingDays: 3 }))
+    renderPage()
+    const details = await screen.findByRole('form', { name: 'Details' })
+    fireEvent.change(within(details).getByLabelText('Duration in working days'), {
+      target: { value: '2.5' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    expect(await within(details).findByRole('alert')).toHaveTextContent(
+      'The duration is a whole number of working days, 1 or more.',
+    )
+    expect(patches(requests)).toHaveLength(0)
+  })
+
+  it('clears the planned dates, leaving the task unscheduled (TC-003)', async () => {
+    const { requests } = serve(
+      baseTask({ plannedStart: '2027-03-04', plannedFinish: '2027-03-08', durationWorkingDays: 3 }),
+    )
+    renderPage()
+    const details = await screen.findByRole('form', { name: 'Details' })
+    fireEvent.click(within(details).getByRole('button', { name: 'Clear the planned dates' }))
+    expect(within(details).getByText(/No planned dates/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    await waitFor(() => expect(patches(requests)).toHaveLength(1))
+    expect(patches(requests)[0]?.body).toEqual({
+      plannedStart: null,
+      durationWorkingDays: null,
+      plannedFinish: null,
+    })
+  })
+
+  it("shows the API's refusal", async () => {
+    serve(baseTask(), undefined, {
+      status: 403,
+      body: { statusCode: 403, error: 'Forbidden', message: 'Read-only members cannot change it' },
+    })
+    renderPage()
+    const details = await screen.findByRole('form', { name: 'Details' })
+    fireEvent.change(within(details).getByLabelText('Effort'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
+    expect(await within(details).findByRole('alert')).toHaveTextContent(
+      'Read-only members cannot change it',
+    )
+  })
+
+  it("has only a milestone's title and description", async () => {
+    serve(baseTask({ milestone: { variant: 'floating', date: null }, personLoad: null }))
+    renderPage()
+    const details = await screen.findByRole('form', { name: 'Details' })
+    expect(within(details).getByLabelText('Title')).toBeInTheDocument()
+    expect(within(details).queryByLabelText('Planned start')).not.toBeInTheDocument()
+  })
+
+  it('assigns the task to a repository its project pulls issues from (TC-208)', async () => {
+    const { requests } = serve(baseTask())
+    renderPage()
+    const repository = await screen.findByRole('form', { name: 'Repository' })
+    const choice = await within(repository).findByRole('combobox', { name: 'Repository' })
+    expect(
+      within(choice)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['None', 'csillagu/tc-repo'])
+    fireEvent.change(choice, { target: { value: TC_REPO } })
+    fireEvent.click(screen.getByRole('button', { name: 'Assign to repository' }))
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([
+        { repositoryId: TC_REPO },
+      ]),
+    )
+    // Once assigned, "None" is no longer offered (the section is drawn again from the task).
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('combobox', { name: 'Repository' }))
+          .getAllByRole('option')
+          .map((option) => option.textContent),
+      ).toEqual(['csillagu/tc-repo']),
+    )
+  })
+})
+
+describe('the task cancel action (SC-102)', () => {
+  it('cancels the task once confirmed, and shows it cancelled (TC-037)', async () => {
+    const { requests } = serve(baseTask())
+    renderPage()
+    const status = await screen.findByRole('region', { name: 'Status' })
+    expect(within(status).getByLabelText('Status: Not started')).toBeInTheDocument()
+    fireEvent.click(within(status).getByRole('button', { name: 'Cancel task' }))
+    expect(
+      within(status).getByText('Cancel Write guide? It stays in Apollo, cancelled.'),
+    ).toBeInTheDocument()
+    fireEvent.click(within(status).getByRole('button', { name: 'Cancel the task' }))
+    // The section is drawn again from the task read back.
+    expect(await screen.findByLabelText('Status: Cancelled')).toBeInTheDocument()
+    expect(requests.filter((r) => r.method === 'POST').map((r) => r.path)).toEqual([
+      `/api/tasks/${T}/cancel`,
+    ])
+    expect(screen.queryByRole('button', { name: 'Cancel task' })).not.toBeInTheDocument()
+  })
+
+  it('sends nothing when kept', async () => {
+    const { requests } = serve(baseTask())
+    renderPage()
+    const status = await screen.findByRole('region', { name: 'Status' })
+    fireEvent.click(within(status).getByRole('button', { name: 'Cancel task' }))
+    fireEvent.click(within(status).getByRole('button', { name: 'Keep it' }))
+    expect(within(status).getByRole('button', { name: 'Cancel task' })).toBeInTheDocument()
+    expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0)
+  })
+
+  it('offers no cancelling for a finished task', async () => {
+    serve(baseTask({ status: 'done' }))
+    renderPage()
+    const status = await screen.findByRole('region', { name: 'Status' })
+    expect(within(status).queryByRole('button', { name: 'Cancel task' })).not.toBeInTheDocument()
+  })
+
+  it("shows the API's refusal", async () => {
+    serve(baseTask(), undefined, {
+      status: 403,
+      body: { statusCode: 403, error: 'Forbidden', message: 'Only read-write members can cancel' },
+    })
+    renderPage()
+    const status = await screen.findByRole('region', { name: 'Status' })
+    fireEvent.click(within(status).getByRole('button', { name: 'Cancel task' }))
+    fireEvent.click(within(status).getByRole('button', { name: 'Cancel the task' }))
+    expect(await within(status).findByRole('alert')).toHaveTextContent(
+      'Only read-write members can cancel',
+    )
   })
 })

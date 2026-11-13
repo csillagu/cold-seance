@@ -21,7 +21,8 @@ type Project =
 /**
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
  * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load` or `/projects/<id>/proposals`, with a
- * link to each, and its members and roles screen (SC-080) at `/projects/<id>/members`.
+ * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, and the screen
+ * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`.
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
  */
 export function ProjectPage() {
@@ -87,6 +88,9 @@ export function ProjectPage() {
         </NavLink>
         <NavLink to="members" className="page__view-link">
           Members
+        </NavLink>
+        <NavLink to="tasks/new" className="page__view-link">
+          New task
         </NavLink>
       </nav>
       <Outlet context={context} />
