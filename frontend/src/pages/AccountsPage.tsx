@@ -24,7 +24,8 @@ function byUsername(accounts: Account[]): Account[] {
 /**
  * The account administration screen (SC-076), at `/accounts`: a system admin creates accounts
  * (FR-117) and makes other people system admins (FR-140), and opens each person's GitHub account
- * link (SC-077). There is no other way to create an account (DD-027). Someone who is not a system
+ * link (SC-077), capacity and absences (SC-088) and working calendar (SC-089), which a system admin
+ * may change for anyone (FR-150). There is no other way to create an account (DD-027). Someone who is not a system
  * admin is not led here, and if they open it, is told that only system admins administer accounts
  * and offered nothing: the REST API refuses them the list.
  */
@@ -186,6 +187,7 @@ export function AccountsPage() {
               <th scope="col">Username</th>
               <th scope="col">Role</th>
               <th scope="col">GitHub account</th>
+              <th scope="col">Availability</th>
             </tr>
           </thead>
           <tbody>
@@ -216,6 +218,22 @@ export function AccountsPage() {
                   >
                     GitHub account
                   </Link>
+                </td>
+                <td>
+                  <span className="account__links">
+                    <Link
+                      to={`/accounts/${account.id}/capacity`}
+                      aria-label={`Capacity and absences of ${account.username}`}
+                    >
+                      Capacity and absences
+                    </Link>
+                    <Link
+                      to={`/accounts/${account.id}/calendar`}
+                      aria-label={`Working calendar of ${account.username}`}
+                    >
+                      Working calendar
+                    </Link>
+                  </span>
                 </td>
               </tr>
             ))}

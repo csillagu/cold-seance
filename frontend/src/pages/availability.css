@@ -1,0 +1,11 @@
+/* The availability screens: capacity and absences (SC-088) and the personal working calendar
+   (SC-089). They are built from the account screens' cards, forms and tables; these are the few
+   things they add. */
+.availability__note {
+  margin: -4px 0 12px;
+  font-size: 13px;
+}
+
+.availability__after {
+  margin-top: 16px;
+}

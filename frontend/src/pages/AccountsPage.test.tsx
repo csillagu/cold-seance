@@ -30,7 +30,7 @@ afterEach(() => {
 })
 
 describe('the account administration screen (SC-076)', () => {
-  it('lists the accounts, marking the system admins, with a way to each GitHub account link', async () => {
+  it("lists the accounts, marking the system admins, with a way to each one's GitHub account link, capacity and absences, and working calendar", async () => {
     fakeApi(asRoot)
     renderAccounts()
     const table = await screen.findByRole('table', { name: 'Accounts' })
@@ -43,6 +43,14 @@ describe('the account administration screen (SC-076)', () => {
     expect(screen.getByRole('link', { name: 'GitHub account of alice' })).toHaveAttribute(
       'href',
       `/accounts/${ALICE.id}/github`,
+    )
+    expect(screen.getByRole('link', { name: 'Capacity and absences of alice' })).toHaveAttribute(
+      'href',
+      `/accounts/${ALICE.id}/capacity`,
+    )
+    expect(screen.getByRole('link', { name: 'Working calendar of alice' })).toHaveAttribute(
+      'href',
+      `/accounts/${ALICE.id}/calendar`,
     )
     // root is a system admin already: there is nothing to make of root.
     expect(screen.queryByRole('button', { name: 'Make root a system admin' })).toBeNull()
