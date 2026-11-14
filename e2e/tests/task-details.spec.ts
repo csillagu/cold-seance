@@ -309,15 +309,26 @@ test('TC-170: a change in the UI is logged with who, when and the UI channel', a
   await details.getByRole('button', { name: 'Save details' }).click()
   await expect(page.getByRole('heading', { name: 'Final', level: 1 })).toBeVisible()
 
-  // Step 2: read Apollo's audit log, through the REST API (F04 reads it on its page).
-  const log = records(await call(page, 'GET', `/audit-log?projectId=${project}`))
-  const renamed = log.filter(
-    (entry) => record(entry['subject'])['id'] === task && entry['action'] === 'task.updated',
-  )
-  expect(renamed).toHaveLength(1)
-  expect(renamed[0]).toMatchObject({ by: { username: 'alice' }, channels: ['ui'] })
+  // Step 2: read Apollo's audit log, on its page (SC-094).
+  await page.goto(`/projects/${project}`)
+  await page
+    .getByRole('navigation', { name: 'Views' })
+    .getByRole('link', { name: 'Audit log' })
+    .click()
+  const log = page.getByRole('table', { name: 'Audit log' })
+  const renamed = log.getByRole('row').filter({ hasText: 'title: Draft → Final' })
+  await expect(renamed).toHaveCount(1)
+  const cells = renamed.getByRole('cell')
+  await expect(cells.nth(1)).toHaveText('alice')
   // Negative: the entry names no other channel.
-  expect(renamed[0]!['channels']).toEqual(['ui'])
-  const at = new Date(String(renamed[0]!['at'])).getTime()
+  await expect(cells.nth(2)).toHaveText('UI')
+  const at = new Date((await renamed.locator('time').getAttribute('datetime')) ?? '').getTime()
   expect(Math.abs(at - t)).toBeLessThan(60_000)
+  // The page shows the minute the entry gives.
+  await expect(cells.nth(0)).toHaveText(
+    await page.evaluate(
+      (when) => new Date(when).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }),
+      new Date(at).toISOString(),
+    ),
+  )
 })
