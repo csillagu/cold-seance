@@ -449,6 +449,26 @@ describe('the GitHub planning mirror', () => {
     expect(d.errors).toEqual([])
   })
 
+  it('leaves alone the issue of a task its project kept after removing the repository (FR-208)', async () => {
+    const s = await setUp()
+    await d.services.githubLinks.link(by(d.alice), d.alice.id, 'tc-alice')
+    const kept = await linked(s)
+    const [link] = await d.x.db.select().from(taskIssues).where(eq(taskIssues.taskId, kept.id))
+    await d.services.projectRepositories.removeRepository(by(d.alice), s.projectId, s.repo.id)
+    // What the creator and the mirror asked when the issue was opened is not of this test.
+    d.github.requests.length = 0
+
+    await d.services.tasks.updateTask(by(d.alice), kept.id, { assignees: [d.alice.id] })
+    await d.mirror.mirrorAll()
+    expect(kept.issue.assignees).toEqual([])
+    expect(d.github.requests.filter((r) => r.includes(`/issues/${kept.issue.number}`))).toEqual([])
+    // The task keeps its link to its issue, unchanged.
+    expect(await d.x.db.select().from(taskIssues).where(eq(taskIssues.taskId, kept.id))).toEqual([
+      link,
+    ])
+    expect(d.errors).toEqual([])
+  })
+
   it('tells of an issue it could not mirror, and goes on with the others', async () => {
     const s = await setUp()
     const other = await setUp()

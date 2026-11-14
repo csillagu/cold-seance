@@ -30,6 +30,8 @@ const REQUEST: RepositoryRequest = {
   decidedAt: null,
   withdrawnBy: null,
   withdrawnAt: null,
+  removedBy: null,
+  removedAt: null,
 }
 const APPROVED: RepositoryRequest = {
   ...REQUEST,
@@ -42,6 +44,12 @@ const WITHDRAWN: RepositoryRequest = {
   state: 'withdrawn',
   withdrawnBy: { accountId: BOB, username: 'bob' },
   withdrawnAt: AT,
+}
+const REMOVED: RepositoryRequest = {
+  ...APPROVED,
+  state: 'removed',
+  removedBy: { accountId: ERIN, username: 'erin' },
+  removedAt: AT,
 }
 /** A request as it is sent: its times as ISO strings. */
 const sent = (request: RepositoryRequest) => JSON.parse(JSON.stringify(request)) as unknown
@@ -66,6 +74,7 @@ function stubbed() {
     approveRequest: vi.spyOn(service, 'approveRequest'),
     rejectRequest: vi.spyOn(service, 'rejectRequest'),
     withdrawApproval: vi.spyOn(service, 'withdrawApproval'),
+    removeRepository: vi.spyOn(service, 'removeRepository'),
     listProjectRepositories: vi.spyOn(service, 'listProjectRepositories'),
     listProjectRequests: vi.spyOn(service, 'listProjectRequests'),
     listAdminRequests: vi.spyOn(service, 'listAdminRequests'),
@@ -114,6 +123,43 @@ describe('GET /api/projects/:projectId/repositories', () => {
     })
     expect(response.statusCode).toBe(401)
     expect(stubs.listProjectRepositories).not.toHaveBeenCalled()
+  })
+})
+
+describe('DELETE /api/projects/:projectId/repositories/:repositoryId', () => {
+  const url = `/api/projects/${PROJECT_ID}/repositories/${REPO_ID}`
+
+  it('hands the service the caller, the project and the repository and sends the removed approval', async () => {
+    const { app, stubs } = stubbed()
+    stubs.removeRepository.mockResolvedValue(REMOVED)
+    const response = await app.inject({ method: 'DELETE', url, headers: erin })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(sent(REMOVED))
+    expect(stubs.removeRepository).toHaveBeenCalledWith(caller, PROJECT_ID, REPO_ID)
+  })
+
+  it('answers a repository the project does not pull from as 404', async () => {
+    const { app, stubs } = stubbed()
+    stubs.removeRepository.mockRejectedValue(
+      new ServiceError('not-found', 'This project does not pull issues from this repository'),
+    )
+    const response = await app.inject({ method: 'DELETE', url, headers: erin })
+    expect(response.statusCode).toBe(404)
+    expect(response.json()).toMatchObject({
+      message: 'This project does not pull issues from this repository',
+    })
+  })
+
+  it('refuses ids that are not UUIDs, and an unknown caller, before the service is asked', async () => {
+    const { app, stubs } = stubbed()
+    const notUuid = await app.inject({
+      method: 'DELETE',
+      url: `/api/projects/${PROJECT_ID}/repositories/tc-repo`,
+      headers: erin,
+    })
+    expect(notUuid.statusCode).toBe(400)
+    expect((await app.inject({ method: 'DELETE', url })).statusCode).toBe(401)
+    expect(stubs.removeRepository).not.toHaveBeenCalled()
   })
 })
 

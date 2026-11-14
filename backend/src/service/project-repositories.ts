@@ -43,6 +43,9 @@ export interface RepositoryRequest {
   /** Who withdrew the approval, while it is withdrawn. */
   withdrawnBy: RequestPerson | null
   withdrawnAt: Date | null
+  /** The project's admin who removed the repository from the project, once it is removed. */
+  removedBy: RequestPerson | null
+  removedAt: Date | null
 }
 
 /** A repository a project pulls issues from (FR-142). */
@@ -53,12 +56,16 @@ export interface ProjectRepository {
   name: string
 }
 
+/** Why a repository the project does not pull from cannot be removed from it (SC-117). */
+export const NOT_PULLED_MESSAGE = 'This project does not pull issues from this repository'
+
 /** The unique index that keeps one open request or approval for each project and repository. */
 const OPEN_INDEX = 'project_repository_requests_open_key'
 
 const requester = alias(accounts, 'requester')
 const decider = alias(accounts, 'decider')
 const withdrawer = alias(accounts, 'withdrawer')
+const remover = alias(accounts, 'remover')
 
 const requestColumns = {
   id: projectRepositoryRequests.id,
@@ -78,6 +85,9 @@ const requestColumns = {
   withdrawnById: withdrawer.id,
   withdrawnByName: withdrawer.username,
   withdrawnAt: projectRepositoryRequests.withdrawnAt,
+  removedById: remover.id,
+  removedByName: remover.username,
+  removedAt: projectRepositoryRequests.removedAt,
 } as const
 
 /** The decisions a repository admin makes on a request, with the state each starts and ends in. */
@@ -108,7 +118,10 @@ const WRONG_STATE: Record<Decision, string> = {
  * the repository's admins can reject a request, which leaves the repository out of the project
  * (FR-171), or withdraw an approval given earlier (FR-172): from then on the project no longer
  * pulls from the repository (FR-181), and it keeps every task it already has from it (FR-178),
- * which this module never touches. Adding a repository covers both seeding the project from it and
+ * which this module never touches. The project's admin can also remove a repository from the
+ * project (SC-117), which ends its approval as a withdrawal does: the project no longer pulls from
+ * it, and keeps its tasks from it, linked to their issues but not synced with them (FR-208), as the
+ * modules that sync ask `pulls`. Adding a repository covers both seeding the project from it and
  * pulling its issues (SRC-181), so one approval serves both. Each change is recorded in the audit
  * log in the same transaction, in the project's part of it (FR-116).
  *
@@ -116,8 +129,7 @@ const WRONG_STATE: Record<Decision, string> = {
  * for (FR-168). A rejected request, or a withdrawn approval, stays as it is. Not stated, and
  * awaiting the owner's answer: whether the project may then ask again (it may, as a new request);
  * whether asking again while a request waits or the repository is added is refused (it is, as a
- * conflict); whether the requester may take back a request, or the project remove a repository
- * itself (neither is offered).
+ * conflict); whether the requester may take back a request (it is not offered).
  */
 export class ProjectRepositoryService {
   readonly #db: Database
@@ -246,6 +258,67 @@ export class ProjectRepositoryService {
    */
   async withdrawApproval(caller: Caller, requestId: string): Promise<RepositoryRequest> {
     return this.#decide(caller, requestId, 'withdraw')
+  }
+
+  /**
+   * Removes the repository `repositoryId` from the repositories the project pulls issues from
+   * (SC-117, SRC-243), and answers the approval it ended, now `removed`. The project no longer
+   * pulls from the repository from then on, and keeps every task it has from it, unchanged and
+   * linked to its issue, but no longer synced with it (FR-208); this module never touches tasks.
+   * If the project was the repository's receiving project, it keeps that role, so no project
+   * receives the repository's new issues (SRC-215). Refused as not visible to someone with no
+   * role in the project (FR-017), and as forbidden to a member who is not its admin (SRC-243).
+   * Refused as not found unless the project pulls from the repository: a request still waiting
+   * for the repository's admins is not removed this way. The project may ask for the repository
+   * again afterwards, as after a withdrawal.
+   */
+  async removeRepository(
+    caller: Caller,
+    projectId: string,
+    repositoryId: string,
+  ): Promise<RepositoryRequest> {
+    return this.#db.transaction(async (tx) => {
+      const [project] = isUuid(projectId)
+        ? await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId))
+        : []
+      // Whether or not it exists, as for any project the caller cannot see (FR-017).
+      if (!project) throw notVisible()
+      // The rows that give the caller their role are locked before it is checked, so that it
+      // still holds when the repository is removed.
+      await lockRolesOn(tx, caller.accountId, projectId)
+      await this.#roles.permissions.require(caller, projectId, 'manage-project', tx)
+      // The approval is locked, so a withdrawal made at the same moment waits and then finds it
+      // no longer in force, and whatever asked `pulls` with a lock has finished first.
+      const [approval] = isUuid(repositoryId)
+        ? await tx
+            .select({ id: projectRepositoryRequests.id })
+            .from(projectRepositoryRequests)
+            .where(
+              and(
+                eq(projectRepositoryRequests.projectId, projectId),
+                eq(projectRepositoryRequests.repositoryId, repositoryId),
+                eq(projectRepositoryRequests.state, 'approved'),
+              ),
+            )
+            .for('update')
+        : []
+      if (!approval) throw new ServiceError('not-found', NOT_PULLED_MESSAGE)
+      await tx
+        .update(projectRepositoryRequests)
+        .set({ state: 'removed', removedBy: caller.accountId, removedAt: sql`now()` })
+        .where(eq(projectRepositoryRequests.id, approval.id))
+      const removed = await this.#read(tx, approval.id)
+      await this.#audit.record(tx, caller, {
+        action: 'project-repository.removed',
+        subject: { type: 'project-repository-request', id: approval.id },
+        projectId,
+        details: {
+          repositoryId,
+          repository: `${removed.repository.owner}/${removed.repository.name}`,
+        },
+      })
+      return removed
+    })
   }
 
   /**
@@ -422,6 +495,7 @@ export class ProjectRepositoryService {
       .innerJoin(requester, eq(requester.id, projectRepositoryRequests.requestedBy))
       .leftJoin(decider, eq(decider.id, projectRepositoryRequests.decidedBy))
       .leftJoin(withdrawer, eq(withdrawer.id, projectRepositoryRequests.withdrawnBy))
+      .leftJoin(remover, eq(remover.id, projectRepositoryRequests.removedBy))
       .where(where)
       .orderBy(desc(projectRepositoryRequests.requestedAt), desc(projectRepositoryRequests.id))
     return rows.map((row) => ({
@@ -440,6 +514,8 @@ export class ProjectRepositoryService {
       decidedAt: row.decidedAt,
       withdrawnBy: person(row.withdrawnById, row.withdrawnByName),
       withdrawnAt: row.withdrawnAt,
+      removedBy: person(row.removedById, row.removedByName),
+      removedAt: row.removedAt,
     }))
   }
 }

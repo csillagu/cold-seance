@@ -572,29 +572,35 @@ describe('test cases through the REST API', () => {
   })
 
   describe('TC-212: a receiving project that stops pulling stops receiving new issues', () => {
-    it('precondition only: Apollo keeps the role but no longer pulls from tc-repo (SRC-215)', async () => {
-      // This does not verify TC-212: its steps 2 and 3 and its expected response are pending. Step 1 asks alice to remove tc-repo from Apollo's repositories, which no
-      // SC offers a project's admin; the nearest is alice, as tc-repo's admin, withdrawing
-      // Apollo's approval (SC-110). Steps 2 and 3, a new issue reaching the tool from GitHub,
-      // wait for the GitHub change handler (SC-023, FR-157). This checks what the register holds
+    it('step 1: alice removes tc-repo from Apollo, which keeps the role but no longer pulls (SRC-215)', async () => {
+      // Step 1 in full, through the REST API (SC-117). Pending: steps 2 and 3 and the expected
+      // response, a new issue opened in tc-repo reaching no project, wait for the GitHub change
+      // handler (SC-023) and the webhook endpoint and re-check timer (SC-105, SC-024); and the
+      // negative assertion, that Apollo keeps its tasks from tc-repo, needs a task that came from
+      // tc-repo, which only that handler brings in (SC-023). This checks what the register holds
       // for that handler: Apollo no longer pulls, and keeps the role, so no project receives
       // tc-repo's new issues (SRC-215).
       const repoId = await registeredBy(alice)
       const apollo = await createdBy(alice, 'Apollo')
       const requestId = await added(alice, apollo, repoId, alice)
       expect((await mark(alice, apollo, repoId)).statusCode).toBe(200)
-      // Step 1 (as available): Apollo stops pulling issues from tc-repo.
-      const withdrawn = await app.inject({
-        method: 'POST',
-        url: `/api/repository-requests/${requestId}/withdraw`,
+
+      // Step 1: as alice, remove tc-repo from the repositories Apollo pulls issues from.
+      const removed = await app.inject({
+        method: 'DELETE',
+        url: `/api/projects/${apollo}/repositories/${repoId}`,
         headers: as(alice),
       })
-      expect(withdrawn.statusCode).toBe(200)
+      expect(removed.statusCode).toBe(200)
+      expect(removed.json()).toMatchObject({
+        id: requestId,
+        state: 'removed',
+        removedBy: { username: 'alice' },
+      })
 
       expect(await services.projectRepositories.pulls(apollo, repoId)).toBe(false)
       expect(await receivingOf(alice, apollo)).toMatchObject([{ pulls: false }])
-      // The negative assertion, that Apollo keeps its tasks from tc-repo, needs a task that came
-      // from tc-repo, which only the GitHub change handler (SC-023) brings in; pending with it.
+      expect(await services.receivingProjects.receivingProjectOf(repoId)).toBe(apollo)
     })
   })
 
