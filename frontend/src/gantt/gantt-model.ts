@@ -90,8 +90,16 @@ export interface UnscheduledRow {
 export interface GanttDependency {
   task: string
   blocker: string
-  /** Whether it is the violation shown in red: its blocker pushes a fixed-date milestone. */
+  /**
+   * Whether it is a violation, shown in red: its blocker pushes a fixed-date milestone, or it is
+   * on another project's milestone that lies after the task's start.
+   */
   red: boolean
+  /**
+   * Whether `blocker` is in another project than `task`, on a Gantt covering several projects
+   * (SC-066, FR-062): drawn dashed.
+   */
+  crossProject: boolean
 }
 
 /** A day of the timeline. */
@@ -189,8 +197,11 @@ function baselineBars(baseline: ApiBaseline | null): Map<string, BaselineBar> {
  *   its time (FR-020), it is a fixed-date milestone that work it depends on would push (FR-013),
  *   or it starts before another project's milestone it depends on.
  * - The dependencies are the blocked-by relations between two rows; the one of a pushed fixed-date
- *   milestone on the work that pushes it is red. A dependency on another project's milestone is the
- *   cross-project lines' (SC-066).
+ *   milestone on the work that pushes it is red. On a Gantt covering several projects, a
+ *   dependency of a task on another project's milestone is drawn between them too, marked as
+ *   crossing projects (SC-066, FR-062), and red when that milestone lies after the task's start.
+ *   A dependency whose blocker is not on the Gantt, such as one on another project's milestone on
+ *   the Gantt of one project, is not drawn.
  * - The days run from the Monday of the week of the first date to the Sunday of the week after
  *   the last, so that a note beside the last bar has room.
  */
@@ -237,9 +248,10 @@ export function buildGanttModel(
       redTasks.set(flag.task.id, note)
       if (flag.blocker) redDependencies.add(`${flag.task.id}<${flag.blocker.id}`)
     } else if (flag.kind === 'cross-project-dependency') {
-      // The task that starts before another project's milestone; the line to that milestone is
-      // the cross-project lines' (SC-066).
+      // The task that starts before another project's milestone, and its line to that milestone
+      // where the milestone is on the Gantt too (SC-066).
       redTasks.set(flag.task.id, redTasks.get(flag.task.id) ?? null)
+      if (flag.blocker) redDependencies.add(`${flag.task.id}<${flag.blocker.id}`)
     }
   }
 
@@ -266,13 +278,15 @@ export function buildGanttModel(
 
   const dependencies: GanttDependency[] = []
   for (const relation of relations) {
-    if (!shown.has(relation.taskId)) continue
+    const task = shown.get(relation.taskId)
+    if (!task) continue
     for (const blocker of relation.blockedBy) {
       if (!shown.has(blocker.id)) continue
       dependencies.push({
         task: relation.taskId,
         blocker: blocker.id,
         red: redDependencies.has(`${relation.taskId}<${blocker.id}`),
+        crossProject: blocker.projectId !== task.task.projectId,
       })
     }
   }
