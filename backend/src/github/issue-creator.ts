@@ -1,6 +1,7 @@
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { projectRepositoryRequests, repositories, taskIssues, tasks } from '../db/schema.ts'
+import { lockIssueLinks } from '../service/github-issue-tasks.ts'
 import type { GitHubClient } from './client.ts'
 import { numberField } from './json.ts'
 
@@ -15,7 +16,9 @@ import { numberField } from './json.ts'
  * repository: a task its project kept after the approval was withdrawn is left alone (FR-182).
  *
  * The planning mirror calls it for each task it is told of, one at a time, so that two calls for
- * one task cannot both create an issue.
+ * one task cannot both create an issue. It holds the repository's issue-links lock from before it
+ * creates the issue until the link is stored, so that the GitHub change handler (SC-023) never
+ * takes the issue for one opened on GitHub.
  */
 export class GitHubIssueCreator {
   readonly #db: Database
@@ -33,39 +36,54 @@ export class GitHubIssueCreator {
    * what GitHub refused.
    */
   async create(taskId: string): Promise<boolean> {
-    const [task] = await this.#db
-      .select({
-        title: tasks.title,
-        repositoryId: repositories.id,
-        owner: repositories.owner,
-        name: repositories.name,
-      })
+    const [assigned] = await this.#db
+      .select({ repositoryId: tasks.repositoryId })
       .from(tasks)
-      .innerJoin(repositories, eq(repositories.id, tasks.repositoryId))
-      .innerJoin(
-        projectRepositoryRequests,
-        and(
-          eq(projectRepositoryRequests.projectId, tasks.projectId),
-          eq(projectRepositoryRequests.repositoryId, tasks.repositoryId),
-          eq(projectRepositoryRequests.state, 'approved'),
-        ),
+      .where(eq(tasks.id, taskId))
+    if (assigned?.repositoryId == null) return false
+    const repositoryId = assigned.repositoryId
+    return this.#db.transaction(async (tx) => {
+      await lockIssueLinks(tx, repositoryId)
+      const [task] = await tx
+        .select({
+          title: tasks.title,
+          repositoryId: repositories.id,
+          owner: repositories.owner,
+          name: repositories.name,
+        })
+        .from(tasks)
+        .innerJoin(repositories, eq(repositories.id, tasks.repositoryId))
+        .innerJoin(
+          projectRepositoryRequests,
+          and(
+            eq(projectRepositoryRequests.projectId, tasks.projectId),
+            eq(projectRepositoryRequests.repositoryId, tasks.repositoryId),
+            eq(projectRepositoryRequests.state, 'approved'),
+          ),
+        )
+        .leftJoin(taskIssues, eq(taskIssues.taskId, tasks.id))
+        .where(
+          and(
+            eq(tasks.id, taskId),
+            eq(tasks.repositoryId, repositoryId),
+            isNull(taskIssues.taskId),
+          ),
+        )
+      if (!task) return false
+      const { data } = await this.#github().rest(
+        'writeIssues',
+        { owner: task.owner, name: task.name },
+        { method: 'POST', path: ['issues'], body: { title: task.title } },
       )
-      .leftJoin(taskIssues, eq(taskIssues.taskId, tasks.id))
-      .where(and(eq(tasks.id, taskId), isNotNull(tasks.repositoryId), isNull(taskIssues.taskId)))
-    if (!task) return false
-    const { data } = await this.#github().rest(
-      'writeIssues',
-      { owner: task.owner, name: task.name },
-      { method: 'POST', path: ['issues'], body: { title: task.title } },
-    )
-    const number = numberField(data, 'number')
-    const githubId = numberField(data, 'id')
-    if (number === undefined || githubId === undefined) {
-      throw new Error('GitHub answered a created issue without its number or id')
-    }
-    await this.#db
-      .insert(taskIssues)
-      .values({ taskId, repositoryId: task.repositoryId, number, githubId })
-    return true
+      const number = numberField(data, 'number')
+      const githubId = numberField(data, 'id')
+      if (number === undefined || githubId === undefined) {
+        throw new Error('GitHub answered a created issue without its number or id')
+      }
+      await tx
+        .insert(taskIssues)
+        .values({ taskId, repositoryId: task.repositoryId, number, githubId })
+      return true
+    })
   }
 }

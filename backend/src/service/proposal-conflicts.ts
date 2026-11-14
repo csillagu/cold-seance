@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { auditLog, proposalChanges, proposalGroups, tasks } from '../db/schema.ts'
 import type { Caller } from './caller.ts'
@@ -177,7 +177,8 @@ export class ProposalConflictService {
       .where(
         and(
           eq(proposalGroups.proposalId, proposalId),
-          ne(auditLog.actorAccountId, proposal.createdBy),
+          // A change made on GitHub has no account, and is never the proposal creator's own.
+          sql`${auditLog.actorAccountId} is distinct from ${proposal.createdBy}::uuid`,
         ),
       )
       .orderBy(asc(auditLog.id))

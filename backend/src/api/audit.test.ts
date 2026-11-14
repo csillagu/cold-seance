@@ -88,10 +88,11 @@ describe('GET /api/audit-log', () => {
 
   it('sends nothing the entry schema does not declare, outside the details', async () => {
     const { app, readLog } = stubbed()
+    const by = { accountId: ROOT, username: 'root', passwordHash: '$argon2id$secret' }
     readLog.mockResolvedValue([
       {
         ...ENTRY,
-        by: { ...ENTRY.by, passwordHash: '$argon2id$secret' },
+        by,
         internal: 'not for the caller',
       } as AuditEntry,
     ])

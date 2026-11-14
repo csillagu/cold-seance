@@ -1,9 +1,10 @@
 /**
  * The issues of the fake GitHub (`github.ts`): the parts of GitHub's REST API the GitHub planning
- * mirror (SC-022), the issue creator (SC-060) and the not-planned closer (SC-061) read and write:
- * creating an issue, its title, state and state reason, its assignees and milestone, its parent
- * and sub-issues, its blocked-by relations, and a repository's milestones. Issues can also be
- * created on it directly, as someone would on GitHub.
+ * mirror (SC-022), the issue creator (SC-060), the not-planned closer (SC-061) and the change
+ * handler (SC-023) read and write: creating an issue, its title, state and state reason, its
+ * assignees and milestone, its parent and sub-issues, its blocked-by relations and the issues it
+ * blocks, and a repository's milestones. Issues can also be created and deleted on it directly, as
+ * someone would on GitHub; a deleted issue is answered as gone (410).
  */
 
 /** An issue on the fake GitHub. */
@@ -24,7 +25,23 @@ export interface FakeIssue {
   parent: number | undefined
   /** The ids of the issues it is blocked by, in the order they were added. */
   blockedBy: number[]
+  /** Its items in GitHub Projects, each in an option of the Project's status field, or none. */
+  projectItems: FakeProjectItem[]
 }
+
+/** An issue's item in a GitHub Project. */
+export interface FakeProjectItem {
+  itemId: string
+  projectId: string
+  /** The option of the Project's status field the item is in, or null. */
+  status: string | null
+}
+
+/** The options of each fake Project's status field. */
+export const FAKE_STATUS_OPTIONS = ['Todo', 'In Progress', 'On Hold', 'Done'] as const
+
+/** The name of each fake Project's status field. */
+export const FAKE_STATUS_FIELD = 'Status'
 
 export interface FakeMilestone {
   number: number
@@ -35,6 +52,22 @@ export interface FakeMilestone {
 export interface FakeIssues {
   /** Opens an issue in `owner/name`, which must exist on the fake GitHub. */
   createIssue(fullName: string, title?: string): FakeIssue
+  /**
+   * Deletes the issue `number` of `owner/name`, as a repository admin would on GitHub: it is gone
+   * from its relations, and asking for it is answered with 410.
+   */
+  deleteIssue(fullName: string, number: number): void
+  /**
+   * Adds the issue to a GitHub Project (a new one unless `projectId` is given), in the status
+   * option `status` or none, and answers its item.
+   */
+  addToProject(
+    fullName: string,
+    number: number,
+    options?: { projectId?: string; status?: string | null },
+  ): FakeProjectItem
+  /** Answers a GraphQL call, or `undefined` if it is not one it knows. */
+  graphql(query: string, variables: Record<string, unknown>): unknown
   /** The issues of `owner/name`, in the order they were made. */
   issuesOf(fullName: string): FakeIssue[]
   /** The issue `number` of `owner/name`. */
@@ -51,12 +84,15 @@ export interface FakeIssues {
 }
 
 let nextIssueId = 9_000_000
+let nextItem = 1
 
 export function fakeIssues(
   repositoryOf: (key: string) => { owner: string; name: string } | undefined,
   apiUrl: string,
 ): FakeIssues {
   const issues = new Map<number, FakeIssue>()
+  /** `key#number` of each deleted issue. */
+  const deleted = new Set<string>()
   const milestones = new Map<string, FakeMilestone[]>()
   const counters = new Map<string, number>()
 
@@ -110,9 +146,74 @@ export function fakeIssues(
         milestone: undefined,
         parent: undefined,
         blockedBy: [],
+        projectItems: [],
       }
       issues.set(issue.id, issue)
       return issue
+    },
+    addToProject(fullName, number, options = {}) {
+      const issue = this.issue(fullName, number)
+      const n = nextItem++
+      const item: FakeProjectItem = {
+        itemId: `PVTI_${n}`,
+        projectId: options.projectId ?? `PVT_${n}`,
+        status: options.status ?? null,
+      }
+      issue.projectItems.push(item)
+      return item
+    },
+    graphql(query, variables) {
+      const fieldOf = (projectId: string) => ({
+        id: `PVTSSF_${projectId}`,
+        options: FAKE_STATUS_OPTIONS.map((name) => ({ id: `${projectId}:${name}`, name })),
+      })
+      const items = () => [...issues.values()].flatMap((issue) => issue.projectItems)
+      if (query.includes('projectItems')) {
+        const key = `${String(variables['owner'])}/${String(variables['name'])}`.toLowerCase()
+        const issue = find(key, Number(variables['number']))
+        if (!issue) return { data: { repository: { issue: null } } }
+        return {
+          data: {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: issue.projectItems.map((item) => ({
+                    id: item.itemId,
+                    project: { id: item.projectId },
+                    fieldValueByName:
+                      item.status === null || variables['field'] !== FAKE_STATUS_FIELD
+                        ? null
+                        : { name: item.status, field: fieldOf(item.projectId) },
+                  })),
+                },
+              },
+            },
+          },
+        }
+      }
+      const item = items().find((i) => i.itemId === variables['itemId'])
+      if (query.includes('updateProjectV2ItemFieldValue')) {
+        if (!item) return { errors: [{ message: 'Could not resolve to a node' }] }
+        const option = fieldOf(item.projectId).options.find((o) => o.id === variables['optionId'])
+        if (!option) return { errors: [{ message: 'The option does not exist' }] }
+        item.status = option.name
+        return { data: { updateProjectV2ItemFieldValue: { projectV2Item: { id: item.itemId } } } }
+      }
+      if (query.includes('clearProjectV2ItemFieldValue')) {
+        if (!item) return { errors: [{ message: 'Could not resolve to a node' }] }
+        item.status = null
+        return { data: { clearProjectV2ItemFieldValue: { projectV2Item: { id: item.itemId } } } }
+      }
+      return undefined
+    },
+    deleteIssue(fullName, number) {
+      const issue = this.issue(fullName, number)
+      issues.delete(issue.id)
+      deleted.add(`${fullName.toLowerCase()}#${number}`)
+      for (const other of issues.values()) {
+        if (other.parent === issue.id) other.parent = undefined
+        other.blockedBy = other.blockedBy.filter((id) => id !== issue.id)
+      }
     },
     issuesOf(fullName) {
       const key = fullName.toLowerCase()
@@ -173,6 +274,9 @@ export function fakeIssues(
       const path = /^\/issues\/(\d+)(\/.*)?$/.exec(rest)
       if (!path) return undefined
       const issue = find(key, Number(path[1]))
+      if (!issue && deleted.has(`${key}#${Number(path[1])}`)) {
+        return json(410, { message: 'This issue was deleted' })
+      }
       if (!issue) return notFound()
       const below = path[2] ?? ''
       const byId = (id: unknown) => (typeof id === 'number' ? issues.get(id) : undefined)
@@ -227,6 +331,12 @@ export function fakeIssues(
             const blocker = issues.get(id)
             return blocker === undefined ? [] : [out(blocker)]
           }),
+        )
+      }
+      if (below === '/dependencies/blocking' && method === 'GET') {
+        return json(
+          200,
+          [...issues.values()].filter((other) => other.blockedBy.includes(issue.id)).map(out),
         )
       }
       if (below === '/dependencies/blocked_by' && method === 'POST') {

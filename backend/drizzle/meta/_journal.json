@@ -211,6 +211,13 @@
       "when": 1794692106619,
       "tag": "0029_daffy_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794696255677,
+      "tag": "0030_fair_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

@@ -9,8 +9,7 @@ import {
   tasks,
 } from '../db/schema.ts'
 import { assigneesColumn } from './assignment.ts'
-import type { AuditLogService } from './audit.ts'
-import type { Caller } from './caller.ts'
+import type { Actor, AuditLogService } from './audit.ts'
 import {
   type Calendars,
   forbiddenDatesOf,
@@ -76,7 +75,7 @@ export class PlanScheduling {
    */
   async reschedule(
     tx: Transaction,
-    caller: Caller,
+    caller: Actor,
     projectId: string,
     changed: readonly string[],
     cause: { action: string; taskId: string },

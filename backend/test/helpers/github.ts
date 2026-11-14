@@ -88,6 +88,19 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
       tokens.set(token, key)
       return json(201, { token, expires_at: new Date(Date.now() + 3_600_000).toISOString() })
     }
+    if (method === 'POST' && path === '/graphql') {
+      const bearer = auth.replace(/^Bearer /, '')
+      if (bearer !== PAT && !tokens.has(bearer)) return json(401, { message: 'Bad credentials' })
+      const text = typeof init?.body === 'string' ? init.body : '{}'
+      const parsed: unknown = JSON.parse(text)
+      const query: unknown = Reflect.get(Object(parsed), 'query')
+      const given: unknown = Reflect.get(Object(parsed), 'variables')
+      const variables: Record<string, unknown> =
+        typeof given === 'object' && given !== null ? { ...given } : {}
+      const answer = issues.graphql(typeof query === 'string' ? query : '', variables)
+      if (answer !== undefined) return json(200, answer)
+      return json(200, { errors: [{ message: 'Unknown query' }] })
+    }
     const below = /^\/repos\/([^/]+)\/([^/]+)(\/.+)$/.exec(path)
     if (below) {
       const key = `${below[1]}/${below[2]}`.toLowerCase()

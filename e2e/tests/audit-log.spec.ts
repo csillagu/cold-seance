@@ -9,7 +9,8 @@ import { type Account, type Deployment, expect, ROOT, test } from '../fixtures.t
 //
 // Pending: TC-172's browser part, reading the proposal's creation through the MCP server on the
 // page, waits for the MCP server (SC-027, B19); TC-173's, reading T finished through GitHub, for
-// the GitHub change handler and its webhook and re-check (SC-023, SC-105, SC-024: B16, B17).
+// the webhook endpoint and re-check (SC-105, SC-024: B17) to bring the change to the GitHub change
+// handler (SC-023), which change-handler.test.ts feeds directly.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {

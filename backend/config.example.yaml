@@ -22,6 +22,13 @@ github:
   # The re-check of linked issues, in minutes; 60 if not set.            COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES
   # recheckIntervalMinutes: 60
 
+  # The GitHub Projects status field start and hold are read from, in whichever Project an issue
+  # is in, and its options for started and on hold; any other option means neither.
+  # statusField:
+  #   name: Status #                                                   COLD_SEANCE_GITHUB_STATUS_FIELD_NAME
+  #   started: In Progress #                                           COLD_SEANCE_GITHUB_STATUS_FIELD_STARTED
+  #   onHold: On Hold #                                                COLD_SEANCE_GITHUB_STATUS_FIELD_ON_HOLD
+
   # Each function (readIssues, writeIssues, projectsStatus) is given either a GitHub App, under
   # apps, or a personal access token, under tokens: not both, and not neither, or the tool does not
   # start. Apps and tokens can be mixed across functions, and one App or one token can serve several

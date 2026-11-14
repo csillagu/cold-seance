@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import { TaskAssignments } from './assignment.ts'
-import type { AuditLogService } from './audit.ts'
+import type { Actor, AuditLogService, GitHubUser } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { lockPlan, PlanScheduling } from './plan-scheduling.ts'
 import { NO_PLANNING_CHANGES, type PlanningChanges } from './planning-changes.ts'
@@ -113,42 +113,86 @@ export class TaskCancellationService {
       const current = await find(tx, taskId, true)
       await this.#requireCancel(caller, tx, current)
       if (current.status === 'cancelled') return this.#out(tx, current)
-      if (current.status === 'done') throw new ServiceError('invalid', FINISHED_TASK_MESSAGE)
-
-      const blocked = await blockedBy(tx, current.id)
-      if (blocked.some((task) => task.projectId !== current.projectId)) {
-        throw new ServiceError('conflict', REFERENCED_MILESTONE_MESSAGE)
-      }
-      const blockers = await blockersOf(tx, current.id)
-
-      const [updated] = await tx
-        .update(tasks)
-        .set({ status: 'cancelled' })
-        .where(eq(tasks.id, current.id))
-        .returning(taskColumns)
-      if (!updated) throw new Error('The cancelled task was not returned')
-      await this.#audit.record(tx, caller, {
-        action: 'task.cancelled',
-        subject: { type: 'task', id: current.id },
-        projectId: current.projectId,
-        details: { previous: { status: current.status } },
-      })
-      for (const task of blocked) {
-        await this.#passOn(tx, caller, current.id, task, blockers)
-      }
-      changed = [current.id, ...blocked.map((task) => task.id)]
-      await this.#scheduling.reschedule(
-        tx,
-        caller,
-        current.projectId,
-        blocked.map((task) => task.id),
-        { action: 'task.cancelled', taskId: current.id },
-      )
-      await refreshRedFlags(tx)
-      return this.#out(tx, updated)
+      const result = await this.#cancelLocked(tx, caller, current)
+      changed = result.changed
+      return this.#out(tx, result.updated)
     })
     this.#changes.changed(changed)
     return cancelled
+  }
+
+  /**
+   * Cancels the task, as a change made on GitHub by `user`, by closing its issue as not planned
+   * (FR-096): whatever their role in the tool, or none (FR-099). The rules hold as through any
+   * other channel: a finished task, or a milestone that blocks a task of another project, is not
+   * cancelled, and is answered `refused`, changing nothing; a cancelled task is `unchanged`. The
+   * change is recorded in the audit log under the GitHub login (SRC-251).
+   */
+  async cancelFromGitHub(
+    user: GitHubUser,
+    taskId: string,
+  ): Promise<'cancelled' | 'unchanged' | 'refused'> {
+    let changed: string[] = []
+    const outcome = await this.#db.transaction(async (tx) => {
+      const found = await find(tx, taskId, false)
+      await lockRelations(tx)
+      await lockPlan(tx, found.projectId)
+      const current = await find(tx, taskId, true)
+      if (current.status === 'cancelled') return 'unchanged' as const
+      try {
+        changed = (await this.#cancelLocked(tx, user, current)).changed
+      } catch (error) {
+        // Both refusals are thrown before anything is written.
+        if (error instanceof ServiceError) return 'refused' as const
+        throw error
+      }
+      return 'cancelled' as const
+    })
+    this.#changes.changed(changed)
+    return outcome
+  }
+
+  /**
+   * Cancels the locked task, which is not cancelled yet, and passes its blockers on. Refused as
+   * invalid for a finished task, and as a conflict for a milestone that blocks a task of another
+   * project, before anything is written. Answers the task as it now is and the tasks changed.
+   */
+  async #cancelLocked(
+    tx: Transaction,
+    actor: Actor,
+    current: TaskRow,
+  ): Promise<{ updated: TaskRow; changed: string[] }> {
+    if (current.status === 'done') throw new ServiceError('invalid', FINISHED_TASK_MESSAGE)
+    const blocked = await blockedBy(tx, current.id)
+    if (blocked.some((task) => task.projectId !== current.projectId)) {
+      throw new ServiceError('conflict', REFERENCED_MILESTONE_MESSAGE)
+    }
+    const blockers = await blockersOf(tx, current.id)
+
+    const [updated] = await tx
+      .update(tasks)
+      .set({ status: 'cancelled' })
+      .where(eq(tasks.id, current.id))
+      .returning(taskColumns)
+    if (!updated) throw new Error('The cancelled task was not returned')
+    await this.#audit.record(tx, actor, {
+      action: 'task.cancelled',
+      subject: { type: 'task', id: current.id },
+      projectId: current.projectId,
+      details: { previous: { status: current.status } },
+    })
+    for (const task of blocked) {
+      await this.#passOn(tx, actor, current.id, task, blockers)
+    }
+    await this.#scheduling.reschedule(
+      tx,
+      actor,
+      current.projectId,
+      blocked.map((task) => task.id),
+      { action: 'task.cancelled', taskId: current.id },
+    )
+    await refreshRedFlags(tx)
+    return { updated, changed: [current.id, ...blocked.map((task) => task.id)] }
   }
 
   /**
@@ -157,7 +201,7 @@ export class TaskCancellationService {
    */
   async #passOn(
     tx: Transaction,
-    caller: Caller,
+    caller: Actor,
     cancelledId: string,
     task: Linked,
     blockers: readonly Linked[],

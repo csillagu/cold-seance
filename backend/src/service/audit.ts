@@ -21,13 +21,28 @@ export interface Change {
   details?: Record<string, unknown>
 }
 
+/**
+ * Someone who made a change on GitHub, as the GitHub change handler (SC-023) passes them in: by
+ * their GitHub login, whether or not an account in the tool is linked to it (FR-099, SRC-251).
+ */
+export interface GitHubUser {
+  readonly githubLogin: string
+  readonly channel: 'github'
+}
+
+/** Whoever a change is recorded as made by: an account, or a GitHub user (SRC-251). */
+export type Actor = Caller | GitHubUser
+
+/** Who made a change, as an entry of the log names them. */
+export type AuditActor = { accountId: string; username: string } | { githubLogin: string }
+
 /** An entry of the audit log as the service layer hands it out (FR-116). */
 export interface AuditEntry {
   id: number
   /** When the change was made. */
   at: Date
-  /** Who made it. */
-  by: { accountId: string; username: string }
+  /** Who made it: an account, or for a change made on GitHub, the GitHub login (SRC-251). */
+  by: AuditActor
   /**
    * The channels it came through: one, or two for a change from an approved AI proposal, the
    * proposal's channel first and the approval's second.
@@ -72,10 +87,11 @@ export class AuditLogService {
 
   /**
    * Records a change the caller made, through the caller's channel, at the time of the
-   * transaction `executor` runs in.
+   * transaction `executor` runs in. A change made on GitHub is recorded under the GitHub login
+   * of whoever made it (SRC-251).
    */
-  async record(executor: Executor, caller: Caller, change: Change): Promise<void> {
-    await this.#write(executor, caller.accountId, [caller.channel], change)
+  async record(executor: Executor, caller: Actor, change: Change): Promise<void> {
+    await this.#write(executor, actorOf(caller), [caller.channel], change)
   }
 
   /**
@@ -89,7 +105,12 @@ export class AuditLogService {
     proposalChannel: Channel,
     change: Change,
   ): Promise<void> {
-    await this.#write(executor, approver.accountId, [proposalChannel, approver.channel], change)
+    await this.#write(
+      executor,
+      { accountId: approver.accountId },
+      [proposalChannel, approver.channel],
+      change,
+    )
   }
 
   /**
@@ -122,6 +143,7 @@ export class AuditLogService {
         at: auditLog.at,
         accountId: auditLog.actorAccountId,
         username: accounts.username,
+        githubLogin: auditLog.actorGithubLogin,
         channels: auditLog.channels,
         projectId: auditLog.projectId,
         action: auditLog.action,
@@ -130,14 +152,17 @@ export class AuditLogService {
         details: auditLog.details,
       })
       .from(auditLog)
-      .innerJoin(accounts, eq(accounts.id, auditLog.actorAccountId))
+      .leftJoin(accounts, eq(accounts.id, auditLog.actorAccountId))
       .where(and(...conditions))
       .orderBy(desc(auditLog.id))
       .limit(limit)
     return rows.map((row) => ({
       id: row.id,
       at: row.at,
-      by: { accountId: row.accountId, username: row.username },
+      by:
+        row.accountId !== null && row.username !== null
+          ? { accountId: row.accountId, username: row.username }
+          : { githubLogin: row.githubLogin ?? '' },
       channels: row.channels,
       projectId: row.projectId,
       action: row.action,
@@ -148,12 +173,13 @@ export class AuditLogService {
 
   async #write(
     executor: Executor,
-    actorAccountId: string,
+    actor: { accountId: string } | { githubLogin: string },
     channels: Channel[],
     change: Change,
   ): Promise<void> {
     await executor.insert(auditLog).values({
-      actorAccountId,
+      actorAccountId: 'accountId' in actor ? actor.accountId : null,
+      actorGithubLogin: 'githubLogin' in actor ? actor.githubLogin : null,
       channels,
       projectId: change.projectId ?? null,
       action: change.action,
@@ -185,4 +211,10 @@ export class AuditLogService {
       )
     }
   }
+}
+
+function actorOf(actor: Actor): { accountId: string } | { githubLogin: string } {
+  return 'githubLogin' in actor
+    ? { githubLogin: actor.githubLogin }
+    : { accountId: actor.accountId }
 }

@@ -80,15 +80,17 @@ export const auditChannel = pgEnum('audit_channel', CHANNELS)
  * through and the one it was approved through (FR-164). Rows are only ever added. `project_id` is
  * the project a change belongs to, for the project's part of the log (FR-138), and empty for a
  * change outside any project, such as to an account.
+ *
+ * Who made a change is an account, or, for a change made on GitHub, the GitHub login of whoever
+ * made it there (SRC-251): exactly one of `actor_account_id` and `actor_github_login`.
  */
 export const auditLog = pgTable(
   'audit_log',
   {
     id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
-    actorAccountId: uuid('actor_account_id')
-      .notNull()
-      .references(() => accounts.id),
+    actorAccountId: uuid('actor_account_id').references(() => accounts.id),
+    actorGithubLogin: text('actor_github_login'),
     channels: auditChannel('channels').array().notNull(),
     projectId: uuid('project_id').references(() => projects.id),
     action: text('action').notNull(),
@@ -99,6 +101,10 @@ export const auditLog = pgTable(
   (table) => [
     index('audit_log_project_id_idx').on(table.projectId, table.id),
     check('audit_log_channels_not_empty', sql`cardinality(${table.channels}) > 0`),
+    check(
+      'audit_log_one_actor',
+      sql`num_nonnulls(${table.actorAccountId}, ${table.actorGithubLogin}) = 1`,
+    ),
   ],
 )
 

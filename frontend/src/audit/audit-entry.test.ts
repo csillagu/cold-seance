@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { describeAction, describeChannels, describeDetails, formatValue } from './audit-entry.ts'
+import {
+  describeAction,
+  describeActor,
+  describeChannels,
+  describeDetails,
+  formatValue,
+} from './audit-entry.ts'
 
 describe('an audit log entry in words (SC-094)', () => {
   it('names each channel', () => {
@@ -41,5 +47,12 @@ describe('an audit log entry in words (SC-094)', () => {
     expect(formatValue(false)).toBe('false')
     expect(formatValue([])).toBe('none')
     expect(formatValue({ a: 1 })).toBe('{"a":1}')
+  })
+})
+
+describe('describeActor', () => {
+  it("names an account by its username and a GitHub user by their login, marked as GitHub's", () => {
+    expect(describeActor({ accountId: 'a1', username: 'alice' })).toBe('alice')
+    expect(describeActor({ githubLogin: 'tc-writer' })).toBe('tc-writer (GitHub)')
   })
 })

@@ -35,6 +35,22 @@ export interface GitHubAppConfig {
   webhookSecret: string | undefined
 }
 
+/** The GitHub Projects status field the tool reads start and hold from (SRC-252). */
+export interface StatusFieldConfig {
+  /** The field's name, `Status` unless set. */
+  name: string
+  /** The option that means started, `In Progress` unless set. */
+  started: string
+  /** The option that means on hold, `On Hold` unless set. */
+  onHold: string
+}
+
+export const defaultStatusField: StatusFieldConfig = {
+  name: 'Status',
+  started: 'In Progress',
+  onHold: 'On Hold',
+}
+
 export interface Config {
   server: {
     /** The address the backend listens on: `127.0.0.1` unless set; the image sets `0.0.0.0`. */
@@ -60,6 +76,11 @@ export interface Config {
     webhookSecret: string | undefined
     /** The interval of the re-check of linked issues, one hour unless set (SRC-213). */
     recheckIntervalMinutes: number
+    /**
+     * The GitHub Projects status field start and hold come from (DD-015, SRC-252): its name, and
+     * the names of its options for started and on hold.
+     */
+    statusField: StatusFieldConfig
   }
   /**
    * The first system admin, created at start while there is no system admin yet (FR-165, SC-053),
@@ -68,7 +89,8 @@ export interface Config {
   firstAdmin: { username: string; password: string } | undefined
 }
 
-type Kind = 'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' | 'host' | 'port'
+type Kind =
+  'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' | 'host' | 'port' | 'name'
 
 /** One setting: where it sits in the YAML file, the environment variable that overrides it. */
 export interface Setting {
@@ -116,6 +138,9 @@ export const settings: readonly Setting[] = [
   })),
   { path: ['github', 'webhookSecret'], kind: 'secret', required: false },
   { path: ['github', 'recheckIntervalMinutes'], kind: 'positiveInteger', required: false },
+  { path: ['github', 'statusField', 'name'], kind: 'name', required: false },
+  { path: ['github', 'statusField', 'started'], kind: 'name', required: false },
+  { path: ['github', 'statusField', 'onHold'], kind: 'name', required: false },
   { path: ['firstAdmin', 'username'], kind: 'secret', required: false },
   { path: ['firstAdmin', 'password'], kind: 'secret', required: false },
 ]
@@ -259,6 +284,13 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
       recheckIntervalMinutes:
         values.numbers.get(key('github', 'recheckIntervalMinutes')) ??
         defaultRecheckIntervalMinutes,
+      statusField: {
+        name: values.strings.get(key('github', 'statusField', 'name')) ?? defaultStatusField.name,
+        started:
+          values.strings.get(key('github', 'statusField', 'started')) ?? defaultStatusField.started,
+        onHold:
+          values.strings.get(key('github', 'statusField', 'onHold')) ?? defaultStatusField.onHold,
+      },
     },
     firstAdmin: firstAdminOf(values.strings),
   }
@@ -423,6 +455,10 @@ function convert(
       // The value is never echoed: a database address usually carries a password.
       if (typeof value === 'string' && isPostgresUrl(value)) values.strings.set(path, value)
       else problems.push(`${name} must be a PostgreSQL connection URL (postgres://…)`)
+      return
+    case 'name':
+      if (typeof value === 'string' && value.trim() !== '') values.strings.set(path, value.trim())
+      else problems.push(`${name} must be a name that is not blank`)
       return
     case 'secret':
       if (typeof value === 'string') values.strings.set(path, value)
