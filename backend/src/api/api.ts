@@ -22,6 +22,7 @@ import { projectProposalRoutes, proposalRoutes } from './proposals.ts'
 import { receivingProjectRoutes } from './receiving-projects.ts'
 import { redFlagRoutes } from './red-flags.ts'
 import { repositoryRoutes } from './repositories.ts'
+import { groupSavedViewRoutes, projectSavedViewRoutes, savedViewRoutes } from './saved-views.ts'
 import { sessionRoutes } from './session.ts'
 import { taskPeopleRoutes } from './task-people.ts'
 import { taskRelationRoutes } from './task-relations.ts'
@@ -70,6 +71,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/baselines', routes: varianceRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
   { prefix: '/groups', routes: groupRoutes },
+  { prefix: '/groups', routes: groupSavedViewRoutes },
   { prefix: '/notifications', routes: notificationRoutes },
   { prefix: '/projects', routes: ganttExportRoutes },
   { prefix: '/projects', routes: projectRoutes },
@@ -79,6 +81,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/projects', routes: receivingProjectRoutes },
   { prefix: '/projects', routes: redFlagRoutes },
+  { prefix: '/projects', routes: projectSavedViewRoutes },
   { prefix: '/projects', routes: unassignedRatingRoutes },
   { prefix: '/projects', routes: violationRoutes },
   { prefix: '/projects', routes: projectBaselineRoutes },
@@ -88,6 +91,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/proposals', routes: proposalRoutes },
   { prefix: '/repositories', routes: repositoryRoutes },
   { prefix: '/repository-requests', routes: repositoryRequestRoutes },
+  { prefix: '/saved-views', routes: savedViewRoutes },
   { prefix: '/tasks', routes: taskRoutes },
   { prefix: '/tasks', routes: taskPeopleRoutes },
   { prefix: '/tasks', routes: taskRelationRoutes },

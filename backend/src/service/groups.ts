@@ -7,6 +7,7 @@ import {
   groups,
   projectMembers,
   projects,
+  savedViews,
 } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
 import type { Caller } from './caller.ts'
@@ -19,7 +20,7 @@ import {
   type ProjectRole,
   type ProjectRoleService,
 } from './project-roles.ts'
-import { isUuid } from './system-admins.ts'
+import { isSystemAdmin, isUuid } from './system-admins.ts'
 import { characters } from './text.ts'
 
 /** A group as the service layer hands it out. */
@@ -75,6 +76,10 @@ const memberColumns = {
  * Group project assignment (SC-058) is the part through which projects are added to a group:
  * a new project by anyone, as it is created, and an existing one only by its admin (FR-123). Each
  * addition is recorded in the audit log in the same transaction as the addition.
+ *
+ * Group deletion (SC-059) is the part through which a system admin, and no one else, deletes a
+ * group (FR-126), and with it its members, its hold on its projects and its saved views (FR-161).
+ * The projects themselves are left as they are.
  *
  * A group gives no one any role on a project by being seen: the roles a group gives come only
  * from its members and its projects (FR-111), as `groupRoles` answers them.
@@ -354,6 +359,41 @@ export class GroupService {
       .where(eq(groupProjects.groupId, groupId))
       .orderBy(asc(projects.name), asc(projects.id))
     return rows.filter((project) => readable.has(project.id))
+  }
+
+  /**
+   * Deletes the group, with its saved views (FR-161), its members and its projects' place in it,
+   * in one transaction with its entry in the audit log. The projects stay, with their own roles;
+   * the roles its members held on them through it end with it (FR-111). Only a system admin may
+   * (FR-126), whatever role they hold in the group; refused as not found if there is no such group.
+   */
+  async deleteGroup(caller: Caller, groupId: string): Promise<void> {
+    if (!(await isSystemAdmin(this.#db, caller.accountId))) {
+      throw new ServiceError('forbidden', 'Only system admins can delete a group')
+    }
+    await this.#requireGroup(groupId)
+    await this.#db.transaction(async (tx) => {
+      // The group's row is locked first, so that a change to the group made at the same time
+      // either goes before the deletion or finds the group gone.
+      const [group] = await tx
+        .select(columns)
+        .from(groups)
+        .where(eq(groups.id, groupId))
+        .for('update')
+      if (!group) throw new ServiceError('not-found', 'There is no such group')
+      if (!(await isSystemAdmin(tx, caller.accountId))) {
+        throw new ServiceError('forbidden', 'Only system admins can delete a group')
+      }
+      await tx.delete(savedViews).where(eq(savedViews.groupId, groupId))
+      await tx.delete(groupProjects).where(eq(groupProjects.groupId, groupId))
+      await tx.delete(groupMembers).where(eq(groupMembers.groupId, groupId))
+      await tx.delete(groups).where(eq(groups.id, groupId))
+      await this.#audit.record(tx, caller, {
+        action: 'group.deleted',
+        subject: { type: 'group', id: groupId },
+        details: { name: group.name },
+      })
+    })
   }
 
   async #insertProject(
