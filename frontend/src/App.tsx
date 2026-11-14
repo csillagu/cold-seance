@@ -13,6 +13,7 @@ import { NewTaskPage } from './pages/NewTaskPage.tsx'
 import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectAuditLogPage } from './pages/ProjectAuditLogPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
+import { ProjectRepositoriesPage } from './pages/ProjectRepositoriesPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { RepositoriesPage } from './pages/RepositoriesPage.tsx'
@@ -50,6 +51,7 @@ export function App() {
           <Route path="load" element={<PersonLoadPage />} />
           <Route path="members" element={<MembersPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
+          <Route path="repositories" element={<ProjectRepositoriesPage />} />
           <Route path="tasks/new" element={<NewTaskPage />} />
           <Route path="variance" element={<VariancePage />} />
         </Route>

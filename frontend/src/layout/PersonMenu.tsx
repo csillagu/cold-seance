@@ -16,18 +16,20 @@ import './person-menu.css'
  */
 export function PersonMenu({ account }: { account: SignedInAccount }) {
   const location = useLocation()
-  const [open, setOpen] = useState(false)
+  // The page the entries were opened on: they count as open only while the browser is still on it,
+  // so going to another page closes them. Kept as state rather than closed by an effect, which a
+  // click right after the menu appears could otherwise race and lose.
+  const [openOn, setOpenOn] = useState<string | undefined>()
+  const open = openOn === location.pathname
+  const setOpen = (next: boolean) => setOpenOn(next ? location.pathname : undefined)
   const root = useRef<HTMLDivElement>(null)
   const entriesId = useId()
 
   useEffect(() => {
-    setOpen(false)
-  }, [location.pathname])
-
-  useEffect(() => {
     if (!open) return undefined
     const closeOutside = (event: MouseEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false)
+      if (event.target instanceof Node && !root.current?.contains(event.target))
+        setOpenOn(undefined)
     }
     document.addEventListener('mousedown', closeOutside)
     return () => document.removeEventListener('mousedown', closeOutside)
@@ -46,7 +48,7 @@ export function PersonMenu({ account }: { account: SignedInAccount }) {
         className="person-menu__button"
         aria-expanded={open}
         aria-controls={entriesId}
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => setOpen(!open)}
       >
         <span
           className="person-menu__avatar"
