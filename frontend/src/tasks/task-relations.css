@@ -1,0 +1,20 @@
+/*
+ * The task relation editor (SC-101), in the task editors' cards and tags (SRC-249): each list of
+ * related tasks under a small label, with its controls below.
+ */
+.task-relations__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-relations__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-relations__identifier {
+  max-width: 360px;
+}
