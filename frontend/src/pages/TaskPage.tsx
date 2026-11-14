@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import type { TaskStatus } from '../gantt/gantt-model.ts'
 import { COLUMNS } from '../kanban/kanban-model.ts'
+import { SubscriptionControl } from '../notifications/SubscriptionControl.tsx'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { AssignmentEditor, PersonLoadField } from '../tasks/AssignmentEditor.tsx'
 import { EligibilityEditor } from '../tasks/EligibilityEditor.tsx'
@@ -485,7 +486,8 @@ function DetailsSection({
 
 /**
  * The repository the task is assigned to (FR-141): one of those its project pulls issues from.
- * Once assigned, its GitHub issue is created; the task keeps a repository once it has one.
+ * Once assigned, its GitHub issue is created; the task keeps a repository once it has one. A task
+ * with an issue offers the control that subscribes the person to the issue (SC-093).
  */
 function RepositorySection({ task, send }: { task: Task; send: Send }) {
   const toSignIn = useSignInRedirect()
@@ -516,7 +518,12 @@ function RepositorySection({ task, send }: { task: Task; send: Send }) {
         Repository
       </h2>
       {task.githubIssue ? (
-        <p className="task-editor__muted">Linked to GitHub issue #{task.githubIssue.number}.</p>
+        <>
+          <p className="task-editor__muted">Linked to GitHub issue #{task.githubIssue.number}.</p>
+          <SubscriptionControl
+            subject={{ kind: 'issue', taskId: task.id, number: task.githubIssue.number }}
+          />
+        </>
       ) : null}
       {repositories === 'failed' ? (
         <p className="task-editor__muted">The repositories could not be loaded.</p>

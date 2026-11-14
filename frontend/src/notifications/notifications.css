@@ -1,0 +1,97 @@
+/* The in-app notification list (SC-035) and the subscription controls (SC-093). The design draws
+   neither, so they take the colours, radii and type of the screens it draws (SRC-249), and the
+   buttons of the account screens. */
+.subscription {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.subscription__note {
+  color: var(--muted);
+}
+
+.subscription__button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.subscription__button--quiet {
+  font-weight: 400;
+}
+
+.subscription__button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.subscription__error {
+  color: var(--red-text);
+}
+
+.notifications__list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notifications__item {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+}
+
+.notifications__meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.notifications__label {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.notifications__text {
+  margin: 4px 0 0;
+}
+
+.notifications__heading {
+  margin: 32px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notifications__subscriptions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 720px;
+}
+
+.notifications__subscription {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}

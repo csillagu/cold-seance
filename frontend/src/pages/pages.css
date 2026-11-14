@@ -48,3 +48,12 @@
   color: var(--text);
   font-weight: 600;
 }
+
+/* A page's title with controls beside it, such as a project's subscription control (SC-093). */
+.page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
