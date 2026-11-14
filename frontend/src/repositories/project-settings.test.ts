@@ -24,6 +24,8 @@ function request(repository: typeof tcRepo, state: RepositoryRequest['state']): 
     decidedAt: null,
     withdrawnBy: null,
     withdrawnAt: null,
+    removedBy: null,
+    removedAt: null,
   }
 }
 

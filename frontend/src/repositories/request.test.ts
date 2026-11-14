@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { closedBy, inboxOf, type RepositoryRequest, requestName } from './request.ts'
 
 const bob = { accountId: '00000000-0000-4000-8000-0000000000b1', username: 'bob' }
+const alice = { accountId: '00000000-0000-4000-8000-0000000000a1', username: 'alice' }
 
 function request(id: string, state: RepositoryRequest['state']): RepositoryRequest {
   return {
@@ -20,6 +21,8 @@ function request(id: string, state: RepositoryRequest['state']): RepositoryReque
     decidedAt: state === 'requested' ? null : '2026-11-14T11:00:00.000Z',
     withdrawnBy: state === 'withdrawn' ? bob : null,
     withdrawnAt: state === 'withdrawn' ? '2026-11-14T12:00:00.000Z' : null,
+    removedBy: state === 'removed' ? alice : null,
+    removedAt: state === 'removed' ? '2026-11-14T13:00:00.000Z' : null,
   }
 }
 
@@ -31,16 +34,18 @@ describe('the repository request inbox model (SC-087)', () => {
       request('3', 'approved'),
       request('4', 'rejected'),
       request('5', 'requested'),
+      request('6', 'removed'),
     ]
     const inbox = inboxOf(listed)
     expect(inbox.waiting.map((r) => r.id)).toEqual(['2', '5'])
     expect(inbox.approved.map((r) => r.id)).toEqual(['3'])
-    expect(inbox.closed.map((r) => r.id)).toEqual(['1', '4'])
+    expect(inbox.closed.map((r) => r.id)).toEqual(['1', '4', '6'])
   })
 
-  it('says who closed a request: the rejecter, or who withdrew the approval', () => {
+  it('says who closed a request: the rejecter, who withdrew the approval, or who removed it', () => {
     expect(closedBy(request('1', 'rejected'))).toBe('Rejected by bob')
     expect(closedBy(request('1', 'withdrawn'))).toBe('Withdrawn by bob')
+    expect(closedBy(request('1', 'removed'))).toBe('Removed by alice')
   })
 
   it('names a request by its project and repository', () => {

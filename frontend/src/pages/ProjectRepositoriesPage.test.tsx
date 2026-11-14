@@ -27,6 +27,8 @@ function requestFor(state: RepositoryRequest['state']): RepositoryRequest {
     decidedAt: state === 'approved' ? '2026-11-14T10:00:00.000Z' : null,
     withdrawnBy: null,
     withdrawnAt: null,
+    removedBy: null,
+    removedAt: null,
   }
 }
 

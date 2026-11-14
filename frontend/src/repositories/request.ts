@@ -1,7 +1,7 @@
 import { fullName } from './repository.ts'
 
 /** Where a project's request for a repository stands, as the REST API gives it (SC-110). */
-export type RequestState = 'requested' | 'approved' | 'rejected' | 'withdrawn'
+export type RequestState = 'requested' | 'approved' | 'rejected' | 'withdrawn' | 'removed'
 
 /** A person named on a request. */
 export interface RequestPerson {
@@ -24,6 +24,8 @@ export interface RepositoryRequest {
   decidedAt: string | null
   withdrawnBy: RequestPerson | null
   withdrawnAt: string | null
+  removedBy: RequestPerson | null
+  removedAt: string | null
 }
 
 /** The requests sorted into what the repository request inbox (SC-087) shows in each table. */
@@ -32,7 +34,10 @@ export interface Inbox {
   waiting: RepositoryRequest[]
   /** Approved and in force, so that an admin may withdraw them (FR-172). */
   approved: RepositoryRequest[]
-  /** Rejected, or approved and withdrawn since: nothing more can be done with them. */
+  /**
+   * Rejected, or approved and withdrawn or removed from the project since: nothing more can be
+   * done with them.
+   */
   closed: RepositoryRequest[]
 }
 
@@ -48,12 +53,16 @@ export function inboxOf(requests: readonly RepositoryRequest[]): Inbox {
 }
 
 /**
- * How a closed request is described, with who closed it: "Rejected by bob", or "Withdrawn by bob"
- * for an approval taken back.
+ * How a closed request is described, with who closed it: "Rejected by bob", "Withdrawn by bob"
+ * for an approval taken back, or "Removed by alice" for a repository the project's admin removed
+ * from the project.
  */
 export function closedBy(request: RepositoryRequest): string {
   if (request.state === 'withdrawn') {
     return `Withdrawn by ${request.withdrawnBy?.username ?? 'an admin'}`
+  }
+  if (request.state === 'removed') {
+    return `Removed by ${request.removedBy?.username ?? "the project's admin"}`
   }
   return `Rejected by ${request.decidedBy?.username ?? 'an admin'}`
 }

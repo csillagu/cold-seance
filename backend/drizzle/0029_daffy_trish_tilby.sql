@@ -1,0 +1,5 @@
+ALTER TYPE "public"."project_repository_state" ADD VALUE 'removed';--> statement-breakpoint
+ALTER TABLE "project_repository_requests" ADD COLUMN "removed_by" uuid;--> statement-breakpoint
+ALTER TABLE "project_repository_requests" ADD COLUMN "removed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "project_repository_requests" ADD CONSTRAINT "project_repository_requests_removed_by_accounts_id_fk" FOREIGN KEY ("removed_by") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_repository_requests" ADD CONSTRAINT "project_repository_requests_removed" CHECK (("project_repository_requests"."state"::text = 'removed') = ("project_repository_requests"."removed_by" is not null) and ("project_repository_requests"."removed_by" is null) = ("project_repository_requests"."removed_at" is null));

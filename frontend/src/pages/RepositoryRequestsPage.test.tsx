@@ -26,6 +26,8 @@ function apolloAsks(state: RepositoryRequest['state'] = 'requested'): Repository
     decidedAt: state === 'requested' ? null : '2026-11-14T11:00:00.000Z',
     withdrawnBy: state === 'withdrawn' ? bob : null,
     withdrawnAt: state === 'withdrawn' ? '2026-11-14T12:00:00.000Z' : null,
+    removedBy: null,
+    removedAt: null,
   }
 }
 

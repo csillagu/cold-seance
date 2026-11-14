@@ -548,19 +548,28 @@ export const repositoryAdmins = pgTable(
  * The states of a project's request to add a repository (SC-110): `requested`, waiting for one of
  * the repository's admins (FR-168); `approved`, so the project pulls the repository's issues
  * (FR-142), whether an admin approved it or the requester was admin of both (FR-170); `rejected`
- * by one of its admins (FR-171); `withdrawn`, an approval one of its admins took back (FR-172).
+ * by one of its admins (FR-171); `withdrawn`, an approval one of its admins took back (FR-172);
+ * `removed`, an approval the project's admin ended by removing the repository from the project
+ * (SC-117).
  */
-export const PROJECT_REPOSITORY_STATES = ['requested', 'approved', 'rejected', 'withdrawn'] as const
+export const PROJECT_REPOSITORY_STATES = [
+  'requested',
+  'approved',
+  'rejected',
+  'withdrawn',
+  'removed',
+] as const
 
 export const projectRepositoryState = pgEnum('project_repository_state', PROJECT_REPOSITORY_STATES)
 
 /**
  * Each project's requests to add a registered repository, and what became of them (SC-110). A
  * project pulls issues from a repository while it has an `approved` row for it (FR-142, FR-181). A
- * rejected or withdrawn row stays, as the record of it, and can no longer change; a project has at
- * most one row for a repository that is requested or approved. `decided_by` is the repository admin
- * who approved or rejected the request, or the requester when they were admin of both;
- * `withdrawn_by` the one who withdrew the approval.
+ * rejected, withdrawn or removed row stays, as the record of it, and can no longer change; a
+ * project has at most one row for a repository that is requested or approved. `decided_by` is the
+ * repository admin who approved or rejected the request, or the requester when they were admin of
+ * both; `withdrawn_by` the one who withdrew the approval; `removed_by` the project's admin who
+ * removed the repository from the project.
  */
 export const projectRepositoryRequests = pgTable(
   'project_repository_requests',
@@ -581,6 +590,8 @@ export const projectRepositoryRequests = pgTable(
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     withdrawnBy: uuid('withdrawn_by').references(() => accounts.id),
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    removedBy: uuid('removed_by').references(() => accounts.id),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
   },
   (table) => [
     // One open request or approval for each project and repository: two people asking at once
@@ -596,6 +607,12 @@ export const projectRepositoryRequests = pgTable(
     check(
       'project_repository_requests_withdrawn',
       sql`(${table.state} = 'withdrawn') = (${table.withdrawnBy} is not null) and (${table.withdrawnBy} is null) = (${table.withdrawnAt} is null)`,
+    ),
+    // The state is compared as text: PostgreSQL refuses to use an enum value in the transaction
+    // that adds it, and the migrations run in one (SC-074).
+    check(
+      'project_repository_requests_removed',
+      sql`(${table.state}::text = 'removed') = (${table.removedBy} is not null) and (${table.removedBy} is null) = (${table.removedAt} is null)`,
     ),
   ],
 )

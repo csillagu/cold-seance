@@ -15,10 +15,11 @@ import {
 } from '../../src/db/schema.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
-import type {
-  ProjectRepository,
-  ProjectRepositoryService,
-  RepositoryRequest,
+import {
+  NOT_PULLED_MESSAGE,
+  type ProjectRepository,
+  type ProjectRepositoryService,
+  type RepositoryRequest,
 } from '../../src/service/project-repositories.ts'
 import type { RegisteredRepository } from '../../src/service/repositories.ts'
 import { createServices, type Services } from '../../src/service/services.ts'
@@ -105,6 +106,8 @@ describe('the project repository service', () => {
         decidedAt: null,
         withdrawnBy: null,
         withdrawnAt: null,
+        removedBy: null,
+        removedAt: null,
       })
       expect(await repositoryIds(alice, projectId)).toEqual([])
       expect(await service.pulls(projectId, repo.id)).toBe(false)
@@ -432,7 +435,131 @@ describe('the project repository service', () => {
     })
   })
 
+  describe('removeRepository (SC-117)', () => {
+    /** A repository bob registered, added to a project of alice's with bob's approval. */
+    async function pulled() {
+      const repo = await repositoryOf(bob)
+      const projectId = await project()
+      const request = await service.requestRepository(by(alice), projectId, repo.id)
+      await service.approveRequest(by(bob), request.id)
+      return { repo, projectId, request }
+    }
+
+    it("lets the project's admin remove a repository: the project stops pulling and keeps its tasks", async () => {
+      const { repo, projectId, request } = await pulled()
+      const task = await services.tasks.createTask(by(alice), projectId, { title: 'Old' })
+      const removed = await service.removeRepository(by(alice), projectId, repo.id)
+      expect(removed).toMatchObject({
+        id: request.id,
+        state: 'removed',
+        decidedBy: { accountId: bob.id, username: 'bob' },
+        withdrawnBy: null,
+        withdrawnAt: null,
+        removedBy: { accountId: alice.id, username: 'alice' },
+        removedAt: expect.any(Date),
+      })
+      expect(await repositoryIds(alice, projectId)).toEqual([])
+      expect(await service.pulls(projectId, repo.id)).toBe(false)
+      expect(await x.db.select().from(tasks).where(eq(tasks.id, task.id))).toMatchObject([
+        { projectId, title: 'Old', status: 'not-started' },
+      ])
+      expect(await service.listProjectRequests(by(alice), projectId)).toMatchObject([
+        { id: request.id, state: 'removed' },
+      ])
+      expect((await entriesFor(request.id)).at(-1)).toMatchObject({
+        action: 'project-repository.removed',
+        actorAccountId: alice.id,
+        channels: ['ui'],
+        projectId,
+        subjectType: 'project-repository-request',
+        details: { repositoryId: repo.id, repository: `${repo.owner}/${repo.name}` },
+      })
+    })
+
+    it('ends the approval for good: it can be neither removed again nor withdrawn', async () => {
+      const { repo, projectId, request } = await pulled()
+      await service.removeRepository(by(alice), projectId, repo.id)
+      await refused(service.removeRepository(by(alice), projectId, repo.id), 'not-found')
+      await refused(service.withdrawApproval(by(bob), request.id), 'conflict')
+      await refused(service.approveRequest(by(bob), request.id), 'conflict')
+      expect(await service.listProjectRequests(by(alice), projectId)).toMatchObject([
+        { id: request.id, state: 'removed', withdrawnBy: null },
+      ])
+    })
+
+    it('lets the project ask for the repository again afterwards', async () => {
+      const { repo, projectId } = await pulled()
+      await service.removeRepository(by(alice), projectId, repo.id)
+      const again = await service.requestRepository(by(alice), projectId, repo.id)
+      expect(again.state).toBe('requested')
+      expect((await service.listProjectRequests(by(alice), projectId)).map((r) => r.state)).toEqual(
+        ['requested', 'removed'],
+      )
+    })
+
+    it('refuses a repository the project does not pull from, a waiting request among them', async () => {
+      const repo = await repositoryOf(bob)
+      const projectId = await project()
+      const notAsked = await refused(
+        service.removeRepository(by(alice), projectId, repo.id),
+        'not-found',
+      )
+      expect(notAsked.message).toBe(NOT_PULLED_MESSAGE)
+      await service.requestRepository(by(alice), projectId, repo.id)
+      await refused(service.removeRepository(by(alice), projectId, repo.id), 'not-found')
+      await refused(service.removeRepository(by(alice), projectId, NO_SUCH_ID), 'not-found')
+      await refused(service.removeRepository(by(alice), projectId, 'tc-repo'), 'not-found')
+    })
+
+    it("refuses everyone but the project's admins, the repository's admin and system admins included", async () => {
+      const { repo, projectId, request } = await pulled()
+      await grantRole(x.db, carol, projectId, 'read-write')
+      await refused(service.removeRepository(by(carol), projectId, repo.id), 'forbidden')
+      // bob is the repository's admin, root a system admin; neither has a role in the project.
+      await refused(service.removeRepository(by(bob), projectId, repo.id), 'not-visible')
+      await refused(service.removeRepository(by(root), projectId, repo.id), 'not-visible')
+      await refused(service.removeRepository(by(alice), NO_SUCH_ID, repo.id), 'not-visible')
+      await refused(service.removeRepository(by(alice), 'apollo', repo.id), 'not-visible')
+      expect(await service.pulls(projectId, repo.id)).toBe(true)
+      expect((await entriesFor(request.id)).map((e) => e.action)).toEqual([
+        'project-repository.requested',
+        'project-repository.approved',
+      ])
+    })
+
+    it('lets only one of a removal and a withdrawal made at once succeed', async () => {
+      const { repo, projectId, request } = await pulled()
+      const results = await Promise.allSettled([
+        service.removeRepository(by(alice), projectId, repo.id),
+        service.withdrawApproval(by(bob), request.id),
+      ])
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+      expect(await service.pulls(projectId, repo.id)).toBe(false)
+    })
+  })
+
   describe('the table’s checks', () => {
+    it.each([
+      ['a removal without its remover', { state: 'removed', removed: 'at' }],
+      ['a removal without its time', { state: 'removed', removed: 'by' }],
+      ['an approval with a remover', { state: 'approved', removed: 'both' }],
+    ] as const)('refuses %s', async (_, fields) => {
+      const repo = await repositoryOf(bob)
+      const projectId = await project()
+      const insert = x.db.insert(projectRepositoryRequests).values({
+        projectId,
+        repositoryId: repo.id,
+        requestedBy: alice.id,
+        state: fields.state,
+        decidedBy: alice.id,
+        decidedAt: new Date(),
+        removedBy: fields.removed === 'at' ? null : alice.id,
+        removedAt: fields.removed === 'by' ? null : new Date(),
+      })
+      // 23514: a check constraint is violated.
+      await expect(insert).rejects.toMatchObject({ cause: { code: '23514' } })
+    })
+
     it.each([
       ['an approval without its decider', { state: 'approved', decided: 'at' }],
       ['an approval without its time', { state: 'approved', decided: 'by' }],

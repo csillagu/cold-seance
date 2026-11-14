@@ -38,6 +38,8 @@ const request = {
     'decidedAt',
     'withdrawnBy',
     'withdrawnAt',
+    'removedBy',
+    'removedAt',
   ],
   properties: {
     id: { type: 'string', format: 'uuid' },
@@ -51,7 +53,7 @@ const request = {
       type: 'string',
       enum: [...PROJECT_REPOSITORY_STATES],
       description:
-        "requested: waiting for one of the repository's admins; approved: the project pulls the repository's issues; rejected; withdrawn: an approval taken back.",
+        "requested: waiting for one of the repository's admins; approved: the project pulls the repository's issues; rejected; withdrawn: an approval taken back; removed: the project's admin removed the repository from the project.",
     },
     requestedBy: person,
     requestedAt: { type: 'string', format: 'date-time' },
@@ -62,6 +64,11 @@ const request = {
     decidedAt: { type: ['string', 'null'], format: 'date-time' },
     withdrawnBy: { ...nullablePerson, description: 'Who withdrew the approval.' },
     withdrawnAt: { type: ['string', 'null'], format: 'date-time' },
+    removedBy: {
+      ...nullablePerson,
+      description: "The project's admin who removed the repository from the project.",
+    },
+    removedAt: { type: ['string', 'null'], format: 'date-time' },
   },
 } as const
 
@@ -71,6 +78,15 @@ const projectParams = {
   properties: { projectId: { type: 'string', format: 'uuid' } },
 } as const
 
+const projectRepositoryParams = {
+  type: 'object',
+  required: ['projectId', 'repositoryId'],
+  properties: {
+    projectId: { type: 'string', format: 'uuid' },
+    repositoryId: { type: 'string', format: 'uuid' },
+  },
+} as const
+
 const requestParams = {
   type: 'object',
   required: ['requestId'],
@@ -78,8 +94,8 @@ const requestParams = {
 } as const
 
 /**
- * The routes of a project's repositories (SC-110, SC-026): read the repositories a project pulls
- * issues from and its requests for them, and ask to add one. They only translate the request; the
+ * The routes of a project's repositories (SC-110, SC-117, SC-026): read the repositories a project
+ * pulls issues from and its requests for them, ask to add one, and remove one. They only translate the request; the
  * project repository service decides what is allowed (DD-039).
  */
 export const projectRepositoryRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
@@ -93,6 +109,28 @@ export const projectRepositoryRoutes: FastifyPluginAsync<RouteGroupOptions> = as
     },
     async (req) =>
       services.projectRepositories.listProjectRepositories(callerOf(req), req.params.projectId),
+  )
+
+  routes.delete<{ Params: { projectId: string; repositoryId: string } }>(
+    '/:projectId/repositories/:repositoryId',
+    {
+      schema: {
+        description:
+          'Removes a repository from the repositories the project pulls issues from, and sends ' +
+          'the approval it ended, now removed. The project keeps the tasks it has from the ' +
+          'repository, linked to their GitHub issues but no longer synced with them; if it was ' +
+          "the repository's receiving project, no project receives its new issues. Only the " +
+          "project's admins can. Refused with 404 unless the project pulls from the repository.",
+        params: projectRepositoryParams,
+        response: { 200: request },
+      },
+    },
+    async (req) =>
+      services.projectRepositories.removeRepository(
+        callerOf(req),
+        req.params.projectId,
+        req.params.repositoryId,
+      ),
   )
 
   routes.get<{ Params: { projectId: string } }>(
