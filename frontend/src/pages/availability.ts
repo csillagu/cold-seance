@@ -59,6 +59,9 @@ const DAY_NAMES: Record<string, string> = {
   sunday: 'Sunday',
 }
 
+/** The days of the week as the API names them, Monday first. */
+export const DAYS_OF_THE_WEEK: readonly string[] = Object.keys(DAY_NAMES)
+
 /** The weekend days, as the global calendar lists them, in words: "Saturday and Sunday". */
 export function weekendInWords(weekendDays: readonly string[]): string {
   const names = weekendDays.map((day) => DAY_NAMES[day] ?? day)

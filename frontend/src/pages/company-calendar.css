@@ -1,0 +1,24 @@
+/* The company calendar screen (SC-090). It is built from the account screens' cards, forms and
+   tables, as the availability screens are; the design draws none of them, so they take the
+   colours, radii and type of the screens it draws (SRC-249). This adds the weekend day choices. */
+.company-calendar__days {
+  flex: 1 1 320px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.company-calendar__day {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.company-calendar__day input {
+  accent-color: var(--accent);
+}
