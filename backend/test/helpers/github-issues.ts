@@ -1,9 +1,10 @@
 /**
  * The issues of the fake GitHub (`github.ts`): the parts of GitHub's REST API the GitHub planning
- * mirror (SC-022), the issue creator (SC-060) and the not-planned closer (SC-061) read and write:
- * creating an issue, its title, state and state reason, its assignees and milestone, its parent
- * and sub-issues, its blocked-by relations, and a repository's milestones. Issues can also be
- * created on it directly, as someone would on GitHub.
+ * mirror (SC-022), the issue creator (SC-060), the not-planned closer (SC-061) and the change
+ * handler (SC-023) read and write: creating an issue, its title, state and state reason, its
+ * assignees and milestone, its parent and sub-issues, its blocked-by relations and the issues it
+ * blocks, and a repository's milestones. Issues can also be created and deleted on it directly, as
+ * someone would on GitHub; a deleted issue is answered as gone (410).
  */
 
 /** An issue on the fake GitHub. */
@@ -35,6 +36,11 @@ export interface FakeMilestone {
 export interface FakeIssues {
   /** Opens an issue in `owner/name`, which must exist on the fake GitHub. */
   createIssue(fullName: string, title?: string): FakeIssue
+  /**
+   * Deletes the issue `number` of `owner/name`, as a repository admin would on GitHub: it is gone
+   * from its relations, and asking for it is answered with 410.
+   */
+  deleteIssue(fullName: string, number: number): void
   /** The issues of `owner/name`, in the order they were made. */
   issuesOf(fullName: string): FakeIssue[]
   /** The issue `number` of `owner/name`. */
@@ -57,6 +63,8 @@ export function fakeIssues(
   apiUrl: string,
 ): FakeIssues {
   const issues = new Map<number, FakeIssue>()
+  /** `key#number` of each deleted issue. */
+  const deleted = new Set<string>()
   const milestones = new Map<string, FakeMilestone[]>()
   const counters = new Map<string, number>()
 
@@ -113,6 +121,15 @@ export function fakeIssues(
       }
       issues.set(issue.id, issue)
       return issue
+    },
+    deleteIssue(fullName, number) {
+      const issue = this.issue(fullName, number)
+      issues.delete(issue.id)
+      deleted.add(`${fullName.toLowerCase()}#${number}`)
+      for (const other of issues.values()) {
+        if (other.parent === issue.id) other.parent = undefined
+        other.blockedBy = other.blockedBy.filter((id) => id !== issue.id)
+      }
     },
     issuesOf(fullName) {
       const key = fullName.toLowerCase()
@@ -173,6 +190,9 @@ export function fakeIssues(
       const path = /^\/issues\/(\d+)(\/.*)?$/.exec(rest)
       if (!path) return undefined
       const issue = find(key, Number(path[1]))
+      if (!issue && deleted.has(`${key}#${Number(path[1])}`)) {
+        return json(410, { message: 'This issue was deleted' })
+      }
       if (!issue) return notFound()
       const below = path[2] ?? ''
       const byId = (id: unknown) => (typeof id === 'number' ? issues.get(id) : undefined)
@@ -227,6 +247,12 @@ export function fakeIssues(
             const blocker = issues.get(id)
             return blocker === undefined ? [] : [out(blocker)]
           }),
+        )
+      }
+      if (below === '/dependencies/blocking' && method === 'GET') {
+        return json(
+          200,
+          [...issues.values()].filter((other) => other.blockedBy.includes(issue.id)).map(out),
         )
       }
       if (below === '/dependencies/blocked_by' && method === 'POST') {
