@@ -21,7 +21,8 @@ type Project =
 /**
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
  * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load`, `/projects/<id>/variance` or `/projects/<id>/proposals`, with a
- * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, its part of the audit log
+ * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, its repository settings
+ * (SC-081) at `/projects/<id>/repositories`, its part of the audit log
  * (SC-094) at `/projects/<id>/audit-log`, and the screen
  * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`.
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
@@ -92,6 +93,9 @@ export function ProjectPage() {
         </NavLink>
         <NavLink to="members" className="page__view-link">
           Members
+        </NavLink>
+        <NavLink to="repositories" className="page__view-link">
+          Repositories
         </NavLink>
         <NavLink to="audit-log" className="page__view-link">
           Audit log

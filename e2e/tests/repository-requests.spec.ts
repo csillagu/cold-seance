@@ -6,8 +6,9 @@ import { type Account, type Deployment, expect, test } from '../fixtures.ts'
 // waiting request for it, one admin's approval being enough (FR-168), reject it, which leaves the
 // repository out of the project (FR-171), and withdraw an approval given earlier (FR-172). The
 // project's side, asking for a repository, is the project repository settings screen (SC-081),
-// not built yet, so the project's admin asks through the REST API, as the screen will. The REST
-// API side of these test cases is in backend/test/integration/project-repositories.test.ts.
+// whose browser tests are in project-repositories.spec.ts; here the project's admin asks through
+// the REST API, as that screen does. The REST API side of these test cases is in
+// backend/test/integration/project-repositories.test.ts.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
