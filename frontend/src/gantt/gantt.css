@@ -418,6 +418,11 @@
   stroke-width: 2;
 }
 
+/* A dependency on another project's milestone (SC-066), dashed as the design draws it */
+.gantt__arrow--cross-project {
+  stroke-dasharray: 5 3;
+}
+
 .gantt__arrowhead {
   fill: var(--faint);
 }
@@ -557,6 +562,11 @@
 .gantt__key-diamond--floating {
   border: 2px solid var(--text);
   background: transparent;
+}
+
+.gantt__key-cross-project {
+  width: 24px;
+  border-top: 2px dashed var(--red);
 }
 
 /* The toolbar above the Gantt: the baseline selector and the export (SC-065, SC-096) */

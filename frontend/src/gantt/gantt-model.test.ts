@@ -82,8 +82,8 @@ describe('the Gantt model (SC-031)', () => {
       ['M', '2027-03-12', '2027-03-12', false],
     ])
     expect(model.dependencies).toEqual([
-      { task: 'B', blocker: 'A', red: false },
-      { task: 'M', blocker: 'B', red: false },
+      { task: 'B', blocker: 'A', red: false, crossProject: false },
+      { task: 'M', blocker: 'B', red: false, crossProject: false },
     ])
     // From the Monday of the first week to the Sunday of the week after the last.
     expect(model.days[0]).toEqual({ date: '2027-03-01', nonWorking: false })
@@ -130,7 +130,9 @@ describe('the Gantt model (SC-031)', () => {
       note: 'Fixed 12 Mar · pushed: blocker ends 19 Mar',
     })
     expect(model.rows.find((row) => row.task.id === 'A')?.red).toBe(false)
-    expect(model.dependencies).toEqual([{ task: 'M', blocker: 'A', red: true }])
+    expect(model.dependencies).toEqual([
+      { task: 'M', blocker: 'A', red: true, crossProject: false },
+    ])
   })
 
   it('shows a task in red whose assigned people cannot do it in its time (FR-020)', () => {
@@ -161,7 +163,7 @@ describe('the Gantt model (SC-031)', () => {
       calendar,
     )
     expect(model.rows[0]?.red).toBe(true)
-    // The line to the other project's milestone is the cross-project lines' (SC-066).
+    // The other project's milestone is not on this Gantt, so no line is drawn to it.
     expect(model.dependencies).toEqual([])
   })
 
@@ -193,7 +195,9 @@ describe('the Gantt model (SC-031)', () => {
     expect(model.unscheduled.map((row) => row.task.id)).toEqual(['U', 'F'])
     // No dates are given to an unscheduled task, and no arrow is drawn to it.
     expect(model.unscheduled[0]!.task.plannedStart).toBeNull()
-    expect(model.dependencies).toEqual([{ task: 'B', blocker: 'A', red: false }])
+    expect(model.dependencies).toEqual([
+      { task: 'B', blocker: 'A', red: false, crossProject: false },
+    ])
   })
 
   it('keeps cancelled tasks on the Gantt, on their dates (FR-129)', () => {
@@ -210,7 +214,9 @@ describe('the Gantt model (SC-031)', () => {
       ['B', 'cancelled', '2027-03-04', '2027-03-05'],
     ])
     expect(model.unscheduled.map((row) => row.task.id)).toEqual(['X'])
-    expect(model.dependencies).toEqual([{ task: 'B', blocker: 'A', red: false }])
+    expect(model.dependencies).toEqual([
+      { task: 'B', blocker: 'A', red: false, crossProject: false },
+    ])
   })
 
   it('has no days when no task has dates', () => {
@@ -221,6 +227,73 @@ describe('the Gantt model (SC-031)', () => {
       dependencies: [],
       days: [],
     })
+  })
+})
+
+describe('the cross-project dependency lines (SC-066)', () => {
+  const B = 'project-borealis'
+  // TC-088's plan: M of Borealis on 2027-03-10, and T of Apollo blocked by M, from 2027-03-11.
+  const milestone = task('M', {
+    projectId: B,
+    milestone: { variant: 'fixed-date', date: '2027-03-10' },
+  })
+  const t = task('T', {
+    plannedStart: '2027-03-11',
+    plannedFinish: '2027-03-12',
+    durationWorkingDays: 2,
+  })
+  const crossRelations: ApiRelations[] = [
+    { taskId: 'M', parent: null, blockedBy: [] },
+    { taskId: 'T', parent: null, blockedBy: [{ id: 'M', projectId: B }] },
+  ]
+
+  it("TC-088: draws a task's dependency on another project's milestone, not in red", () => {
+    const model = buildGanttModel([t, milestone], crossRelations, [], calendar)
+    expect(model.rows.map((row) => [row.task.id, row.red])).toEqual([
+      ['T', false],
+      ['M', false],
+    ])
+    expect(model.dependencies).toEqual([
+      { task: 'T', blocker: 'M', red: false, crossProject: true },
+    ])
+  })
+
+  it("draws it in red when the milestone lies after the task's start", () => {
+    const later = {
+      ...milestone,
+      milestone: { variant: 'fixed-date' as const, date: '2027-03-17' },
+    }
+    const flags: ApiRedFlag[] = [
+      {
+        kind: 'cross-project-dependency',
+        task: ref('T'),
+        blocker: { id: 'M', projectId: B },
+        blockerFinish: '2027-03-17',
+      },
+    ]
+    const model = buildGanttModel([t, later], crossRelations, flags, calendar)
+    expect(model.rows.map((row) => [row.task.id, row.red])).toEqual([
+      ['T', true],
+      ['M', false],
+    ])
+    expect(model.dependencies).toEqual([{ task: 'T', blocker: 'M', red: true, crossProject: true }])
+  })
+
+  it("keeps a dependency within one project apart from a line to another project's", () => {
+    const model = buildGanttModel(
+      [a, t, milestone],
+      [
+        relations('A'),
+        { taskId: 'T', parent: null, blockedBy: [ref('A'), { id: 'M', projectId: B }] },
+        { taskId: 'M', parent: null, blockedBy: [] },
+      ],
+      [],
+      calendar,
+    )
+    expect(model.dependencies).toEqual([
+      { task: 'T', blocker: 'A', red: false, crossProject: false },
+      { task: 'T', blocker: 'M', red: false, crossProject: true },
+    ])
   })
 })
 

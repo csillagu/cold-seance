@@ -274,7 +274,10 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
           </div>
         </div>
       </div>
-      <Legend baseline={baseline} />
+      <Legend
+        baseline={baseline}
+        crossProject={dependencies.some((dependency) => dependency.crossProject)}
+      />
     </div>
   )
 }
@@ -723,15 +726,17 @@ function Dependencies({
           <g
             key={`${dependency.task}<${dependency.blocker}`}
             role="img"
-            aria-label={
-              `${task.task.title} is blocked by ${blocker.task.title}` +
-              (dependency.red ? ', in red: it pushes a fixed-date milestone' : '')
-            }
+            aria-label={dependencyName(task, blocker, dependency)}
             data-red={dependency.red}
+            data-cross-project={dependency.crossProject}
           >
             <path
               d={arrowPath(from, to, gap)}
-              className={'gantt__arrow' + (dependency.red ? ' gantt__arrow--red' : '')}
+              className={
+                'gantt__arrow' +
+                (dependency.red ? ' gantt__arrow--red' : '') +
+                (dependency.crossProject ? ' gantt__arrow--cross-project' : '')
+              }
               markerEnd={`url(#${dependency.red ? 'gantt-arrow-red' : 'gantt-arrow'})`}
             />
           </g>
@@ -751,7 +756,22 @@ function Dependencies({
   )
 }
 
-function Legend({ baseline }: { baseline: string | null }) {
+/**
+ * What a dependency's line says to a screen reader: which task is blocked by which, whether the
+ * blocker is in another project (SC-066), and why it is red.
+ */
+function dependencyName(task: GanttRow, blocker: GanttRow, dependency: GanttDependency): string {
+  const name = `${task.task.title} is blocked by ${blocker.task.title}`
+  if (dependency.crossProject) {
+    return (
+      `${name}, of another project` +
+      (dependency.red ? `, in red: it lies after the start of ${task.task.title}` : '')
+    )
+  }
+  return name + (dependency.red ? ', in red: it pushes a fixed-date milestone' : '')
+}
+
+function Legend({ baseline, crossProject }: { baseline: string | null; crossProject: boolean }) {
   return (
     <ul className="gantt__legend" aria-label="Legend">
       <li>
@@ -790,6 +810,12 @@ function Legend({ baseline }: { baseline: string | null }) {
         <span className="gantt__key-diamond gantt__key-diamond--floating" />
         Floating milestone
       </li>
+      {crossProject && (
+        <li>
+          <span className="gantt__key-cross-project" />
+          Cross-project dependency
+        </li>
+      )}
     </ul>
   )
 }
