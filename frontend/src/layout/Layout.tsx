@@ -4,6 +4,8 @@ import { api } from '../api.ts'
 import { ProjectsChangedContext } from '../projects-changed.ts'
 import { type SignedInAccount, SignedInContext } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { PersonMenu } from './PersonMenu.tsx'
+import { ProjectSearch } from './ProjectSearch.tsx'
 import './layout.css'
 
 /** A project as the API lists it. */
@@ -18,8 +20,9 @@ type Projects =
 /**
  * The frontend's layout (SC-113): a header and navigation around the area in which the pages,
  * screens and views are shown (SRC-219). Every page, screen and view but the sign-in page is shown
- * inside it (SRC-223), and each can be reached from the navigation (SRC-222). The header's project
- * search bar (SC-114) and signed-in person menu (SC-115) are components of their own.
+ * inside it (SRC-223), and each can be reached from the navigation (SRC-222). The header holds the
+ * project search bar (`ProjectSearch`, SC-114) and the signed-in person menu (`PersonMenu`,
+ * SC-115), components of their own.
  *
  * Below the projects, the navigation leads to the project creation form (SC-079), which anyone
  * signed in may use; it and the members screen (SC-080) tell the layout, through
@@ -77,7 +80,10 @@ export function Layout() {
               <span className="layout__mark" aria-hidden="true" />
               cold-seance
             </Link>
-            <div className="layout__header-end" />
+            <ProjectSearch />
+            <div className="layout__header-end">
+              {signedIn !== undefined && <PersonMenu account={signedIn} />}
+            </div>
           </header>
           <div className="layout__body">
             <nav className="layout__nav" aria-label="Navigation">
