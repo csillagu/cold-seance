@@ -707,3 +707,46 @@
   color: var(--red-text);
   font-size: 13px;
 }
+
+/* A proposal under review: dashed pending bars apart from the live plan (SC-068, FR-073) */
+.gantt__pending {
+  position: absolute;
+  top: 7px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: var(--radius-tag);
+  border: 1.5px dashed var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+  pointer-events: none;
+}
+
+.gantt__pending--milestone {
+  border-radius: 50%;
+}
+
+.gantt__pending-text {
+  position: absolute;
+  top: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gantt-accent-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.gantt__pending-text--alone {
+  left: 12px;
+  top: 12px;
+}
+
+.gantt__row--proposed .gantt__left {
+  font-style: italic;
+}
+
+.gantt__key-pending {
+  width: 24px;
+  height: 10px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1.5px dashed var(--accent);
+}

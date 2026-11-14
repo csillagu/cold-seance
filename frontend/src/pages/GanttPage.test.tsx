@@ -109,6 +109,8 @@ function answers(overrides: Record<string, FakeAnswer> = {}) {
         return { status: 200, body: { taskId: U, parent: null, subtasks: [], blockedBy: [] } }
       case `/api/tasks/${X}/relations`:
         return { status: 200, body: { taskId: X, parent: null, subtasks: [], blockedBy: [] } }
+      case `/api/projects/${APOLLO}/proposals`:
+        return { status: 200, body: [] }
       case `/api/projects/${APOLLO}/members`:
         return { status: 200, body: [{ accountId: ALICE, username: 'alice', role: 'admin' }] }
       case `/api/tasks/${A}/relations`:
@@ -406,5 +408,138 @@ describe('the Gantt page (SC-031)', () => {
     fakeApi(answers({ [`/api/projects/${APOLLO}/tasks`]: UNAUTHENTICATED }))
     renderGantt()
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  describe('the pending overlay of a proposal under review (SC-068)', () => {
+    const P = '00000000-0000-4000-8000-0000000000c1'
+    const NEW = '00000000-0000-4000-8000-0000000000c2'
+    const previewed = (task: (typeof tasks)[number], fields: Record<string, unknown>) => ({
+      ...task,
+      parentId: null,
+      blockedBy: [],
+      ...fields,
+    })
+    const proposals = {
+      status: 200,
+      body: [
+        { id: P, status: 'waiting', projectIds: [APOLLO] },
+        { id: 'rejected', status: 'rejected', projectIds: [APOLLO] },
+      ],
+    }
+    const preview = {
+      status: 200,
+      body: {
+        proposalId: P,
+        differences: [
+          {
+            taskId: A,
+            projectId: APOLLO,
+            newTask: null,
+            before: previewed(tasks[0]!, {}),
+            after: previewed(tasks[0]!, {
+              plannedStart: '2027-03-08',
+              plannedFinish: '2027-03-26',
+            }),
+          },
+          {
+            taskId: NEW,
+            projectId: APOLLO,
+            newTask: 'n1',
+            before: null,
+            after: previewed(tasks[0]!, {
+              id: NEW,
+              title: 'Proposed task',
+              status: 'not-started',
+              plannedStart: '2027-03-29',
+              plannedFinish: '2027-03-29',
+              durationWorkingDays: 1,
+              assignees: [],
+            }),
+          },
+        ],
+        newRedFlags: [],
+      },
+    }
+
+    it('draws what it would change as pending, apart from the live plan', async () => {
+      const requests = fakeApi(
+        answers({
+          [`/api/projects/${APOLLO}/proposals`]: proposals,
+          [`/api/proposals/${P}/preview`]: preview,
+        }),
+      )
+      renderGantt()
+      const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+
+      const banner = screen.getByRole('list', { name: 'Proposals under review' })
+      expect(banner).toHaveTextContent('AI proposal under review: 2 changes shown as pending')
+      expect(within(banner).getByRole('link', { name: 'Review' })).toHaveAttribute(
+        'href',
+        `/proposals/${P}`,
+      )
+
+      // A's live bar is where the plan has it; its pending bar on the proposed days, apart.
+      const a = within(gantt).getByRole('row', { name: 'A' })
+      expect(within(a).getByRole('img', { name: 'A: 1 Mar 2027 to 19 Mar 2027' })).toHaveAttribute(
+        'data-start',
+        '2027-03-01',
+      )
+      const pending = within(a).getByRole('img', {
+        name: 'Pending proposal for A: 8 Mar 2027 to 26 Mar 2027',
+      })
+      expect(pending).toHaveAttribute('data-start', '2027-03-08')
+      expect(pending).toHaveAttribute('data-proposal-id', P)
+      expect(within(a).getByText('Proposed: 8 Mar – 26 Mar')).toBeInTheDocument()
+
+      // The task it would create is a row of its own, after the live plan's.
+      const proposed = within(gantt).getByRole('row', { name: 'Proposed task, proposed' })
+      expect(proposed).toHaveAttribute('data-pending', 'true')
+      expect(
+        within(proposed).getByRole('img', {
+          name: 'Pending proposal for Proposed task: 29 Mar 2027 to 29 Mar 2027',
+        }),
+      ).toBeInTheDocument()
+      expect(within(proposed).queryByRole('button')).toBeNull()
+      expect(screen.getByRole('list', { name: 'Legend' })).toHaveTextContent('Pending proposal')
+
+      // Only the waiting proposal is previewed, and nothing is changed.
+      expect(requests.filter((request) => request.method !== 'GET')).toEqual([])
+      expect(requests.some((request) => request.path.includes('/rejected/'))).toBe(false)
+    })
+
+    it('says so when a proposal cannot be shown on the plan as it is now', async () => {
+      fakeApi(
+        answers({
+          [`/api/projects/${APOLLO}/proposals`]: proposals,
+          [`/api/proposals/${P}/preview`]: {
+            status: 409,
+            body: { statusCode: 409, error: 'Conflict', message: 'Task A is deleted.' },
+          },
+        }),
+      )
+      renderGantt()
+      const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+      expect(screen.getByRole('list', { name: 'Proposals under review' })).toHaveTextContent(
+        'its changes cannot be shown on the plan as it is now. Task A is deleted.',
+      )
+      expect(within(gantt).queryByRole('img', { name: /^Pending proposal/ })).toBeNull()
+    })
+
+    it('shows the live plan when the proposals cannot be read', async () => {
+      fakeApi(
+        answers({
+          [`/api/projects/${APOLLO}/proposals`]: {
+            status: 500,
+            body: { statusCode: 500, error: 'Internal Server Error', message: 'Failed' },
+          },
+        }),
+      )
+      renderGantt()
+      const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+      expect(within(gantt).getByRole('row', { name: 'A' })).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'The proposals under review could not be loaded',
+      )
+    })
   })
 })

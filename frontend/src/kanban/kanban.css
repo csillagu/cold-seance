@@ -323,3 +323,23 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* A proposal under review, apart from the live plan (FR-073), as Main.dc.html draws it */
+.kanban__pending {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px dashed #818cf8;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.kanban__pending-title {
+  font-weight: 600;
+}
+
+.kanban__card--proposed {
+  border: 1.5px dashed var(--accent);
+  background: var(--accent-bg);
+}

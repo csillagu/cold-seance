@@ -150,3 +150,52 @@ describe('datesLabel', () => {
     expect(datesLabel(task('U'))).toBeNull()
   })
 })
+
+describe('the pending overlay (FR-073)', () => {
+  const after = (id: string, fields: Partial<KanbanTask>) => {
+    const { actualFinish: _actualFinish, ...live } = task(id, fields)
+    return { ...live, effort: null, personLoad: null, parentId: null, blockedBy: [] }
+  }
+
+  it('lists what a proposal would change on the live card, and a created task apart', () => {
+    const live = scheduled('Live', '2027-03-01')
+    const model = buildKanbanModel(
+      [APOLLO],
+      [live],
+      [],
+      [
+        {
+          proposalId: 'x',
+          taskId: 'Live',
+          created: false,
+          after: after('Live', { status: 'in-progress' }),
+          assigneesChanged: false,
+          lines: ['Status: not started → in progress'],
+        },
+        {
+          proposalId: 'x',
+          taskId: 'new-1',
+          created: true,
+          after: after('new-1', { title: 'Proposed task' }),
+          assigneesChanged: true,
+          lines: [],
+        },
+      ],
+    )
+    const [notStarted, inProgress] = model.columns
+    // The live card stays in the column of its live status.
+    expect(titles(notStarted!.scheduled)).toEqual(['Live'])
+    expect(notStarted!.scheduled[0]!.pending).toEqual([
+      { proposalId: 'x', lines: ['Status: not started → in progress'] },
+    ])
+    expect(inProgress!.scheduled).toEqual([])
+    expect(notStarted!.proposed).toEqual([
+      {
+        proposalId: 'x',
+        task: expect.objectContaining({ id: 'new-1', title: 'Proposed task', actualFinish: null }),
+        project: null,
+      },
+    ])
+    expect(titles(notStarted!.unscheduled)).toEqual([])
+  })
+})

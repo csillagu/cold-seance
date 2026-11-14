@@ -1,0 +1,63 @@
+/*
+ * The line above the Gantt and the Kanban for each proposal under review (SC-068, SC-030), as the
+ * approved design draws it (SRC-249, design/frontend/Gantt.dc.html and Main.dc.html).
+ */
+.pending-banners,
+.pending-banner--failed {
+  --pending-border: #c7d2fe;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pending-banners,
+  .pending-banner--failed {
+    --pending-border: rgba(99, 102, 241, 0.45);
+  }
+}
+
+.pending-banners {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pending-banner {
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 4px 6px 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--pending-border);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 13px;
+}
+
+.pending-banner--failed {
+  margin: 16px 0 0;
+  padding: 4px 12px;
+}
+
+.pending-banner__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.pending-banner__review {
+  height: 24px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}

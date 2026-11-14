@@ -1,9 +1,11 @@
 /*
  * What the Kanban view (SC-030) lays out, worked out from what the REST API gives: one column per
  * task status, the cards in each, scheduled ones first and unscheduled ones at the bottom, and
- * which cards are red and why. Pure functions, so that the drawing and its tests share them.
+ * which cards are red and why, and the pending overlay of the proposals under review. Pure
+ * functions, so that the drawing and its tests share them.
  */
 import { type ApiRedFlag, type ApiTask, formatDay, type TaskStatus } from '../gantt/gantt-model.ts'
+import type { PendingChange } from '../proposals/overlay.ts'
 
 /**
  * A task as the API gives it, the fields the Kanban reads: the Gantt's, its actual finish, and its
@@ -29,6 +31,25 @@ export interface KanbanColumn {
   scheduled: KanbanCard[]
   /** The unscheduled tasks of the status, laid at the bottom of the column (FR-145). */
   unscheduled: KanbanCard[]
+  /**
+   * The tasks a proposal under review would create in the status, apart from the live cards
+   * (FR-073), in the order of the proposals' previews.
+   */
+  proposed: ProposedCard[]
+}
+
+/** What a proposal under review would change on a card's task, in words (FR-073). */
+export interface PendingCardChange {
+  proposalId: string
+  lines: string[]
+}
+
+/** A card of a task a proposal under review would create: not in the plan, only pending. */
+export interface ProposedCard {
+  proposalId: string
+  /** The task as the proposal would create it, with an id of its preview only. */
+  task: KanbanTask
+  project: KanbanProject | null
 }
 
 /** A card of the Kanban: a task and what its card says of it. */
@@ -40,6 +61,8 @@ export interface KanbanCard {
   red: boolean
   /** Why it is red, in words, when the card can say so. */
   note: string | null
+  /** What each proposal under review that would change its task would change (FR-073). */
+  pending: PendingCardChange[]
 }
 
 /** Everything the Kanban lays out. */
@@ -86,11 +109,16 @@ export function scheduledOn(task: ApiTask): string | null {
  * - A card is red when a red flag names its task: its assigned people cannot do it, a fixed-date
  *   milestone is pushed past its date, or it starts before another project's milestone it
  *   depends on, as on the Gantt.
+ * - What a proposal under review would change on a task is listed on its card, which stays in
+ *   the column of its live status; a task it would create is a card of its own, below the live
+ *   cards of the column of the status it would have (FR-073). The live cards are as the live plan
+ *   has them.
  */
 export function buildKanbanModel(
   projects: readonly KanbanProject[],
   tasks: readonly KanbanTask[],
   flags: readonly ApiRedFlag[],
+  pending: readonly PendingChange[] = [],
 ): KanbanModel {
   const byId = new Map(projects.map((project) => [project.id, project]))
   const several = projects.length > 1
@@ -107,8 +135,26 @@ export function buildKanbanModel(
     name,
     scheduled: [],
     unscheduled: [],
+    proposed: [],
   }))
   const columnOf = new Map(columns.map((column) => [column.status, column]))
+  const pendingOf = new Map<string, PendingCardChange[]>()
+  for (const change of pending) {
+    if (change.created) {
+      const task: KanbanTask = { ...change.after, actualFinish: null }
+      columnOf.get(task.status)?.proposed.push({
+        proposalId: change.proposalId,
+        task,
+        project: several ? (byId.get(task.projectId) ?? null) : null,
+      })
+    } else {
+      const changes = pendingOf.get(change.taskId) ?? []
+      pendingOf.set(change.taskId, [
+        ...changes,
+        { proposalId: change.proposalId, lines: change.lines },
+      ])
+    }
+  }
   for (const task of tasks) {
     const column = columnOf.get(task.status)
     if (!column) continue
@@ -117,6 +163,7 @@ export function buildKanbanModel(
       project: several ? (byId.get(task.projectId) ?? null) : null,
       red: notes.has(task.id),
       note: notes.get(task.id) ?? null,
+      pending: pendingOf.get(task.id) ?? [],
     }
     if (scheduledOn(task) === null) column.unscheduled.push(card)
     else column.scheduled.push(card)
