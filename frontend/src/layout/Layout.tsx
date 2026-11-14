@@ -33,7 +33,7 @@ type Projects =
  *
  * The navigation also leads to the signed-in person's own GitHub account link (SC-077), capacity
  * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), and, for a system admin
- * only, to account administration (SC-076). The pages inside read who is signed in with
+ * only, to account administration (SC-076) and the whole audit log (SC-094). The pages inside read who is signed in with
  * `useSignedIn()`.
  *
  * Someone who is not signed in is sent to the sign-in page, and comes back here once signed in.
@@ -123,6 +123,9 @@ export function Layout() {
                   <h2 className="layout__nav-heading">Administration</h2>
                   <NavLink to="/accounts" className="layout__link">
                     Accounts
+                  </NavLink>
+                  <NavLink to="/audit-log" className="layout__link">
+                    Audit log
                   </NavLink>
                 </>
               )}

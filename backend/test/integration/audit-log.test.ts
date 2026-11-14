@@ -603,9 +603,8 @@ describe('test cases through the REST API', () => {
       await expectAtTime(entry!.at, t)
     })
 
-    // alice renaming task T in the browser and reading Apollo's log through the REST API is in
-    // e2e/tests/task-details.spec.ts (SC-098). Pending: TC-170 in full, reading the log on its
-    // page, waits for the audit log viewer (SC-094, F04).
+    // TC-170 in full, alice renaming task T and reading Apollo's log in the browser, is in
+    // e2e/tests/task-details.spec.ts (SC-098, SC-094).
   })
 
   describe('TC-171: a change through the REST API is logged with the REST API channel', () => {
