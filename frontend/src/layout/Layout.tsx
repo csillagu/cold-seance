@@ -32,7 +32,8 @@ type Projects =
  * may register, and from there to each one's admins (SC-086), and to the repository request inbox
  * (SC-087), where a repository's admins decide on projects' requests for it.
  *
- * The navigation also leads to the signed-in person's own GitHub account link (SC-077), capacity
+ * The navigation also leads to the signed-in person's notifications and subscriptions (SC-035,
+ * SC-093), their own GitHub account link (SC-077), capacity
  * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), to the company calendar
  * (SC-090), which everyone signed in may read and system admins change, and, for a system admin
  * only, to account administration (SC-076) and the whole audit log (SC-094). The pages inside read who is signed in with
@@ -109,6 +110,9 @@ export function Layout() {
               {signedIn !== undefined && (
                 <>
                   <h2 className="layout__nav-heading">Your account</h2>
+                  <NavLink to="/notifications" className="layout__link">
+                    Notifications
+                  </NavLink>
                   <NavLink to="/settings/github" className="layout__link">
                     GitHub account
                   </NavLink>

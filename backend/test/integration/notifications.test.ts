@@ -16,7 +16,8 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // Saturday and Sunday as the weekend and no company holidays. The test cases of FR-082 to FR-085,
 // FR-087, FR-133, FR-134, FR-155, FR-173 and FR-186 through the REST API, then the module's rules.
 // The subscription controls and the notification list in the browser are the frontend's (SC-093,
-// SC-035, node F28), and reading the notifications through the MCP server is SC-027's (node B19).
+// SC-035), tested in e2e/tests/notifications.spec.ts, and reading the notifications through the MCP
+// server is SC-027's (node B19).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -137,7 +138,7 @@ describe('the notification module', () => {
   describe('its test cases through the REST API', () => {
     it('TC-117: a notification is delivered in the app and nowhere else', async () => {
       // The service and REST part: the notification is in the app, and the tool sends nothing
-      // out while delivering it. Pending: the browser's notification list (SC-035, F28).
+      // out while delivering it. The browser's notification list is in notifications.spec.ts.
       const outbound = vi.spyOn(globalThis, 'fetch')
       const apollo = await seedProject(x.db, alice, 'Apollo')
       const one = { assignees: [alice.id], aiShare: 0, durationWorkingDays: 1 }
@@ -258,7 +259,7 @@ describe('the notification module', () => {
     })
 
     it('TC-122: notifications can be read through the REST API', async () => {
-      // The REST read. Pending: the same notification in the browser (SC-035, F28).
+      // The REST read. The same notification in the browser is in notifications.spec.ts.
       const apollo = await seedProject(x.db, alice, 'Apollo')
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await task(alice, apollo, { title: 'A' })
@@ -277,7 +278,7 @@ describe('the notification module', () => {
     })
 
     it('TC-196: a person subscribes to a project', async () => {
-      // The service and REST part. Pending: the subscription controls (SC-093, F28).
+      // The service and REST part. The subscription controls are in notifications.spec.ts.
       const apollo = await seedProject(x.db, alice, 'Apollo')
       await grantRole(x.db, carol, apollo, 'read-only')
       expect(await subscribedProjects(carol)).toEqual([])
@@ -295,7 +296,7 @@ describe('the notification module', () => {
 
     it('TC-197: a person subscribes to an issue', async () => {
       // The service and REST part, with T's issue #1 linked as the issue creator (SC-060) links
-      // it. Pending: the subscription controls (SC-093, F28).
+      // it. The subscription controls are in notifications.spec.ts.
       const apollo = await seedProject(x.db, alice, 'Apollo')
       await grantRole(x.db, carol, apollo, 'read-only')
       const t = await task(alice, apollo, { title: 'T' })

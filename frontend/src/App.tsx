@@ -11,6 +11,7 @@ import { KanbanPage } from './pages/KanbanPage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { NewProjectPage } from './pages/NewProjectPage.tsx'
 import { NewTaskPage } from './pages/NewTaskPage.tsx'
+import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectAuditLogPage } from './pages/ProjectAuditLogPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
@@ -45,6 +46,7 @@ export function App() {
         <Route path="accounts/:accountId/github" element={<GitHubLinkPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="company-calendar" element={<CompanyCalendarPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="audit-log" element={<ProjectAuditLogPage />} />

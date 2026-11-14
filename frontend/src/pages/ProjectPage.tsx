@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
+import { SubscriptionControl } from '../notifications/SubscriptionControl.tsx'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import type { ProjectContext } from './project-context.ts'
 import './pages.css'
@@ -24,7 +25,8 @@ type Project =
  * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, its repository settings
  * (SC-081) at `/projects/<id>/repositories`, its part of the audit log
  * (SC-094) at `/projects/<id>/audit-log`, and the screen
- * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`.
+ * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`. Beside its name is the control
+ * that subscribes the person to it, and unsubscribes them (SC-093).
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
  */
 export function ProjectPage() {
@@ -74,7 +76,13 @@ export function ProjectPage() {
   const context: ProjectContext = { id: project.id, name: project.name }
   return (
     <section>
-      <h1 className="page__title">{project.name}</h1>
+      <div className="page__head">
+        <h1 className="page__title">{project.name}</h1>
+        <SubscriptionControl
+          key={project.id}
+          subject={{ kind: 'project', projectId: project.id, name: project.name }}
+        />
+      </div>
       <nav className="page__views" aria-label="Views">
         <NavLink to="kanban" className="page__view-link">
           Kanban
