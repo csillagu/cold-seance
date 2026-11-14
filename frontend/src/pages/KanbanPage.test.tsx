@@ -93,6 +93,8 @@ function fakeProject(overrides: Record<string, FakeAnswer> = {}) {
             },
           ],
         }
+      case `/api/projects/${APOLLO}/proposals`:
+        return { status: 200, body: [] }
       case `/api/projects/${APOLLO}/members`:
         return {
           status: 200,
@@ -299,5 +301,82 @@ describe('the Kanban page (SC-030)', () => {
     fakeProject({ [`GET /api/projects/${APOLLO}/tasks`]: UNAUTHENTICATED })
     renderKanban()
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('shows what a proposal under review would change as pending, apart (FR-073)', async () => {
+    const P = '00000000-0000-4000-8000-0000000000c1'
+    const NEW = '00000000-0000-4000-8000-0000000000c2'
+    const [, guide] = initialTasks()
+    const previewed = (fields: Record<string, unknown>) => ({
+      ...guide,
+      parentId: null,
+      blockedBy: [],
+      ...fields,
+    })
+    const requests = fakeProject({
+      [`GET /api/projects/${APOLLO}/proposals`]: {
+        status: 200,
+        body: [{ id: P, status: 'waiting', projectIds: [APOLLO] }],
+      },
+      [`GET /api/proposals/${P}/preview`]: {
+        status: 200,
+        body: {
+          proposalId: P,
+          differences: [
+            {
+              taskId: T,
+              projectId: APOLLO,
+              newTask: null,
+              before: previewed({}),
+              after: previewed({ assignees: [BOB] }),
+            },
+            {
+              taskId: NEW,
+              projectId: APOLLO,
+              newTask: 'n1',
+              before: null,
+              after: previewed({
+                id: NEW,
+                title: 'Proposed task',
+                plannedStart: null,
+                plannedFinish: null,
+                durationWorkingDays: null,
+                aiShare: null,
+                assignees: [],
+              }),
+            },
+          ],
+          newRedFlags: [],
+        },
+      },
+    }).requests
+    renderKanban()
+    await screen.findByRole('group', { name: 'Kanban of Apollo' })
+
+    expect(screen.getByRole('list', { name: 'Proposals under review' })).toHaveTextContent(
+      'AI proposal under review: 2 changes shown as pending',
+    )
+    // The live card keeps what the plan has, with the pending change apart on it.
+    const guideCard = card('Write guide')
+    expect(within(guideCard).getByLabelText('Assigned')).toHaveTextContent('AL')
+    expect(
+      within(guideCard).getByRole('group', { name: 'Pending change to Write guide' }),
+    ).toHaveTextContent('Pending changeAssigned: alice → bob')
+
+    // The task it would create is a card of its own, marked pending, below the live cards.
+    const notStarted = column('Not started')
+    expect(within(notStarted).getByRole('separator', { name: 'Proposed' })).toBeInTheDocument()
+    const proposed = within(
+      within(notStarted).getByRole('list', { name: 'Not started, proposed' }),
+    ).getByRole('article', { name: 'Proposed task, proposed' })
+    expect(proposed).toHaveAttribute('data-pending', 'true')
+    expect(within(proposed).getByText('Pending')).toBeInTheDocument()
+    expect(within(proposed).queryByRole('button')).toBeNull()
+    expect(within(proposed).getByRole('link', { name: /^Review/ })).toHaveAttribute(
+      'href',
+      `/proposals/${P}`,
+    )
+    expect(within(notStarted).getByLabelText('2 tasks')).toBeInTheDocument()
+    expect(requests.filter((request) => request.method !== 'GET')).toEqual([])
   })
 })

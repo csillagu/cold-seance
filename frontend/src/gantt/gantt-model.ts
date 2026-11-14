@@ -1,9 +1,11 @@
 /*
  * What the Gantt timeline (SC-031) draws, worked out from what the REST API gives: the rows in
  * order, the unscheduled and cancelled tasks (SC-064), a selected baseline's bars (SC-065), the
- * days the timeline spans, and which tasks and dependencies are red. Pure functions, so that the
- * drawing and its tests share them.
+ * days the timeline spans, which tasks and dependencies are red, and the pending overlay of the
+ * proposals under review (SC-068). Pure functions, so that the drawing and its tests share them.
  */
+
+import type { PendingChange } from '../proposals/overlay.ts'
 
 /** A task's status, as the API gives it. */
 export type TaskStatus = 'not-started' | 'in-progress' | 'on-hold' | 'done' | 'cancelled'
@@ -57,6 +59,28 @@ export interface BaselineBar {
   finish: string
 }
 
+/**
+ * A task as a proposal under review would make it, drawn apart from the live plan (SC-068,
+ * FR-073): on its proposed days, or with none when it would have no planned dates.
+ */
+export interface PendingBar {
+  proposalId: string
+  /** The first and last day it would be on; null for both when it would be unscheduled. */
+  start: string | null
+  finish: string | null
+  /** Who it would be assigned to, when that would change; null when it would not. */
+  assignees: string[] | null
+  /** What would change, in words. */
+  lines: string[]
+}
+
+/** A task a proposal under review would create, drawn apart from the live plan (SC-068). */
+export interface ProposedRow {
+  /** The task as the proposal would create it. */
+  task: ApiTask
+  bar: PendingBar
+}
+
 /** A row of the Gantt: a task drawn on its dates. */
 export interface GanttRow {
   task: ApiTask
@@ -74,6 +98,8 @@ export interface GanttRow {
   note: string | null
   /** Its bar in the selected baseline, if a baseline is selected and gives it dates (FR-050). */
   baseline: BaselineBar | null
+  /** How each proposal under review that would change it would make it (SC-068). */
+  pending: PendingBar[]
 }
 
 /**
@@ -84,6 +110,8 @@ export interface UnscheduledRow {
   task: ApiTask
   /** Its bar in the selected baseline, if it had dates there (FR-050). */
   baseline: BaselineBar | null
+  /** How each proposal under review that would change it would make it (SC-068). */
+  pending: PendingBar[]
 }
 
 /** A dependency drawn between two rows: `task` is blocked by `blocker`. */
@@ -115,6 +143,8 @@ export interface GanttModel {
   rows: GanttRow[]
   /** The unscheduled tasks, cancelled ones included, in the order the API gives them. */
   unscheduled: UnscheduledRow[]
+  /** The tasks the proposals under review would create, in the order of their previews. */
+  proposed: ProposedRow[]
   /** The name of the selected baseline, or null for none. */
   baseline: string | null
   dependencies: GanttDependency[]
@@ -169,6 +199,18 @@ function datesOf(task: ApiTask): { start: string; finish: string } | null {
   return { start: task.plannedStart, finish: task.plannedFinish }
 }
 
+/** A task as a proposal would make it, as a pending bar. */
+function pendingBar(change: PendingChange): PendingBar {
+  const dates = datesOf(change.after)
+  return {
+    proposalId: change.proposalId,
+    start: dates?.start ?? null,
+    finish: dates?.finish ?? null,
+    assignees: change.assigneesChanged ? change.after.assignees : null,
+    lines: change.lines,
+  }
+}
+
 /**
  * The bars of a baseline, by task: the days each task lay on when it was saved (FR-050). A task
  * the baseline holds no dates for has none.
@@ -202,6 +244,9 @@ function baselineBars(baseline: ApiBaseline | null): Map<string, BaselineBar> {
  *   crossing projects (SC-066, FR-062), and red when that milestone lies after the task's start.
  *   A dependency whose blocker is not on the Gantt, such as one on another project's milestone on
  *   the Gantt of one project, is not drawn.
+ * - Each proposal under review that would change a task gives it a pending bar, on the days it
+ *   would make it lie on, beside its live bar; a task it would create is a row of its own, after
+ *   the live plan's (SC-068, FR-073). The live rows are as the live plan has them.
  * - The days run from the Monday of the week of the first date to the Sunday of the week after
  *   the last, so that a note beside the last bar has room.
  */
@@ -211,14 +256,27 @@ export function buildGanttModel(
   flags: readonly ApiRedFlag[],
   calendar: ApiCalendar,
   baseline: ApiBaseline | null = null,
+  pending: readonly PendingChange[] = [],
 ): GanttModel {
   const bars = baselineBars(baseline)
+  const pendingOf = new Map<string, PendingBar[]>()
+  const proposed: ProposedRow[] = []
+  for (const change of pending) {
+    if (change.created) proposed.push({ task: change.after, bar: pendingBar(change) })
+    else pendingOf.set(change.taskId, [...(pendingOf.get(change.taskId) ?? []), pendingBar(change)])
+  }
   const shown = new Map<string, { task: ApiTask; start: string; finish: string }>()
   const unscheduled: UnscheduledRow[] = []
   for (const task of tasks) {
     const dates = datesOf(task)
     if (dates) shown.set(task.id, { task, ...dates })
-    else unscheduled.push({ task, baseline: bars.get(task.id) ?? null })
+    else {
+      unscheduled.push({
+        task,
+        baseline: bars.get(task.id) ?? null,
+        pending: pendingOf.get(task.id) ?? [],
+      })
+    }
   }
 
   const parentOf = new Map<string, string>()
@@ -269,6 +327,7 @@ export function buildGanttModel(
       red: redTasks.has(id),
       note: redTasks.get(id) ?? null,
       baseline: bars.get(id) ?? null,
+      pending: pendingOf.get(id) ?? [],
     })
     for (const child of children) place(child, depth + 1)
   }
@@ -295,10 +354,15 @@ export function buildGanttModel(
     ...rows.map((row) => ({ start: row.start, finish: row.finish })),
     ...rows.flatMap((row) => (row.baseline ? [row.baseline] : [])),
     ...unscheduled.flatMap((row) => (row.baseline ? [row.baseline] : [])),
+    ...[...rows, ...unscheduled]
+      .flatMap((row) => row.pending)
+      .concat(proposed.map((row) => row.bar))
+      .flatMap(({ start, finish }) => (start && finish ? [{ start, finish }] : [])),
   ]
   return {
     rows,
     unscheduled,
+    proposed,
     baseline: baseline?.name ?? null,
     dependencies,
     days: daysOf(spans, calendar),

@@ -222,7 +222,8 @@ describe('the Gantt model (SC-031)', () => {
   it('has no days when no task has dates', () => {
     expect(buildGanttModel([task('U')], [relations('U')], [], calendar)).toEqual({
       rows: [],
-      unscheduled: [{ task: task('U'), baseline: null }],
+      unscheduled: [{ task: task('U'), baseline: null, pending: [] }],
+      proposed: [],
       baseline: null,
       dependencies: [],
       days: [],
@@ -355,7 +356,7 @@ describe('the baseline bars (SC-065)', () => {
       ['M', { start: '2027-03-11', finish: '2027-03-11' }],
     ])
     expect(model.unscheduled).toEqual([
-      { task: unscheduled, baseline: { start: '2027-03-02', finish: '2027-03-04' } },
+      { task: unscheduled, baseline: { start: '2027-03-02', finish: '2027-03-04' }, pending: [] },
     ])
   })
 })
@@ -370,5 +371,73 @@ describe('the path of a dependency arrow', () => {
     expect(arrowPath({ x: 300, y: 17 }, { x: 100, y: 60 }, 40)).toBe(
       'M300 17 H306 V40 H90 V60 H100',
     )
+  })
+})
+
+describe('the pending overlay (SC-068)', () => {
+  const t = task('T', { plannedStart: '2027-03-01', plannedFinish: '2027-03-01' })
+  const u = task('U')
+  const after = (id: string, fields: Partial<ApiTask>) => ({
+    ...task(id, fields),
+    effort: null,
+    personLoad: null,
+    parentId: null,
+    blockedBy: [],
+  })
+
+  it('draws a pending bar beside the live one, and a created task as a row of its own', () => {
+    const model = buildGanttModel([t, u], [relations('T'), relations('U')], [], calendar, null, [
+      {
+        proposalId: 'x',
+        taskId: 'T',
+        created: false,
+        after: after('T', { plannedStart: '2027-03-15', plannedFinish: '2027-03-16' }),
+        assigneesChanged: false,
+        lines: ['Start: 1 Mar 2027 → 15 Mar 2027'],
+      },
+      {
+        proposalId: 'x',
+        taskId: 'U',
+        created: false,
+        after: after('U', { plannedStart: '2027-03-02', plannedFinish: '2027-03-02' }),
+        assigneesChanged: true,
+        lines: [],
+      },
+      {
+        proposalId: 'x',
+        taskId: 'new-1',
+        created: true,
+        after: after('new-1', { title: 'N', milestone: { variant: 'floating', date: null } }),
+        assigneesChanged: true,
+        lines: [],
+      },
+    ])
+    // The live plan is drawn as it is.
+    expect(model.rows.map((row) => [row.task.id, row.start, row.finish])).toEqual([
+      ['T', '2027-03-01', '2027-03-01'],
+    ])
+    expect(model.rows[0]!.pending).toEqual([
+      {
+        proposalId: 'x',
+        start: '2027-03-15',
+        finish: '2027-03-16',
+        assignees: null,
+        lines: ['Start: 1 Mar 2027 → 15 Mar 2027'],
+      },
+    ])
+    expect(model.unscheduled.map((row) => [row.task.id, row.pending])).toEqual([
+      [
+        'U',
+        [{ proposalId: 'x', start: '2027-03-02', finish: '2027-03-02', assignees: [], lines: [] }],
+      ],
+    ])
+    expect(model.proposed).toEqual([
+      {
+        task: expect.objectContaining({ id: 'new-1', title: 'N' }),
+        bar: { proposalId: 'x', start: null, finish: null, assignees: [], lines: [] },
+      },
+    ])
+    // The timeline spans the pending bars too.
+    expect(model.days.at(-1)!.date).toBe('2027-03-28')
   })
 })

@@ -15,6 +15,13 @@ import {
   buildGanttModel,
   formatDay,
 } from '../gantt/gantt-model.ts'
+import { PendingBanner } from '../proposals/PendingBanner.tsx'
+import {
+  loadOverlay,
+  pendingChanges,
+  pendingSummaries,
+  type PendingProposal,
+} from '../proposals/overlay.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { useProject } from './project-context.ts'
 
@@ -33,6 +40,8 @@ interface Plan {
   baselines: BaselineSummary[]
   people: PeopleById
   members: Member[]
+  /** The proposals under review that change the project; null if they could not be read. */
+  proposals: PendingProposal[] | null
 }
 
 type Loaded = { state: 'loading' } | ({ state: 'loaded' } & Plan) | { state: 'failed' }
@@ -65,6 +74,10 @@ function localDate(date: Date): string {
  * Each change goes to the REST API, which allows or refuses it by the viewer's role in the
  * project (FR-060); a refusal is shown above the Gantt, and once a change is saved the Gantt is
  * read again, as the scheduler may have moved other tasks with it.
+ *
+ * Each proposal under review that changes the project is read with its live preview, and what it
+ * would change is drawn as pending, apart from the live plan, with a line above the Gantt naming
+ * it and linking to its review (SC-068, FR-073). Reading it changes nothing in the plan.
  */
 export function GanttPage() {
   const project = useProject()
@@ -84,12 +97,13 @@ export function GanttPage() {
     async (signal?: AbortSignal) => {
       const get = <T,>(path: string) => api<T>(path, { signal })
       const base = `/projects/${encodeURIComponent(project.id)}`
-      const [tasks, flags, calendar, members, baselines] = await Promise.all([
+      const [tasks, flags, calendar, members, baselines, proposals] = await Promise.all([
         get<KanbanTask[]>(`${base}/tasks`),
         get<ApiRedFlag[]>(`${base}/red-flags`),
         get<ApiCalendar>('/calendar'),
         get<Member[]>(`${base}/members`),
         get<BaselineSummary[]>(`${base}/baselines`),
+        loadOverlay(project.id, signal),
       ])
       const relations = await Promise.all(
         tasks.map((task) => get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`)),
@@ -103,6 +117,7 @@ export function GanttPage() {
         baselines,
         people: new Map(members.map((member) => [member.accountId, member.username])),
         members,
+        proposals,
       })
     },
     [project.id],
@@ -190,12 +205,27 @@ export function GanttPage() {
   }, [selectedId, toSignIn])
 
   const baseline = selected.state === 'loaded' ? selected.baseline : null
+  const pending = useMemo(() => {
+    if (loaded.state !== 'loaded') return []
+    return pendingChanges(loaded.proposals ?? [], project.id, {
+      people: loaded.people,
+      projects: new Map([[project.id, project.name]]),
+      tasks: new Map(loaded.tasks.map((task) => [task.id, task.title])),
+    })
+  }, [loaded, project.id, project.name])
   const model = useMemo(
     () =>
       loaded.state === 'loaded'
-        ? buildGanttModel(loaded.tasks, loaded.relations, loaded.flags, loaded.calendar, baseline)
+        ? buildGanttModel(
+            loaded.tasks,
+            loaded.relations,
+            loaded.flags,
+            loaded.calendar,
+            baseline,
+            pending,
+          )
         : null,
-    [loaded, baseline],
+    [loaded, baseline, pending],
   )
 
   if (loaded.state === 'failed') {
@@ -268,6 +298,7 @@ export function GanttPage() {
           {refused}
         </p>
       )}
+      <PendingBanner summaries={loaded.proposals && pendingSummaries(loaded.proposals, pending)} />
       <Gantt
         name={`Gantt of ${project.name}`}
         model={model}

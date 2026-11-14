@@ -17,6 +17,8 @@ import {
   type GanttDependency,
   type GanttModel,
   type GanttRow,
+  type PendingBar,
+  type ProposedRow,
   type UnscheduledRow,
 } from './gantt-model.ts'
 import { avatarColour } from './avatar.ts'
@@ -82,26 +84,29 @@ interface GanttProps {
  * A table of the tasks on the left, the timeline on the right; the panel scrolls sideways, with the
  * table kept in view. Below the scheduled tasks, the unscheduled ones (SC-064, FR-004, FR-145);
  * cancelled tasks are drawn faded (FR-129); a selected baseline's bars lie under the planned ones
- * (SC-065, FR-050).
+ * (SC-065, FR-050). What a proposal under review would change is drawn apart from the live plan,
+ * as dashed pending bars beside the live ones, and the tasks it would create as rows of their own
+ * after the live plan's (SC-068, FR-073).
  *
  * With `editing`, what it shows can be changed on it (SC-067, FR-053): a bar dragged sideways
  * moves its task by whole days, a line drawn from the handle at a bar's end to another task makes
  * that task blocked by it, and a click on a bar or a task's title opens its editor for the rest.
  */
 export function Gantt({ name, model, people, today, editing }: GanttProps) {
-  const { rows, unscheduled, days, dependencies, baseline } = model
+  const { rows, unscheduled, proposed, days, dependencies, baseline } = model
   const [drag, setDrag] = useState<Drag | null>(null)
   const arrows = useRef<SVGSVGElement>(null)
-  if (rows.length === 0 && unscheduled.length === 0) {
+  if (rows.length === 0 && unscheduled.length === 0 && proposed.length === 0) {
     return <p className="page__note">This project has no tasks yet.</p>
   }
   const first = days[0]?.date ?? today
   const timelineWidth = days.length * DAY_WIDTH
   const todayIndex = daysBetween(first, today)
   const showToday = todayIndex >= 0 && todayIndex < days.length
-  const bodyHeight =
-    rows.length * ROW_HEIGHT +
-    (unscheduled.length > 0 ? GROUP_HEIGHT + unscheduled.length * ROW_HEIGHT : 0)
+  const group = (count: number) => (count > 0 ? GROUP_HEIGHT + count * ROW_HEIGHT : 0)
+  const bodyHeight = rows.length * ROW_HEIGHT + group(unscheduled.length) + group(proposed.length)
+  const pending =
+    proposed.length > 0 || [...rows, ...unscheduled].some((row) => row.pending.length > 0)
 
   /** Where the pointer is, in the timeline's pixels. */
   const pointAt = (event: ReactPointerEvent): Point => {
@@ -222,6 +227,22 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
                 editing={rowEditing(row, index)}
               />
             ))}
+            {proposed.length > 0 && (
+              <div role="row" aria-label="Proposed" className="gantt__row gantt__group">
+                <div role="rowheader" className="gantt__left gantt__group-left">
+                  Proposed<span className="gantt__group-note">pending review, not in the plan</span>
+                </div>
+                <div className="gantt__group-lane" />
+              </div>
+            )}
+            {proposed.map((row) => (
+              <ProposedTaskRow
+                key={`${row.bar.proposalId}:${row.task.id}`}
+                row={row}
+                first={first}
+                people={people}
+              />
+            ))}
             {unscheduled.length > 0 && (
               <div role="row" aria-label="Unscheduled" className="gantt__row gantt__group">
                 <div role="rowheader" className="gantt__left gantt__group-left">
@@ -277,6 +298,7 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
       <Legend
         baseline={baseline}
         crossProject={dependencies.some((dependency) => dependency.crossProject)}
+        pending={pending}
       />
     </div>
   )
@@ -513,6 +535,16 @@ function TaskRow({
         {baseline !== null && row.baseline && (
           <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />
         )}
+        {row.pending.map((bar) => (
+          <PendingBarOf
+            key={bar.proposalId}
+            title={task.title}
+            milestone={task.milestone !== null}
+            bar={bar}
+            first={first}
+            people={people}
+          />
+        ))}
         {row.note && (
           <span
             className="gantt__note"
@@ -564,12 +596,146 @@ function UnscheduledTaskRow({
         onOpen={onOpen}
       />
       <div role="cell" className="gantt__lane">
-        <span className="gantt__unscheduled">No planned dates{cancelled ? ', cancelled' : ''}</span>
+        {!row.pending.some((bar) => bar.start !== null) && (
+          <span className="gantt__unscheduled">
+            No planned dates{cancelled ? ', cancelled' : ''}
+          </span>
+        )}
         {baseline !== null && row.baseline && (
           <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />
         )}
+        {row.pending.map((bar) => (
+          <PendingBarOf
+            key={bar.proposalId}
+            title={task.title}
+            milestone={task.milestone !== null}
+            bar={bar}
+            first={first}
+            people={people}
+          />
+        ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * A task a proposal under review would create, after the live plan's rows: drawn only as pending,
+ * as it is not in the plan, and not editable on the Gantt (SC-068, FR-073).
+ */
+function ProposedTaskRow({
+  row,
+  first,
+  people,
+}: {
+  row: ProposedRow
+  first: string
+  people: PeopleById
+}) {
+  const { task, bar } = row
+  return (
+    <div
+      role="row"
+      aria-label={`${task.title}, proposed`}
+      data-pending="true"
+      className="gantt__row gantt__row--proposed"
+    >
+      <TaskCells
+        task={task}
+        depth={0}
+        parent={false}
+        start={bar.start}
+        people={people}
+        onOpen={undefined}
+      />
+      <div role="cell" className="gantt__lane">
+        <PendingBarOf
+          title={task.title}
+          milestone={task.milestone !== null}
+          bar={bar}
+          first={first}
+          people={people}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** What a pending bar says beside it: `Proposed: 8 Mar, bob`. */
+function pendingText(bar: PendingBar, people: PeopleById): string {
+  const when =
+    bar.start === null || bar.finish === null
+      ? 'no planned dates'
+      : bar.start === bar.finish
+        ? formatDay(bar.start)
+        : `${formatDay(bar.start)} – ${formatDay(bar.finish)}`
+  const who =
+    bar.assignees === null
+      ? ''
+      : bar.assignees.length === 0
+        ? ', unassigned'
+        : `, ${bar.assignees.map((id) => people.get(id) ?? 'someone who is not a member').join(', ')}`
+  return `Proposed: ${when}${who}`
+}
+
+/**
+ * A task as a proposal under review would make it: a dashed bar on the days it would lie on, with
+ * what it says beside it, apart from the live bar (SC-068, FR-073). It takes no pointer, so the
+ * live bar under it can still be edited.
+ */
+function PendingBarOf({
+  title,
+  milestone,
+  bar,
+  first,
+  people,
+}: {
+  title: string
+  milestone: boolean
+  bar: PendingBar
+  first: string
+  people: PeopleById
+}) {
+  const text = pendingText(bar, people)
+  const details = bar.lines.length > 0 ? `\n${bar.lines.join('\n')}` : ''
+  if (bar.start === null || bar.finish === null) {
+    return (
+      <span
+        role="img"
+        aria-label={`Pending proposal for ${title}: no planned dates`}
+        title={text + details}
+        data-proposal-id={bar.proposalId}
+        className="gantt__pending-text gantt__pending-text--alone"
+      >
+        {text}
+      </span>
+    )
+  }
+  const start = daysBetween(first, bar.start)
+  const length = daysBetween(bar.start, bar.finish) + 1
+  const label = milestone
+    ? `Pending proposal for ${title}: milestone on ${formatDay(bar.start, true)}`
+    : `Pending proposal for ${title}: ${formatDay(bar.start, true)} to ${formatDay(bar.finish, true)}`
+  return (
+    <>
+      <span
+        role="img"
+        aria-label={label}
+        title={text + details}
+        data-start={bar.start}
+        data-finish={bar.finish}
+        data-proposal-id={bar.proposalId}
+        className={'gantt__pending' + (milestone ? ' gantt__pending--milestone' : '')}
+        style={{ left: start * DAY_WIDTH + 4, width: length * DAY_WIDTH - 8 }}
+      />
+      <span
+        aria-hidden="true"
+        className="gantt__pending-text"
+        style={{ left: (start + length) * DAY_WIDTH + 4 }}
+      >
+        {text}
+      </span>
+    </>
   )
 }
 
@@ -771,7 +937,15 @@ function dependencyName(task: GanttRow, blocker: GanttRow, dependency: GanttDepe
   return name + (dependency.red ? ', in red: it pushes a fixed-date milestone' : '')
 }
 
-function Legend({ baseline, crossProject }: { baseline: string | null; crossProject: boolean }) {
+function Legend({
+  baseline,
+  crossProject,
+  pending,
+}: {
+  baseline: string | null
+  crossProject: boolean
+  pending: boolean
+}) {
   return (
     <ul className="gantt__legend" aria-label="Legend">
       <li>
@@ -810,6 +984,12 @@ function Legend({ baseline, crossProject }: { baseline: string | null; crossProj
         <span className="gantt__key-diamond gantt__key-diamond--floating" />
         Floating milestone
       </li>
+      {pending && (
+        <li>
+          <span className="gantt__key-pending" />
+          Pending proposal
+        </li>
+      )}
       {crossProject && (
         <li>
           <span className="gantt__key-cross-project" />

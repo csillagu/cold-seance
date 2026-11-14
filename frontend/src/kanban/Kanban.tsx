@@ -14,6 +14,7 @@ import {
   type KanbanModel,
   type KanbanTask,
   movesFrom,
+  type ProposedCard,
 } from './kanban-model.ts'
 import './kanban.css'
 
@@ -56,6 +57,10 @@ interface KanbanProps {
  * it to another column, by dragging it or with its "Move to" control, and its fields with "Edit".
  * Every change goes to the REST API, which allows or refuses it by the viewer's role in the card's
  * project (FR-060); a refusal is shown on the card.
+ *
+ * What a proposal under review would change is shown as pending, apart from the live plan: on a
+ * card, in a dashed box of its own, and a task it would create as a dashed card below the live
+ * cards of its column, which cannot be moved or edited (FR-073).
  */
 export function Kanban({ name, model, people, members, onMove, onEdit }: KanbanProps) {
   const [dragged, setDragged] = useState<KanbanTask | null>(null)
@@ -84,6 +89,7 @@ export function Kanban({ name, model, people, members, onMove, onEdit }: KanbanP
           key={column.status}
           column={column}
           dropAllowed={dragged !== null && movesFrom(dragged.status).includes(column.status)}
+          people={people}
           onDrop={() => {
             if (dragged && movesFrom(dragged.status).includes(column.status)) {
               move(dragged, column.status)
@@ -123,11 +129,13 @@ function Column({
   column,
   dropAllowed,
   onDrop,
+  people,
   children,
 }: {
   column: KanbanColumn
   dropAllowed: boolean
   onDrop: () => void
+  people: PeopleById
   children: (card: KanbanCard) => ReactNode
 }) {
   const headingId = `kanban-column-${column.status}`
@@ -165,6 +173,20 @@ function Column({
           <ul className="kanban__cards" aria-label={`${column.name}, unscheduled`}>
             {column.unscheduled.map((card) => (
               <li key={card.task.id}>{children(card)}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {column.proposed.length > 0 ? (
+        <>
+          <div role="separator" aria-label="Proposed" className="kanban__separator">
+            Proposed, pending review
+          </div>
+          <ul className="kanban__cards" aria-label={`${column.name}, proposed`}>
+            {column.proposed.map((card) => (
+              <li key={`${card.proposalId}:${card.task.id}`}>
+                <ProposedCardView card={card} people={people} />
+              </li>
             ))}
           </ul>
         </>
@@ -266,23 +288,23 @@ function Card({
             ) : null}
           </div>
           {card.note ? <div className="kanban__note">{card.note}</div> : null}
-          {task.assignees.length > 0 ? (
-            <div className="kanban__people" aria-label="Assigned">
-              {task.assignees.map((id) => {
-                const username = people.get(id)
-                return (
-                  <span
-                    key={id}
-                    className="kanban__avatar"
-                    style={{ background: avatarColour(id) }}
-                    title={username ?? 'Not a member of this project'}
-                  >
-                    {username ? username.slice(0, 2).toUpperCase() : '?'}
-                  </span>
-                )
-              })}
+          {card.pending.map((change) => (
+            <div
+              key={change.proposalId}
+              role="group"
+              aria-label={`Pending change to ${task.title}`}
+              data-proposal-id={change.proposalId}
+              className="kanban__pending"
+            >
+              <div className="kanban__pending-title">Pending change</div>
+              {change.lines.length === 0 ? (
+                <div>Rescheduled as proposed</div>
+              ) : (
+                change.lines.map((line) => <div key={line}>{line}</div>)
+              )}
             </div>
-          ) : null}
+          ))}
+          <People ids={task.assignees} people={people} />
           <div className="kanban__actions">
             <button
               type="button"
@@ -326,6 +348,70 @@ function Card({
           {error}
         </p>
       ) : null}
+    </article>
+  )
+}
+
+/** The avatars of the people assigned to a task, if any. */
+function People({ ids, people }: { ids: readonly string[]; people: PeopleById }) {
+  if (ids.length === 0) return null
+  return (
+    <div className="kanban__people" aria-label="Assigned">
+      {ids.map((id) => {
+        const username = people.get(id)
+        return (
+          <span
+            key={id}
+            className="kanban__avatar"
+            style={{ background: avatarColour(id) }}
+            title={username ?? 'Not a member of this project'}
+          >
+            {username ? username.slice(0, 2).toUpperCase() : '?'}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The card of a task a proposal under review would create: dashed and marked as pending, as it is
+ * not in the plan, with a link to review the proposal in place of the live cards' controls (FR-073).
+ */
+function ProposedCardView({ card, people }: { card: ProposedCard; people: PeopleById }) {
+  const { task } = card
+  const dates = datesLabel(task)
+  return (
+    <article
+      aria-label={`${task.title}, proposed`}
+      data-pending="true"
+      data-proposal-id={card.proposalId}
+      className="kanban__card kanban__card--proposed"
+    >
+      {card.project ? <div className="kanban__project">{card.project.name}</div> : null}
+      <div className="kanban__title">
+        <span className="kanban__title-text">{task.title}</span>
+      </div>
+      <div className="kanban__tags">
+        <span className="kanban__tag kanban__tag--accent">Pending</span>
+        {dates ? (
+          <span className="kanban__tag kanban__tag--mono" aria-label={`Proposed ${dates}`}>
+            {dates}
+          </span>
+        ) : (
+          <span className="kanban__tag kanban__tag--empty">No dates</span>
+        )}
+      </div>
+      <People ids={task.assignees} people={people} />
+      <div className="kanban__actions">
+        <Link
+          to={`/proposals/${encodeURIComponent(card.proposalId)}`}
+          className="kanban__button kanban__link"
+          aria-label={`Review the proposal of ${task.title}`}
+        >
+          Review
+        </Link>
+      </div>
     </article>
   )
 }
