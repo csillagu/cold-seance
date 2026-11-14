@@ -7,6 +7,7 @@ import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { AssignmentEditor, PersonLoadField } from '../tasks/AssignmentEditor.tsx'
 import { EligibilityEditor } from '../tasks/EligibilityEditor.tsx'
 import type { PeopleOnTask, Person } from '../tasks/PersonChip.tsx'
+import { RelationsSection } from '../tasks/RelationsSection.tsx'
 import { RepositoryField, TaskDetailsFields } from '../tasks/TaskDetailsFields.tsx'
 import {
   AI_ONLY_SHARE,
@@ -71,7 +72,7 @@ type Send = (below: string, method: string, body?: unknown) => Promise<void>
  * A task's page, at `/tasks/<id>`: its fields, in the task details editor (SC-098), the
  * repository it is assigned to, its status and the action that cancels it (SC-102), who can do
  * it, in the eligibility expression editor (SC-099), and who will do it, in the assignment editor
- * (SC-100), each saved on its own through the REST API, which decides by the viewer's role in the
+ * (SC-100), and its parent, subtasks and blockers, in the task relation editor (SC-101), each saved on its own through the REST API, which decides by the viewer's role in the
  * task's project what may be changed, and whose refusal is shown. The Kanban's cards lead here. Someone the task's project is not visible to is told so, in the API's
  * words, and shown nothing of it (FR-017).
  */
@@ -128,6 +129,14 @@ export function TaskPage() {
     [load, taskId, toSignIn],
   )
   const save = useCallback((changes: Record<string, unknown>) => send('', 'PATCH', changes), [send])
+  /** Reads the task again, after a change its relation editor made. */
+  const reload = useCallback(
+    () =>
+      load().catch((error: unknown) => {
+        if (!toSignIn(error)) setLoaded({ state: 'failed' })
+      }),
+    [load, toSignIn],
+  )
 
   switch (loaded.state) {
     case 'loading':
@@ -147,7 +156,7 @@ export function TaskPage() {
     case 'loaded':
       break
   }
-  return <TaskEditors {...loaded} save={save} send={send} />
+  return <TaskEditors {...loaded} save={save} send={send} reload={reload} />
 }
 
 function TaskEditors({
@@ -157,7 +166,12 @@ function TaskEditors({
   onTask,
   save,
   send,
-}: Loaded & { save: (changes: Record<string, unknown>) => Promise<void>; send: Send }) {
+  reload,
+}: Loaded & {
+  save: (changes: Record<string, unknown>) => Promise<void>
+  send: Send
+  reload: () => Promise<void>
+}) {
   const people: PeopleOnTask = useMemo(() => {
     const names = new Map<string, string>()
     for (const person of [...onTask, ...members]) names.set(person.accountId, person.username)
@@ -178,6 +192,7 @@ function TaskEditors({
       <StatusSection key={`s-${task.status}`} task={task} projectName={project.name} send={send} />
       <DetailsSection key={`d-${JSON.stringify(task)}`} task={task} save={save} />
       <RepositorySection key={`r-${task.repositoryId ?? ''}`} task={task} send={send} />
+      <RelationsSection task={task} projectName={project.name} onChanged={reload} />
       {task.milestone ? (
         <p className="page__note">
           A milestone takes no time: no one can be eligible for it or assigned to it.
