@@ -22,6 +22,7 @@ import { ProposalService } from './proposals.ts'
 import { ReceivingProjectService } from './receiving-projects.ts'
 import { RedFlagService } from './red-flags.ts'
 import { RepositoryService } from './repositories.ts'
+import { SavedViewService } from './saved-views.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
 import { TaskPeopleService } from './task-people.ts'
@@ -75,6 +76,8 @@ export interface Services {
   redFlags: RedFlagService
   /** The registered GitHub repositories and their admins (SC-019). */
   repositories: RepositoryService
+  /** The named Kanban and Gantt views kept in projects, groups or personally (SC-020). */
+  savedViews: SavedViewService
   sessions: SessionService
   tasks: TaskService
   /** Cancelling a task, which passes its blockers on to the tasks it blocked (SC-038). */
@@ -166,6 +169,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     receivingProjects,
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
+    savedViews: new SavedViewService(db, audit, projectRoles, tasks, viewFilter),
     sessions: new SessionService(db),
     tasks,
     taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),

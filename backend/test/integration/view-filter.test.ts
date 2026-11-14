@@ -171,7 +171,7 @@ describe('TC-083: a view shows no tasks of a project its viewer cannot read', ()
     expect(shown.some((t) => t.projectId === borealis)).toBe(false)
   })
 
-  // Pending: TC-083 in full: tasks A-task and B-task (SC-001) in alice's saved personal Kanban
-  // view (SC-020, SC-030), opened before and after the change, the view then showing no other
-  // data of Borealis either, such as its name.
+  // TC-083 through alice's saved personal Kanban view (SC-020), opened before and after the
+  // change, is in saved-views.test.ts. Pending: TC-083 in full, the view opened in the browser
+  // (SC-030, SC-091, node F22).
 })

@@ -68,7 +68,7 @@ interface ProjectParams {
 /**
  * The routes of groups (SC-018, SC-057, SC-058, SC-026): create a group, list every group, list a
  * group's members with their roles, give someone a role in a group, take them out of it, leave it,
- * list a group's projects and add an existing project to it.
+ * list a group's projects, add an existing project to it, and delete it (SC-059).
  * They only translate the request; the group service decides what is
  * allowed (DD-039).
  */
@@ -203,6 +203,23 @@ export const groupRoutes: FastifyPluginAsync<RouteGroupOptions> = async (routes,
     async (request) => {
       const { groupId, projectId } = request.params
       return services.groups.addProject(callerOf(request), groupId, projectId)
+    },
+  )
+
+  routes.delete<{ Params: { groupId: string } }>(
+    '/:groupId',
+    {
+      schema: {
+        description:
+          'Deletes the group, with its saved views, its members and its place in its projects; ' +
+          'the projects stay. Only system admins can.',
+        params: groupParams,
+        response: { 204: { type: 'null' } },
+      },
+    },
+    async (request, reply) => {
+      await services.groups.deleteGroup(callerOf(request), request.params.groupId)
+      return reply.code(204).send()
     },
   )
 }
