@@ -1,9 +1,10 @@
 name: CI
 
+# Runs on pull requests to main and on manual dispatch; not on pushes to main (#196).
 on:
   pull_request:
-  push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -162,9 +163,10 @@ jobs:
       - run: npm run test:image
 
   # The image the Compose install runs (SC-029), published from main once every check has passed.
+  # Pushes to main no longer run CI (#196), so publishing takes a manual dispatch on main.
   publish:
     name: Publish the image
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     needs: [static, unit, integration, e2e, build, image]
     runs-on: ubuntu-latest
     timeout-minutes: 15

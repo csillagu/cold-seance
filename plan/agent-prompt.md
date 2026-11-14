@@ -94,7 +94,7 @@ You merge your own pull request; the owner allows it for work-graph issues (see 
 5. **CI failed:** fix it, and go back to step 2.
 6. **`main` moved** since your rebase (`git fetch origin main`, then compare `origin/main` with your branch's base): go back to step 1. Merge only a head CI has passed on top of the current `main`.
 7. **Merge** with a merge commit, not squash or rebase-merge. If GitHub refuses (a review the rules require, a conflict that appeared meanwhile), go back to step 1 for a conflict. For anything else, comment on the issue with what GitHub said, add `needs-owner`, and stop.
-8. **Check `main`** after the merge: wait for CI's run on `main` for your merge commit. If it fails, fix `main` at once with a new pull request that references the same issue, merged the same way. A red `main` blocks every other agent.
+8. **After the merge**, CI does not run on `main` by itself: it runs on pull requests to `main` and on manual dispatch only (#196). Since step 6 merges only a head that CI passed on top of the current `main`, there is no run on `main` to wait for. If a later pull request shows `main` broken, fix it at once with a new pull request that references the issue that broke it, merged the same way. A red `main` blocks every other agent.
 
 ## 10. Finish
 
