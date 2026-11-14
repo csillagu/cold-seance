@@ -4,6 +4,7 @@ import { AccountsPage } from './pages/AccountsPage.tsx'
 import { AuditLogPage } from './pages/AuditLogPage.tsx'
 import { CalendarPage } from './pages/CalendarPage.tsx'
 import { CapacityPage } from './pages/CapacityPage.tsx'
+import { CompanyCalendarPage } from './pages/CompanyCalendarPage.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
 import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
@@ -43,6 +44,7 @@ export function App() {
         <Route path="accounts/:accountId/capacity" element={<CapacityPage />} />
         <Route path="accounts/:accountId/github" element={<GitHubLinkPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="company-calendar" element={<CompanyCalendarPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
           <Route path="audit-log" element={<ProjectAuditLogPage />} />

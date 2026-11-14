@@ -33,7 +33,8 @@ type Projects =
  * (SC-087), where a repository's admins decide on projects' requests for it.
  *
  * The navigation also leads to the signed-in person's own GitHub account link (SC-077), capacity
- * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), and, for a system admin
+ * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), to the company calendar
+ * (SC-090), which everyone signed in may read and system admins change, and, for a system admin
  * only, to account administration (SC-076) and the whole audit log (SC-094). The pages inside read who is signed in with
  * `useSignedIn()`.
  *
@@ -119,6 +120,10 @@ export function Layout() {
                   </NavLink>
                   <NavLink to="/tokens" className="layout__link">
                     API tokens
+                  </NavLink>
+                  <h2 className="layout__nav-heading">Company</h2>
+                  <NavLink to="/company-calendar" className="layout__link">
+                    Company calendar
                   </NavLink>
                 </>
               )}
