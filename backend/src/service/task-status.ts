@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import type { Executor } from '../db/client.ts'
 import { TASK_STATUSES, tasks } from '../db/schema.ts'
-import type { AuditLogService } from './audit.ts'
+import type { Actor, AuditLogService, GitHubUser } from './audit.ts'
 import type { Caller } from './caller.ts'
 import { ServiceError } from './errors.ts'
 import type { TaskStatus } from './permissions.ts'
@@ -31,6 +31,13 @@ export function localToday(now: Date = new Date()): string {
   const pad = (value: number, width: number) => String(value).padStart(width, '0')
   return `${pad(now.getFullYear(), 4)}-${pad(now.getMonth() + 1, 2)}-${pad(now.getDate(), 2)}`
 }
+
+/**
+ * What a status change made on GitHub came to: `set`, or `unchanged` for a task already in that
+ * status, or `refused` for a move the task's relations forbid (SC-037), or of a cancelled task,
+ * which the GitHub change handler (SC-023) then reverts on GitHub (FR-095).
+ */
+export type GitHubStatusOutcome = 'set' | 'unchanged' | 'refused'
 
 /** What a move sets besides the status: the task's actual start and finish. */
 type ActualDates = Pick<TaskRow, 'actualStart' | 'actualFinish'>
@@ -128,27 +135,64 @@ export class TaskStatusService {
       )
       if (to === current.status) return this.#out(tx, current)
       await checkStatusConstraints(tx, current, to)
-      const dates = move(current, to, this.#today)
-      const [updated] = await tx
-        .update(tasks)
-        .set({ status: to, ...dates })
-        .where(eq(tasks.id, taskId))
-        .returning(taskColumns)
-      if (!updated) throw new Error('The task whose status was set was not returned')
-      const changed = (['actualStart', 'actualFinish'] as const).filter(
-        (field) => dates[field] !== current[field],
-      )
-      await this.#audit.record(tx, caller, {
-        action: 'task.status-set',
-        subject: { type: 'task', id: taskId },
-        projectId: current.projectId,
-        details: {
-          changes: { status: to, ...pick(dates, changed) },
-          previous: { status: current.status, ...pick(current, changed) },
-        },
-      })
-      return this.#out(tx, updated)
+      return this.#out(tx, await this.#move(tx, caller, current, to))
     })
+  }
+
+  /**
+   * Sets the task's status to `status`, as a change made on GitHub by `user` (FR-091 to FR-094):
+   * whatever their role in the tool, or none (FR-099). The constraint checks hold as through any
+   * other channel (FR-115): a move they refuse, or of a cancelled task, changes nothing and is
+   * answered `refused`. Each change is recorded in the audit log under the GitHub login
+   * (SRC-251).
+   */
+  async setStatusFromGitHub(
+    user: GitHubUser,
+    taskId: string,
+    status: 'in-progress' | 'on-hold' | 'done',
+  ): Promise<GitHubStatusOutcome> {
+    return this.#db.transaction(async (tx) => {
+      const found = await this.#find(taskId, tx, false)
+      if (mayBeConstrained(status)) {
+        await lockRelations(tx)
+        await lockPlan(tx, found.projectId)
+      }
+      const current = await this.#find(taskId, tx, true)
+      if (current.status === 'cancelled') return 'refused'
+      if (current.status === status) return 'unchanged'
+      try {
+        await checkStatusConstraints(tx, current, status)
+      } catch (error) {
+        if (error instanceof ServiceError && error.kind === 'conflict') return 'refused'
+        throw error
+      }
+      await this.#move(tx, user, current, status)
+      return 'set'
+    })
+  }
+
+  /** Moves the locked task to `to`, recording the move in the audit log. */
+  async #move(tx: Executor, actor: Actor, current: TaskRow, to: TaskStatus): Promise<TaskRow> {
+    const dates = move(current, to, this.#today)
+    const [updated] = await tx
+      .update(tasks)
+      .set({ status: to, ...dates })
+      .where(eq(tasks.id, current.id))
+      .returning(taskColumns)
+    if (!updated) throw new Error('The task whose status was set was not returned')
+    const changed = (['actualStart', 'actualFinish'] as const).filter(
+      (field) => dates[field] !== current[field],
+    )
+    await this.#audit.record(tx, actor, {
+      action: 'task.status-set',
+      subject: { type: 'task', id: current.id },
+      projectId: current.projectId,
+      details: {
+        changes: { status: to, ...pick(dates, changed) },
+        previous: { status: current.status, ...pick(current, changed) },
+      },
+    })
+    return updated
   }
 
   #out(executor: Executor, row: TaskRow): Promise<Task> {

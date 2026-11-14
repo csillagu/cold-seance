@@ -11,9 +11,25 @@ const entry = {
     id: { type: 'integer' },
     at: { type: 'string', format: 'date-time' },
     by: {
-      type: 'object',
-      required: ['accountId', 'username'],
-      properties: { accountId: { type: 'string', format: 'uuid' }, username: { type: 'string' } },
+      description:
+        'Who made the change: an account, or for a change made on GitHub, the GitHub login of whoever made it there.',
+      oneOf: [
+        {
+          type: 'object',
+          required: ['accountId', 'username'],
+          properties: {
+            accountId: { type: 'string', format: 'uuid' },
+            username: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
+          required: ['githubLogin'],
+          properties: { githubLogin: { type: 'string' } },
+          additionalProperties: false,
+        },
+      ],
     },
     channels: {
       type: 'array',

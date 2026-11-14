@@ -6,6 +6,7 @@ import { useSignInRedirect } from '../sign-in-redirect.ts'
 import {
   type AuditEntry,
   describeAction,
+  describeActor,
   describeChannels,
   describeDetails,
 } from './audit-entry.ts'
@@ -122,7 +123,7 @@ export function AuditLog({
                 <td className="audit__when">
                   <time dateTime={entry.at}>{formatWhen(entry.at)}</time>
                 </td>
-                <td className="audit__who">{entry.by.username}</td>
+                <td className="audit__who">{describeActor(entry.by)}</td>
                 <td>{describeChannels(entry.channels)}</td>
                 {whole && <td>{projectOf(entry.projectId, projectNames)}</td>}
                 <td>

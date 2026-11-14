@@ -5,7 +5,8 @@ export type Channel = 'ui' | 'rest-api' | 'mcp' | 'github'
 export interface AuditEntry {
   id: number
   at: string
-  by: { accountId: string; username: string }
+  /** An account, or for a change made on GitHub, the GitHub login of whoever made it there. */
+  by: { accountId: string; username: string } | { githubLogin: string }
   /**
    * One channel, or two for a change an approved AI proposal applied: the proposal's channel,
    * then the approval's (FR-164).
@@ -22,6 +23,11 @@ const CHANNEL_NAMES: Record<Channel, string> = {
   'rest-api': 'REST API',
   mcp: 'MCP server',
   github: 'GitHub',
+}
+
+/** Who made the change, in words: the account's username, or a GitHub login marked as one. */
+export function describeActor(by: AuditEntry['by']): string {
+  return 'username' in by ? by.username : `${by.githubLogin} (GitHub)`
 }
 
 /** The name of a channel as the screen shows it; an unknown one as the API gives it. */

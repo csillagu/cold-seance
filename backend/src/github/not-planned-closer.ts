@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import type { Database } from '../db/client.ts'
 import { projectRepositoryRequests, repositories, taskIssues, tasks } from '../db/schema.ts'
 import type { GitHubClient } from './client.ts'
@@ -48,7 +48,14 @@ export class GitHubNotPlannedCloser {
           eq(projectRepositoryRequests.state, 'approved'),
         ),
       )
-      .where(and(eq(tasks.id, taskId), eq(tasks.status, 'cancelled')))
+      .where(
+        and(
+          eq(tasks.id, taskId),
+          eq(tasks.status, 'cancelled'),
+          // An issue deleted on GitHub has nothing left to close (FR-136, SC-023).
+          ne(taskIssues.seenState, 'deleted'),
+        ),
+      )
     if (!task) return false
     const repository = { owner: task.owner, name: task.name }
     const client = this.#github()

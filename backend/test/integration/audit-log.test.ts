@@ -664,7 +664,7 @@ describe('test cases through the REST API', () => {
       expect(new Date(entry!.at).getTime()).toBeLessThanOrEqual((await now(x.db)).getTime())
     })
 
-    // Pending: TC-173 in full: tc-writer closes issue #1 and T is finished through GitHub (SC-001, SC-019, SC-110, SC-022, SC-054, SC-023). Open question for the owner: the TC says it is not stated how a GitHub user with no account in the tool is named, and the log now records only accounts as the ones who made a change.
+    // TC-173 is tested in full in change-handler.test.ts, with the GitHub change handler (SC-023) fed the change directly; the change recorded under tc-writer's GitHub login (SRC-251).
   })
 
   describe('TC-203: a system admin reads the whole audit log', () => {
@@ -743,7 +743,7 @@ describe('test cases through the REST API', () => {
       expect(moves.map((e) => e.subject.id).sort()).toEqual(['A', 'B'])
       for (const move of moves) {
         expect(move.by).toEqual({ accountId: bob.id, username: 'bob' })
-        expect(move.by.accountId).not.toBe(alice.id)
+        expect(move.by).not.toMatchObject({ accountId: alice.id })
       }
     })
 
@@ -900,8 +900,12 @@ describe('test cases in full through the REST API', () => {
       expect(response.statusCode).toBe(200)
       // Negative: no entry is withheld for lack of a project role.
       const shown = renamings(response.json<Sent[]>())
-      expect(shown.map((e) => [e.subject.id, e.by.username])).toHaveLength(2)
-      expect(shown.map((e) => [e.subject.id, e.by.username])).toEqual(
+      expect(
+        shown.map((e) => [e.subject.id, 'username' in e.by ? e.by.username : undefined]),
+      ).toHaveLength(2)
+      expect(
+        shown.map((e) => [e.subject.id, 'username' in e.by ? e.by.username : undefined]),
+      ).toEqual(
         expect.arrayContaining([
           [a, 'alice'],
           [b, 'bob'],

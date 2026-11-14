@@ -351,8 +351,12 @@ export class GitHubPlanningMirror implements PlanningChanges {
   }
 }
 
-/** Whether the task's project pulls issues from its issue's repository now (FR-142, FR-182). */
-const syncedColumn = sql<boolean>`exists (
+/**
+ * Whether the task is synced with its issue: its project pulls issues from the issue's repository
+ * now (FR-142, FR-182), and the issue is not one deleted on GitHub whose deletion finished the task
+ * (FR-136, SC-023), which there is nothing left of to mirror to.
+ */
+const syncedColumn = sql<boolean>`${taskIssues.seenState} <> 'deleted' and exists (
   select 1 from project_repository_requests r
   where r.project_id = ${tasks.projectId}
     and r.repository_id = ${taskIssues.repositoryId}

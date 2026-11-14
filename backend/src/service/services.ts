@@ -7,6 +7,7 @@ import { BaselineService } from './baselines.ts'
 import { CalendarService } from './calendars.ts'
 import { DailyPersonLoadService } from './daily-person-load.ts'
 import { GanttExportService } from './gantt-export.ts'
+import { GitHubIssueTaskService } from './github-issue-tasks.ts'
 import { GitHubLinkService } from './github-links.ts'
 import { GroupService, groupRoles } from './groups.ts'
 import { NotificationService } from './notifications.ts'
@@ -50,6 +51,8 @@ export interface Services {
   dailyLoad: DailyPersonLoadService
   /** A project's Gantt exported as a Mermaid gantt chart for GitHub markdown (SC-021). */
   ganttExport: GanttExportService
+  /** The tasks made from new GitHub issues (SC-023). */
+  githubIssueTasks: GitHubIssueTaskService
   githubLinks: GitHubLinkService
   groups: GroupService
   /** The in-app notifications, and the subscriptions to projects and issues (SC-012). */
@@ -127,6 +130,12 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const changes = options.planningChanges
   const proposals = new ProposalService(db, audit, projectRoles, options.now)
   const tasks = new TaskService(db, audit, projectRoles, changes)
+  const receivingProjects = new ReceivingProjectService(
+    db,
+    audit,
+    projectRoles,
+    projectRepositories,
+  )
   return {
     accounts: new AccountService(db, audit),
     apiTokens: new ApiTokenService(db, audit),
@@ -135,6 +144,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     calendars,
     dailyLoad: new DailyPersonLoadService(db, viewFilter, calendars),
     ganttExport: new GanttExportService(db, projectRoles),
+    githubIssueTasks: new GitHubIssueTaskService(db, audit, projectRepositories, receivingProjects),
     githubLinks: new GitHubLinkService(db, audit, changes),
     groups,
     notifications: new NotificationService(db, audit, projectRoles),
@@ -153,7 +163,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
       options.today,
     ),
     proposals,
-    receivingProjects: new ReceivingProjectService(db, audit, projectRoles, projectRepositories),
+    receivingProjects,
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
     sessions: new SessionService(db),

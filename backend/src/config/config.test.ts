@@ -37,6 +37,10 @@ database:
 github:
   recheckIntervalMinutes: 15
   webhookSecret: hook-repos
+  statusField:
+    name: Stage
+    started: Doing
+    onHold: Parked
   apps:
     readIssues:
       appId: 11
@@ -151,6 +155,9 @@ describe('settings', () => {
       ...githubFunctions.map((fn) => `github.tokens.${fn}`),
       'github.webhookSecret',
       'github.recheckIntervalMinutes',
+      'github.statusField.name',
+      'github.statusField.started',
+      'github.statusField.onHold',
       'firstAdmin.username',
       'firstAdmin.password',
     ])
@@ -193,6 +200,7 @@ describe('loadConfig', () => {
       github: {
         recheckIntervalMinutes: 15,
         webhookSecret: 'hook-repos',
+        statusField: { name: 'Stage', started: 'Doing', onHold: 'Parked' },
         tokens: {},
         apps: {
           readIssues: {
@@ -231,6 +239,9 @@ describe('loadConfig', () => {
       COLD_SEANCE_GITHUB_APPS_WRITE_ISSUES_WEBHOOK_SECRET: 'w',
       COLD_SEANCE_GITHUB_APPS_PROJECTS_STATUS_WEBHOOK_SECRET: 'p',
       COLD_SEANCE_GITHUB_WEBHOOK_SECRET: 'repos',
+      COLD_SEANCE_GITHUB_STATUS_FIELD_NAME: 'Stage',
+      COLD_SEANCE_GITHUB_STATUS_FIELD_STARTED: 'Doing',
+      COLD_SEANCE_GITHUB_STATUS_FIELD_ON_HOLD: 'Parked',
     }
     // fx.dir has no config.yaml, so the default file is absent.
     const config = loadConfig({ env, cwd: fx.dir })
@@ -238,6 +249,7 @@ describe('loadConfig', () => {
     expect(config.database).toEqual({ url: dbUrl, directUrl: 'postgresql://direct.example/tool' })
     expect(config.github.recheckIntervalMinutes).toBe(30)
     expect(config.github.webhookSecret).toBe('repos')
+    expect(config.github.statusField).toEqual({ name: 'Stage', started: 'Doing', onHold: 'Parked' })
     expect(config.github.tokens).toEqual({})
     expect(config.github.apps.readIssues).toEqual({
       appId: 1,
@@ -318,6 +330,15 @@ github:
         check: (c) => c.github.recheckIntervalMinutes,
       }),
       'github.webhookSecret': () => ({ env: 'env-repos', check: (c) => c.github.webhookSecret }),
+      'github.statusField.name': () => ({ env: 'Env', check: (c) => c.github.statusField.name }),
+      'github.statusField.started': () => ({
+        env: 'Env',
+        check: (c) => c.github.statusField.started,
+      }),
+      'github.statusField.onHold': () => ({
+        env: 'Env',
+        check: (c) => c.github.statusField.onHold,
+      }),
       'firstAdmin.username': () => ({ env: 'env-root', check: (c) => c.firstAdmin?.username }),
       'firstAdmin.password': () => ({ env: 'env-pw', check: (c) => c.firstAdmin?.password }),
       ...Object.fromEntries(
@@ -839,5 +860,24 @@ github:
       for (const key of Object.keys(set)) delete process.env[key]
       Object.assign(process.env, saved)
     }
+  })
+})
+
+describe('the Projects status field (SRC-252)', () => {
+  const base = () => ({ COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })
+
+  it('is Status, with In Progress and On Hold, when not set', () => {
+    expect(loadConfig({ env: base(), cwd: fx.dir }).github.statusField).toEqual({
+      name: 'Status',
+      started: 'In Progress',
+      onHold: 'On Hold',
+    })
+  })
+
+  it('stops the start for a blank name', () => {
+    const error = refusal({ ...base(), COLD_SEANCE_GITHUB_STATUS_FIELD_STARTED: '  ' }, fx.dir)
+    expect(error.problems).toEqual([
+      'github.statusField.started (COLD_SEANCE_GITHUB_STATUS_FIELD_STARTED) must be a name that is not blank',
+    ])
   })
 })
