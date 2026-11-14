@@ -29,7 +29,8 @@ type Projects =
  * `useProjectsChanged()`, when the projects listed may have changed.
  *
  * Below them, the navigation leads to the registered repositories (SC-085), which anyone signed in
- * may register, and from there to each one's admins (SC-086).
+ * may register, and from there to each one's admins (SC-086), and to the repository request inbox
+ * (SC-087), where a repository's admins decide on projects' requests for it.
  *
  * The navigation also leads to the signed-in person's own GitHub account link (SC-077), capacity
  * and absences (SC-088), working calendar (SC-089) and API tokens (SC-078), and, for a system admin
@@ -100,6 +101,9 @@ export function Layout() {
               <h2 className="layout__nav-heading">GitHub</h2>
               <NavLink to="/repositories" className="layout__link">
                 Repositories
+              </NavLink>
+              <NavLink to="/repository-requests" className="layout__link">
+                Repository requests
               </NavLink>
               {signedIn !== undefined && (
                 <>

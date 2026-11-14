@@ -1,0 +1,22 @@
+/* The repository request inbox (SC-087). The design draws no such screen, so it takes the tables
+   and buttons of the account screens (accounts.css), and the colours, radii and type of the
+   screens the design draws (SRC-249). */
+.requests__group {
+  margin-top: 24px;
+}
+
+.requests__heading {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.requests__actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.requests__empty {
+  margin-top: 24px;
+}
