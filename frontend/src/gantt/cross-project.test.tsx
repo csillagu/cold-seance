@@ -4,9 +4,9 @@ import { Gantt } from './Gantt.tsx'
 import { type ApiRedFlag, type ApiRelations, type ApiTask, buildGanttModel } from './gantt-model.ts'
 
 // The cross-project dependency lines (SC-066, FR-062), drawn on a Gantt covering two projects.
-// No screen opens such a Gantt yet: the saved views that cover several projects (SC-020, B06) and
-// their editor (SC-091, F22) are not built, so TC-088's browser step waits for them. Here the
-// Gantt is given the tasks of both projects, as such a view will give them.
+// A saved view covering several projects opens such a Gantt (SC-020, SC-091); TC-088's browser
+// step on it is left for a follow-up (see e2e/tests/gantt-cross-project.spec.ts). Here the Gantt
+// is given the tasks of both projects, as such a view gives them.
 
 const APOLLO = 'project-apollo'
 const BOREALIS = 'project-borealis'

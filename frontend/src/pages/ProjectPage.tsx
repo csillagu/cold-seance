@@ -22,7 +22,7 @@ type Project =
 /**
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
  * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load`, `/projects/<id>/variance` or `/projects/<id>/proposals`, with a
- * link to each, its members and roles screen (SC-080) at `/projects/<id>/members`, its repository settings
+ * link to each, the saved views kept in it (FR-055) at `/projects/<id>/views`, its members and roles screen (SC-080) at `/projects/<id>/members`, its repository settings
  * (SC-081) at `/projects/<id>/repositories`, its part of the audit log
  * (SC-094) at `/projects/<id>/audit-log`, and the screen
  * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`. Beside its name is the control
@@ -95,6 +95,9 @@ export function ProjectPage() {
         </NavLink>
         <NavLink to="variance" className="page__view-link">
           Baseline variance
+        </NavLink>
+        <NavLink to="views" className="page__view-link">
+          Saved views
         </NavLink>
         <NavLink to="proposals" className="page__view-link">
           Proposals

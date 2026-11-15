@@ -7,15 +7,16 @@ import { type Account, expect, test } from '../fixtures.ts'
 // dependency.
 //
 // Pending: the parts on the Gantt of TC-084, TC-085, TC-086 and TC-087, which open "a personal
-// view of alice's covering Apollo and Borealis": saved views (SC-020, B06) and their editor
-// (SC-091, F22) are not built, so no Gantt covers several projects yet. On the Gantt, a change to a
+// view of alice's covering Apollo and Borealis". Saved views covering several projects are built
+// now (SC-020, SC-091; saved-views.spec.ts), after this node, but an opened saved view's Gantt only
+// shows: editing on it, and these parts, are left for a follow-up, named in the Open points of
+// PR #208. On the Gantt, a change to a
 // task goes to the REST API, which allows or refuses it by the viewer's role in the task's project
 // (backend/test/integration/task-roles.test.ts; roles held through a group,
 // project-roles.test.ts), and a refusal is shown (TC-018 below). The question of a new task's
 // project on a Gantt covering several, offering only the projects the viewer can write to, or
 // none when the view's filter allows one project (FR-061), is tested on the dialog
-// (frontend/src/gantt/GanttNewTaskDialog.test.tsx); the views that open such a Gantt are those
-// nodes'.
+// (frontend/src/gantt/GanttNewTaskDialog.test.tsx).
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {

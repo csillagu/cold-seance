@@ -6,12 +6,14 @@ import { type Account, expect, test } from '../fixtures.ts'
 // changes the test cases make on the Kanban are made on it.
 //
 // Pending: the parts on the Kanban of TC-084, TC-085, TC-086 and TC-087, which open "a personal
-// Kanban view of alice's covering Apollo and Borealis": saved views (SC-020, B06) and their editor
-// (SC-091, F22) are not built, so no view covers several projects yet. The Kanban lays out tasks of
+// Kanban view of alice's covering Apollo and Borealis". Saved views covering several projects are
+// built now (SC-020, SC-091; saved-views.spec.ts), after this node; these parts are not F22's
+// (#151), so they are left for a follow-up, named in the Open points of PR #208. The Kanban lays out tasks of
 // several projects and names each card's project (kanban-model.test.ts); the moves of TC-084 and
 // TC-085 go to the REST API, which allows them by the viewer's role in the card's project
 // (backend/test/integration/task-roles.test.ts; roles held through a group, project-roles.test.ts). Asking for a writable project when a task is
-// created in such a view (FR-061, TC-086, TC-087) waits for those nodes too.
+// created in such a view (FR-061, TC-086, TC-087) waits for that follow-up too: an opened saved
+// view does not create tasks yet.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {
@@ -297,8 +299,8 @@ test("TC-154: a read-only member sees every view and the project's data (the Kan
   })
 
   // Step 1, the Kanban: as bob, it opens and shows T. The Gantt is in gantt.spec.ts, the person load
-  // view in person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts. Pending:
-  // the saved view Board (SC-020, SC-091, F22), and step 2's reads through the REST API (see
+  // view in person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts, the
+  // saved view Board in saved-views.spec.ts. Pending: step 2's reads through the REST API (see
   // backend/test/integration/project-roles.test.ts).
   const bobsPage = await signedIn(browser, deployment.url, bob)
   const kanban = await openKanban(bobsPage, 'Apollo')

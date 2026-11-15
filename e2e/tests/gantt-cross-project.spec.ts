@@ -5,11 +5,12 @@ import { type Account, expect, test } from '../fixtures.ts'
 // in. The inputs are put in place through the REST API, in the browser's own session.
 //
 // Pending: TC-088's step, which opens "a personal Gantt view of alice's covering Apollo and
-// Borealis": saved views (SC-020, B06) and their editor (SC-091, F22) are not built, so no Gantt
-// covers several projects yet. The Gantt draws a dependency on another project's milestone, red
+// Borealis". Saved views covering several projects are built now (SC-020, SC-091; opened as a
+// Gantt in saved-views.spec.ts), after this node; the step is not one of F22's (#151), so it is
+// left for a follow-up, named in the Open points of PR #208. The Gantt draws a dependency on another project's milestone, red
 // or not, when given both projects' tasks (frontend/src/gantt/cross-project.test.tsx), and the
-// view that gives them is those nodes'. TC-227's step 1 looks at the red dependency on such a view
-// for the same reason only once they are built; here it looks at M, T's red bar on Apollo's Gantt
+// view that gives them is SC-091's. TC-227's step 1 looks at the red dependency on such a view
+// for the same reason only in that follow-up; here it looks at M, T's red bar on Apollo's Gantt
 // and each of Borealis's views.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
