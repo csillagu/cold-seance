@@ -225,6 +225,13 @@
       "when": 1794698103456,
       "tag": "0031_dapper_exodus",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794736178811,
+      "tag": "0032_previous_namora",
+      "breakpoints": true
     }
   ]
 }

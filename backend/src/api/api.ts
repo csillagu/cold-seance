@@ -8,6 +8,7 @@ import { availabilityRoutes, globalCalendarRoutes } from './calendars.ts'
 import type { Authenticator } from './caller.ts'
 import { errorBody, handleApiError, UnauthenticatedError } from './errors.ts'
 import { ganttExportRoutes } from './gantt-export.ts'
+import { githubWebhookRoutes, type WebhookReceiver } from './github-webhooks.ts'
 import { groupRoutes } from './groups.ts'
 import { notificationRoutes, subscriptionRoutes } from './notifications.ts'
 import { openApiDescription } from './openapi.ts'
@@ -57,6 +58,8 @@ export interface ApiRouteGroup {
 export interface RouteGroupOptions {
   /** The one service layer its routes call (DD-039). */
   services: Services
+  /** Where the GitHub webhook endpoint hands deliveries (SC-105); none in a test that needs none. */
+  webhooks?: WebhookReceiver | undefined
 }
 
 /**
@@ -71,6 +74,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/baselines', routes: baselineRoutes },
   { prefix: '/baselines', routes: varianceRoutes },
   { prefix: '/calendar', routes: globalCalendarRoutes },
+  { prefix: '/github', routes: githubWebhookRoutes },
   { prefix: '/groups', routes: groupRoutes },
   { prefix: '/groups', routes: groupSavedViewRoutes },
   { prefix: '/notifications', routes: notificationRoutes },
@@ -122,10 +126,12 @@ export interface ApiOptions {
   groups?: readonly ApiRouteGroup[]
   /** The service layer the routes call; without it, every route that needs it fails. */
   services?: Services
+  /** Where the GitHub webhook endpoint hands deliveries (SC-105); without it, the endpoint fails. */
+  webhooks?: WebhookReceiver
 }
 
 /**
- * The REST API (SC-026). Every route in it but signing in (SC-052) authenticates its caller before
+ * The REST API (SC-026). Every route in it but signing in (SC-052) and the GitHub webhook endpoint (SC-105) authenticates its caller before
  * anything else runs, so a request no authenticator recognises is refused with 401 and never
  * reaches a route, nor learns whether the route exists; refuses at registration a route that lacks
  * its schemas; answers errors in one shape; and serves its own OpenAPI description, generated from
@@ -149,7 +155,8 @@ export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
     })
 
     api.addHook('onRequest', async (request) => {
-      // Signing in is reached without being signed in; no other route is (SC-052).
+      // Signing in is reached without being signed in (SC-052), and so is the GitHub webhook
+      // endpoint, which checks each delivery's signature instead (SC-105); no other route is.
       if (request.routeOptions.config.public === true) return
       for (const authenticate of authenticators) {
         request.caller = (await authenticate(request)) ?? null
@@ -169,7 +176,11 @@ export function restApi(options: ApiOptions = {}): FastifyPluginAsync {
     await openApiDescription(api)
 
     for (const group of groups) {
-      await api.register(group.routes, { prefix: group.prefix, services })
+      await api.register(group.routes, {
+        prefix: group.prefix,
+        services,
+        webhooks: options.webhooks,
+      })
     }
   }
 }

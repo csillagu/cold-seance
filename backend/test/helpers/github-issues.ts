@@ -3,7 +3,8 @@
  * mirror (SC-022), the issue creator (SC-060), the not-planned closer (SC-061) and the change
  * handler (SC-023) and the seeding importer (SC-025) read and write: listing a repository's issues, creating an issue, its title, state and state reason, its
  * assignees and milestone, its parent and sub-issues, its blocked-by relations and the issues it
- * blocks, and a repository's milestones. Issues can also be created and deleted on it directly, as
+ * blocks, its events, and a repository's milestones; and, through GraphQL, an issue found by its
+ * node id. Issues can also be created and deleted on it directly, as
  * someone would on GitHub; a deleted issue is answered as gone (410).
  */
 
@@ -11,6 +12,8 @@
 export interface FakeIssue {
   /** GitHub's own id for it. */
   id: number
+  /** Its GraphQL node id. */
+  nodeId: string
   number: number
   /** `owner/name`, as the repository was created. */
   repository: string
@@ -20,6 +23,10 @@ export interface FakeIssue {
   stateReason: string | null
   /** When it was last closed, as GitHub records it (an ISO timestamp), or `null` while open. */
   closedAt: string | null
+  /** The GitHub login of whoever last closed it, as GitHub names them in `closed_by`, or `null`. */
+  closedBy: string | null
+  /** Its events, oldest first, as GitHub lists them: what happened, and the login of who did it. */
+  events: { event: string; actor: string }[]
   /** Whether it is a pull request, which GitHub lists among a repository's issues. */
   pullRequest: boolean
   assignees: string[]
@@ -123,6 +130,7 @@ export function fakeIssues(
       state: issue.state,
       state_reason: issue.stateReason,
       closed_at: issue.closedAt,
+      closed_by: issue.closedBy === null ? null : { login: issue.closedBy },
       ...(issue.pullRequest ? { pull_request: { url: `${apiUrl}/pulls/${issue.number}` } } : {}),
       repository_url: `${apiUrl}/repos/${repo?.owner}/${repo?.name}`,
       assignees: issue.assignees.map((login) => ({ login })),
@@ -142,13 +150,16 @@ export function fakeIssues(
       const number = (counters.get(key) ?? 0) + 1
       counters.set(key, number)
       const issue: FakeIssue = {
-        id: nextIssueId++,
+        id: nextIssueId,
+        nodeId: `I_${nextIssueId++}`,
         number,
         repository: fullName,
         title,
         state: 'open',
         stateReason: null,
         closedAt: null,
+        closedBy: null,
+        events: [],
         pullRequest: false,
         assignees: [],
         milestone: undefined,
@@ -176,6 +187,19 @@ export function fakeIssues(
         options: FAKE_STATUS_OPTIONS.map((name) => ({ id: `${projectId}:${name}`, name })),
       })
       const items = () => [...issues.values()].flatMap((issue) => issue.projectItems)
+      if (query.includes('node(id:')) {
+        const issue = [...issues.values()].find((i) => i.nodeId === variables['id'])
+        const repo = issue && repositoryOf(issue.repository.toLowerCase())
+        if (!issue || !repo) return { data: { node: null } }
+        return {
+          data: {
+            node: {
+              number: issue.number,
+              repository: { name: repo.name, owner: { login: repo.owner } },
+            },
+          },
+        }
+      }
       if (query.includes('projectItems')) {
         const key = `${String(variables['owner'])}/${String(variables['name'])}`.toLowerCase()
         const issue = find(key, Number(variables['number']))
@@ -298,6 +322,12 @@ export function fakeIssues(
       const byId = (id: unknown) => (typeof id === 'number' ? issues.get(id) : undefined)
 
       if (below === '' && method === 'GET') return json(200, out(issue))
+      if (below === '/events' && method === 'GET') {
+        return json(
+          200,
+          issue.events.map((e) => ({ event: e.event, actor: { login: e.actor } })),
+        )
+      }
       if (below === '' && method === 'PATCH') {
         const assignees = field('assignees')
         if (Array.isArray(assignees)) issue.assignees = assignees.map(String)

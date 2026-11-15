@@ -216,7 +216,7 @@ describe('public routes', () => {
 })
 
 describe('the REST API’s own routes', () => {
-  it('have exactly one public route: signing in', async () => {
+  it('have exactly two public routes: signing in, and the GitHub webhook endpoint, which checks signatures instead (SC-105)', async () => {
     const app = buildApp()
     closers.push(() => app.close())
     const open: string[] = []
@@ -224,7 +224,7 @@ describe('the REST API’s own routes', () => {
       if (route.config?.public === true) open.push(`${String(route.method)} ${route.url}`)
     })
     await app.ready()
-    expect(open).toEqual(['POST /api/session'])
+    expect(open.toSorted()).toEqual(['POST /api/github/webhooks', 'POST /api/session'])
   })
 
   it('take a sign-in only as JSON, so another site cannot post one from a form', async () => {
