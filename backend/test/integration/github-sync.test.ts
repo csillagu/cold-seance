@@ -26,7 +26,7 @@ import type { FakeIssue } from '../helpers/github-issues.ts'
 // "as tc-writer, ..." steps are made on the fake GitHub directly. The re-check's clock is the
 // test's, so that "60 minutes after" needs no waiting.
 //
-// Pending: the revert comments (SC-062: B18).
+// The revert comments and the notifications of reverts (SC-062) are in revert-commenter.test.ts.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 

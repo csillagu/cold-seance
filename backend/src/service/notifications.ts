@@ -44,6 +44,9 @@ export type NotifiedTask = { id: string; projectId: string } | null
  *   `username`).
  * - `token-refused`: GitHub refused the personal access token of a GitHub function as expired or
  *   revoked (FR-186): `function`.
+ * - `github-revert`: a change made on GitHub that the tool reverted (FR-086): the `task` whose
+ *   issue it is, the issue (`repository`, with `id`, `owner` and `name`, and `number`), what was
+ *   reverted (`change`, a `RevertedChange`) and, for planning, which parts (`parts`).
  *
  * A project the reader cannot read is left out of `projectIds`, and a task of one is given as
  * `null`, so that a notification tells nothing of a project not visible to its reader (FR-017).
@@ -260,6 +263,60 @@ export async function notifyProposalWaiting(
   await deliver(
     executor,
     [...recipients].map((accountId) => ({ accountId, kind: 'proposal-waiting', detail })),
+  )
+}
+
+/**
+ * What change made on GitHub the tool reverted (SC-023, SC-022): a close (`close`), a deletion
+ * (`delete`, the issue is created again), a reopening (`reopen`), a close as not planned
+ * (`not-planned`), a move to the started option (`start`), or an edit of the issue's planning
+ * (`planning`).
+ */
+export type RevertedChange = 'close' | 'delete' | 'reopen' | 'not-planned' | 'start' | 'planning'
+
+/** The parts of an issue's planning the planning mirror sets back (FR-097). */
+export type PlanningPart = 'assignees' | 'milestone' | 'parent' | 'blocked-by'
+
+/** A change the tool reverted on a task's issue, as its notification tells it (FR-086). */
+export interface RevertNotice {
+  task: { id: string; projectId: string }
+  repository: { id: string; owner: string; name: string }
+  /** The issue's number: for a deleted issue, the number of the one created in its place. */
+  number: number
+  change: RevertedChange
+  /** For `planning`, the parts set back. */
+  parts?: readonly PlanningPart[]
+}
+
+/**
+ * Notifies of a change the tool reverted on GitHub (FR-086) the people subscribed to the task's
+ * issue or to its project (FR-162), who can read the project: those subscribed by hand (FR-133)
+ * and everyone with the read-write or admin role in it (FR-134). The GitHub revert commenter
+ * (SC-062) calls it once the revert is made.
+ */
+export async function notifyGitHubRevert(executor: Executor, revert: RevertNotice): Promise<void> {
+  const { projectId } = revert.task
+  const roles = await rolesIn(executor, [projectId])
+  const recipients = new Set(
+    (await projectSubscribers(executor, [projectId], roles)).get(projectId),
+  )
+  const issueRows = await executor
+    .select({ accountId: issueSubscriptions.accountId })
+    .from(issueSubscriptions)
+    .where(eq(issueSubscriptions.taskId, revert.task.id))
+  for (const { accountId } of issueRows) {
+    if (roles.get(projectId)?.has(accountId)) recipients.add(accountId)
+  }
+  const detail: Record<string, unknown> = {
+    task: revert.task,
+    repository: revert.repository,
+    number: revert.number,
+    change: revert.change,
+    ...(revert.parts === undefined ? {} : { parts: [...revert.parts] }),
+  }
+  await deliver(
+    executor,
+    [...recipients].map((accountId) => ({ accountId, kind: 'github-revert', detail })),
   )
 }
 

@@ -27,7 +27,7 @@ import { grantRole } from '../helpers/projects.ts'
 // The step of each test case that waits "within an hour" for a change made on GitHub to reach the
 // tool, through a webhook or the re-check (SC-105, SC-024), is in github-sync.test.ts.
 //
-// Pending: the revert comments (SC-062: B18).
+// The revert comments and the notifications of reverts (SC-062) are in revert-commenter.test.ts.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 

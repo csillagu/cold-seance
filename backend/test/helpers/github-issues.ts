@@ -3,7 +3,7 @@
  * mirror (SC-022), the issue creator (SC-060), the not-planned closer (SC-061) and the change
  * handler (SC-023) and the seeding importer (SC-025) read and write: listing a repository's issues, creating an issue, its title, state and state reason, its
  * assignees and milestone, its parent and sub-issues, its blocked-by relations and the issues it
- * blocks, its events, and a repository's milestones; and, through GraphQL, an issue found by its
+ * blocks, its events, its comments, and a repository's milestones; and, through GraphQL, an issue found by its
  * node id. Issues can also be created and deleted on it directly, as
  * someone would on GitHub; a deleted issue is answered as gone (410).
  */
@@ -38,6 +38,8 @@ export interface FakeIssue {
   blockedBy: number[]
   /** Its items in GitHub Projects, each in an option of the Project's status field, or none. */
   projectItems: FakeProjectItem[]
+  /** The bodies of the comments posted on it, oldest first. */
+  comments: string[]
 }
 
 /** An issue's item in a GitHub Project. */
@@ -166,6 +168,7 @@ export function fakeIssues(
         parent: undefined,
         blockedBy: [],
         projectItems: [],
+        comments: [],
       }
       issues.set(issue.id, issue)
       return issue
@@ -327,6 +330,14 @@ export function fakeIssues(
           200,
           issue.events.map((e) => ({ event: e.event, actor: { login: e.actor } })),
         )
+      }
+      if (below === '/comments' && method === 'POST') {
+        const text = field('body')
+        if (typeof text !== 'string' || text === '') {
+          return json(422, { message: 'Validation Failed' })
+        }
+        issue.comments.push(text)
+        return json(201, { id: issue.comments.length, body: text })
       }
       if (below === '' && method === 'PATCH') {
         const assignees = field('assignees')

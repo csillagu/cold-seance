@@ -6,7 +6,7 @@ export type NotifiedTask = { id: string; projectId: string } | null
 /** A notification as `GET /api/notifications` gives it (SC-012), newest first. */
 export interface ApiNotification {
   id: string
-  kind: 'red-flag' | 'proposal-waiting' | 'repository-request' | 'token-refused'
+  kind: 'red-flag' | 'proposal-waiting' | 'repository-request' | 'token-refused' | 'github-revert'
   createdAt: string
   detail: {
     flagKind?:
@@ -27,6 +27,9 @@ export interface ApiNotification {
     repository?: { id: string; owner: string; name: string }
     requestedBy?: { accountId: string; username: string }
     function?: 'readIssues' | 'writeIssues' | 'projectsStatus'
+    number?: number
+    change?: 'close' | 'delete' | 'reopen' | 'not-planned' | 'start' | 'planning'
+    parts?: ('assignees' | 'milestone' | 'parent' | 'blocked-by')[]
   }
 }
 
@@ -57,6 +60,16 @@ const FUNCTIONS = {
   readIssues: 'reading issues',
   writeIssues: 'writing to issues',
   projectsStatus: 'the Projects status field',
+} as const
+
+/** What a change reverted on GitHub was, in words. */
+const REVERTED = {
+  close: 'Its close',
+  delete: 'Its deletion',
+  reopen: 'Its reopening',
+  'not-planned': 'Its close as not planned',
+  start: 'Its move to started',
+  planning: 'An edit of its planning',
 } as const
 
 /** The ids of the projects a notification names: those it is raised in, and its tasks'. */
@@ -174,6 +187,20 @@ export function viewOf(notification: ApiNotification, names: Names): Notificatio
           `GitHub refused the personal access token${what} as expired or revoked. It stops ` +
           'working until the tool is restarted with a new token.',
         link: null,
+      }
+    }
+    case 'github-revert': {
+      const issue =
+        detail.repository && detail.number !== undefined
+          ? `${detail.repository.owner}/${detail.repository.name}#${detail.number}`
+          : 'An issue'
+      const task = detail.task ? names.tasks.get(detail.task.id) : undefined
+      const what = detail.change ? REVERTED[detail.change] : 'A change'
+      return {
+        ...base,
+        label: 'Reverted on GitHub',
+        text: `${issue}${task ? ` (${task})` : ''}: ${what} on GitHub was reverted.`,
+        link: detail.task ? `/tasks/${encodeURIComponent(detail.task.id)}` : null,
       }
     }
     default:
