@@ -68,7 +68,8 @@ interface ProjectParams {
 /**
  * The routes of groups (SC-018, SC-057, SC-058, SC-026): create a group, list every group, list a
  * group's members with their roles, give someone a role in a group, take them out of it, leave it,
- * list a group's projects, add an existing project to it, and delete it (SC-059).
+ * list a group's projects, add an existing project to it, and delete it (SC-059). A member can
+ * also be given a role by username, for the group members screen (SC-083).
  * They only translate the request; the group service decides what is
  * allowed (DD-039).
  */
@@ -109,6 +110,39 @@ export const groupRoutes: FastifyPluginAsync<RouteGroupOptions> = async (routes,
       },
     },
     async (request) => services.groups.listMembers(callerOf(request), request.params.groupId),
+  )
+
+  routes.post<{ Params: { groupId: string }; Body: { username: string; role: ProjectRole } }>(
+    '/:groupId/members',
+    {
+      schema: {
+        description:
+          'Gives the person with the username `username` the role in the group, adding them as ' +
+          'a member or changing their role, as the PUT on their account id does. The username is ' +
+          "matched regardless of case. Only the group's admins can; refused with 404 if no " +
+          'account has the username, and with 409 if it would leave the group without an admin.',
+        params: groupParams,
+        body: {
+          type: 'object',
+          required: ['username', 'role'],
+          properties: {
+            username: { type: 'string' },
+            role: { type: 'string', enum: [...PROJECT_ROLES] },
+          },
+          additionalProperties: false,
+        },
+        response: { 200: member },
+      },
+    },
+    async (request) => {
+      const { username, role } = request.body
+      return services.groups.setMemberRoleByUsername(
+        callerOf(request),
+        request.params.groupId,
+        username,
+        role,
+      )
+    },
   )
 
   routes.put<{ Params: MemberParams; Body: { role: ProjectRole } }>(
