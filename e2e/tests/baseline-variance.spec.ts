@@ -397,8 +397,8 @@ test("TC-154: a read-only member sees every view and the project's data (the bas
   await call(alicesPage, 'POST', `/projects/${apollo}/baselines`, { name: 'v1' })
 
   // Step 1, the baseline variance view: as bob, it opens and shows T. The Kanban, the Gantt and the
-  // person load view are in their own spec files. Pending: the saved view Board (SC-020, SC-091,
-  // F22), and step 2's reads through the REST API (see
+  // person load view are in their own spec files, the saved view Board in saved-views.spec.ts.
+  // Pending: step 2's reads through the REST API (see
   // backend/test/integration/project-roles.test.ts).
   const bobsPage = await signedIn(browser, deployment.url, bob)
   await openVariance(bobsPage, 'Apollo')

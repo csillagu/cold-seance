@@ -23,8 +23,8 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // The saved view module (SC-020) and group deletion (SC-059) against a real PostgreSQL: their
 // rules through the service layer, then the test cases of FR-054 to FR-058, FR-126 and FR-161,
 // and the saved-view part of FR-059's, through the REST API. The browser parts of these test
-// cases are the saved view editor's and the filter builder's (SC-091, SC-092, node F22), and the
-// group screens' (SC-082 to SC-084, node F06).
+// cases are the saved view editor's and the filter builder's (SC-091, SC-092), in
+// e2e/tests/saved-views.spec.ts, and the group screens' (SC-082 to SC-084, node F06).
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 
@@ -491,8 +491,8 @@ describe('test cases through the REST API', () => {
       expect(await listViews(alice)).toEqual([])
     })
 
-    // Pending: TC-074 steps 1 and 2, that neither view offers to be saved in the browser
-    // (SC-091, node F22).
+    // TC-074 steps 1 and 2, that neither view offers to be saved in the browser, are in
+    // e2e/tests/saved-views.spec.ts.
   })
 
   describe('TC-075: a view kept in a project is seen by anyone who can read the project', () => {
@@ -820,7 +820,7 @@ describe('test cases through the REST API', () => {
       expect(names(await listViews(alice))).toEqual(['My board', 'Project board'])
     })
 
-    // Pending: TC-233's browser steps are the group screens' (SC-082, node F06) and the saved
-    // view editor's (SC-091, node F22).
+    // TC-233's browser steps are in e2e/tests/saved-views.spec.ts, the group deleted there
+    // through the REST API. Pending: its delete action on the group screens (SC-082, node F06).
   })
 })

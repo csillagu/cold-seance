@@ -383,8 +383,8 @@ test("TC-154: a read-only member sees every view and the project's data (the Gan
   })
 
   // Step 1, the Gantt: as bob, it opens and shows T. The Kanban is in kanban.spec.ts, the person load
-  // view in person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts. Pending:
-  // the saved view Board (SC-020, SC-091, F22), and step 2's reads through the REST API (see
+  // view in person-load.spec.ts, the baseline variance view in baseline-variance.spec.ts, the
+  // saved view Board in saved-views.spec.ts. Pending: step 2's reads through the REST API (see
   // backend/test/integration/project-roles.test.ts).
   const bobsPage = await signedIn(browser, deployment.url, bob)
   const gantt = await openGantt(bobsPage, 'Apollo')

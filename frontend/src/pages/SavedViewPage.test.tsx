@@ -107,7 +107,7 @@ describe('an opened saved view', () => {
     const requests = fakeApi(answer('kanban'))
     renderView()
     const kanban = await screen.findByRole('group', { name: 'Team board' })
-    const inProgress = within(kanban).getByRole('region', { name: 'In progress', exact: true })
+    const inProgress = within(kanban).getByRole('region', { name: 'In progress' })
     expect(within(inProgress).getByRole('article', { name: 'A-doing' })).toBeInTheDocument()
     expect(within(inProgress).getByRole('article', { name: 'B-doing' })).toBeInTheDocument()
     const about = screen.getByRole('list', { name: 'Filter' })

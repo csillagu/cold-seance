@@ -172,6 +172,6 @@ describe('TC-083: a view shows no tasks of a project its viewer cannot read', ()
   })
 
   // TC-083 through alice's saved personal Kanban view (SC-020), opened before and after the
-  // change, is in saved-views.test.ts. Pending: TC-083 in full, the view opened in the browser
-  // (SC-030, SC-091, node F22).
+  // change, is in saved-views.test.ts; the view opened in the browser, in
+  // e2e/tests/saved-views.spec.ts.
 })
