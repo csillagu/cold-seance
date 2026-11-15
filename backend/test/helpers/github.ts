@@ -39,6 +39,12 @@ export interface FakeGitHub {
   issues: FakeIssues
   /** Requests made to it, as `METHOD /path`. */
   requests: string[]
+  /**
+   * Cuts the tool's access to GitHub off after `requests` more requests, or at once: every request
+   * from then on fails as a network failure would, until `restore` is called.
+   */
+  cutOffAfter(requests?: number): void
+  restore(): void
 }
 
 let nextId = 7_000_000
@@ -63,7 +69,11 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
       headers: { 'content-type': 'application/json' },
     })
 
+  let allowed = Number.POSITIVE_INFINITY
+
   const fetch: typeof globalThis.fetch = async (input, init) => {
+    if (allowed <= 0) throw new TypeError('fetch failed')
+    allowed -= 1
     const url = new URL(
       typeof input === 'string' ? input : input instanceof URL ? input : input.url,
     )
@@ -181,5 +191,11 @@ export function fakeGitHub(options: { via?: 'app' | 'token' } = {}): FakeGitHub 
     client: clientOf,
     issues,
     requests,
+    cutOffAfter(count = 0) {
+      allowed = count
+    },
+    restore() {
+      allowed = Number.POSITIVE_INFINITY
+    },
   }
 }

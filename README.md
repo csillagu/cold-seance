@@ -147,6 +147,15 @@ The GitHub change handler (SC-023, `backend/src/github/change-handler.ts`) takes
 - Planning edits made on GitHub (assignees, sub-issues, blocked-by) are undone by the planning mirror.
 - A new issue becomes an unscheduled task, titled after it, in the repository's receiving project, or in the one project that pulls from the repository if it has no receiving project; in none otherwise.
 
+### GitHub seeding importer
+
+The GitHub seeding importer (SC-025, `backend/src/service/seeding.ts`) seeds a project from one or more repositories it pulls issues from, through `POST /api/projects/{projectId}/seeding`; only the project's admins may. It reads every issue of the chosen repositories from GitHub first (`backend/src/github/seeding-source.ts`), and only then writes them, in one transaction: if GitHub cannot be read, nothing is brought in (FR-137).
+
+- An open issue becomes an unscheduled task: in progress if its Projects status field is in the started option, on hold if in the on-hold option, not started otherwise (the same settings as the change handler's). A closed issue becomes a done task, with the date GitHub records it was closed, in the backend's time zone, as its actual finish.
+- Each task is assigned to the issue's repository and linked to the issue. Its assignees are the accounts linked to the issue's assignees on GitHub that can read the project; a sub-issue becomes a subtask, and a blocked-by relation one between the tasks.
+- An issue that is a task already, in this project or another, or is blocked by an issue the import does not bring in, is skipped and listed in the answer. Pull requests are left out.
+- Nothing is written to GitHub.
+
 ### Database schema
 
 The schema is TypeScript in `backend/src/db/schema.ts` (DD-057). Each backend block adds its tables there, exported, since drizzle-kit sees only exported tables. After changing it, run `npm run db:generate -w backend` and commit the SQL migration it writes to `backend/drizzle/`, together with the change: a migration exists only as the change of the schema it is generated from, so write none by hand and edit none that is committed. If drizzle-kit asks whether a column or table was renamed, it needs a terminal to answer in.

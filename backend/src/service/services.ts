@@ -23,6 +23,7 @@ import { ReceivingProjectService } from './receiving-projects.ts'
 import { RedFlagService } from './red-flags.ts'
 import { RepositoryService } from './repositories.ts'
 import { SavedViewService } from './saved-views.ts'
+import { SeedingService, type SeedingSource } from './seeding.ts'
 import { SessionService } from './sessions.ts'
 import { TaskCancellationService } from './task-cancellation.ts'
 import { TaskPeopleService } from './task-people.ts'
@@ -78,6 +79,8 @@ export interface Services {
   repositories: RepositoryService
   /** The named Kanban and Gantt views kept in projects, groups or personally (SC-020). */
   savedViews: SavedViewService
+  /** Seeding a project from GitHub repositories, all or nothing (SC-025). */
+  seeding: SeedingService
   sessions: SessionService
   tasks: TaskService
   /** Cancelling a task, which passes its blockers on to the tasks it blocked (SC-038). */
@@ -115,6 +118,11 @@ export interface ServiceOptions {
    * creator (SC-060) and the not-planned closer (SC-061). Without it, nothing reaches GitHub.
    */
   planningChanges?: PlanningChanges
+  /**
+   * Where the seeding importer reads repositories' issues from (SC-025): GitHub, through the GitHub
+   * client. Without it, every seeding is refused as unavailable.
+   */
+  seeding?: SeedingSource
 }
 
 export function createServices(db: Database, options: ServiceOptions = {}): Services {
@@ -170,6 +178,14 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
     savedViews: new SavedViewService(db, audit, projectRoles, tasks, viewFilter),
+    seeding: new SeedingService(
+      db,
+      audit,
+      projectRoles,
+      projectRepositories,
+      options.seeding,
+      options.today,
+    ),
     sessions: new SessionService(db),
     tasks,
     taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),

@@ -1,7 +1,7 @@
 /**
  * The issues of the fake GitHub (`github.ts`): the parts of GitHub's REST API the GitHub planning
  * mirror (SC-022), the issue creator (SC-060), the not-planned closer (SC-061) and the change
- * handler (SC-023) read and write: creating an issue, its title, state and state reason, its
+ * handler (SC-023) and the seeding importer (SC-025) read and write: listing a repository's issues, creating an issue, its title, state and state reason, its
  * assignees and milestone, its parent and sub-issues, its blocked-by relations and the issues it
  * blocks, and a repository's milestones. Issues can also be created and deleted on it directly, as
  * someone would on GitHub; a deleted issue is answered as gone (410).
@@ -18,6 +18,10 @@ export interface FakeIssue {
   state: 'open' | 'closed'
   /** Why it was closed, as GitHub names it (`completed`, `not_planned`), or `null`. */
   stateReason: string | null
+  /** When it was last closed, as GitHub records it (an ISO timestamp), or `null` while open. */
+  closedAt: string | null
+  /** Whether it is a pull request, which GitHub lists among a repository's issues. */
+  pullRequest: boolean
   assignees: string[]
   /** The number of its repository's milestone it is in, if any. */
   milestone: number | undefined
@@ -118,6 +122,8 @@ export function fakeIssues(
       title: issue.title,
       state: issue.state,
       state_reason: issue.stateReason,
+      closed_at: issue.closedAt,
+      ...(issue.pullRequest ? { pull_request: { url: `${apiUrl}/pulls/${issue.number}` } } : {}),
       repository_url: `${apiUrl}/repos/${repo?.owner}/${repo?.name}`,
       assignees: issue.assignees.map((login) => ({ login })),
       milestone: milestone === undefined ? null : milestoneOut(milestone),
@@ -142,6 +148,8 @@ export function fakeIssues(
         title,
         state: 'open',
         stateReason: null,
+        closedAt: null,
+        pullRequest: false,
         assignees: [],
         milestone: undefined,
         parent: undefined,
@@ -271,6 +279,14 @@ export function fakeIssues(
         return json(201, out(this.createIssue(`${repo?.owner}/${repo?.name}`, title)))
       }
 
+      if (method === 'GET' && rest === '/issues') {
+        // Every issue, open and closed, as `state=all` asks; one page holds them all.
+        return json(
+          200,
+          [...issues.values()].filter((i) => i.repository.toLowerCase() === key).map(out),
+        )
+      }
+
       const path = /^\/issues\/(\d+)(\/.*)?$/.exec(rest)
       if (!path) return undefined
       const issue = find(key, Number(path[1]))
@@ -290,9 +306,11 @@ export function fakeIssues(
           const reason = field('state_reason')
           issue.state = 'closed'
           issue.stateReason = typeof reason === 'string' ? reason : 'completed'
+          issue.closedAt = new Date().toISOString()
         } else if (state === 'open') {
           issue.state = 'open'
           issue.stateReason = null
+          issue.closedAt = null
         }
         const number = field('milestone')
         if (number === null) issue.milestone = undefined
