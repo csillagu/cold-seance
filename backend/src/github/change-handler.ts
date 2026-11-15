@@ -6,13 +6,14 @@ import type { ISSUE_SEEN_STATES } from '../db/schema.ts'
 import type { GitHubUser } from '../service/audit.ts'
 import { type GitHubIssueTaskService, lockIssueLinks } from '../service/github-issue-tasks.ts'
 import type { TaskStatus } from '../service/permissions.ts'
-import type { PlanningChanges } from '../service/planning-changes.ts'
 import type { TaskCancellationService } from '../service/task-cancellation.ts'
 import type { TaskStatusService } from '../service/task-status.ts'
 import type { Repository } from './app-tokens.ts'
 import { GitHubRequestError, type GitHubClient } from './client.ts'
 import { numberField, objectField, stringField } from './json.ts'
+import type { PlanningRestores } from './planning-mirror.ts'
 import { agreed, type ProjectItem, readProjectItems, same } from './project-items.ts'
+import { NO_REVERT_REPORTS, type Revert, type RevertReports } from './revert-commenter.ts'
 
 type SeenState = (typeof ISSUE_SEEN_STATES)[number]
 
@@ -57,6 +58,8 @@ export interface ChangeHandlerServices {
 export interface ChangeHandlerOptions {
   /** The Projects status field start and hold come from (SRC-252); `Status`, `In Progress`, `On Hold` unless given. */
   statusField?: StatusFieldConfig
+  /** Told of each change reverted on GitHub, for its comment and notifications (SC-062). */
+  reverts?: RevertReports
 }
 
 const SET_OPTION = `mutation ($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
@@ -91,9 +94,10 @@ const CLEAR_OPTION = `mutation ($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
  *   DD-032) or the task cannot be cancelled, is reverted on GitHub: a start is reset to the option
  *   last taken in (none, if there was none); a closed issue is reopened; a deleted one is created
  *   again in its repository, with the task's title, and linked to the task in its place; a reopen
- *   the task cannot follow is closed again.
- * - **Planning edits** made on GitHub are undone (FR-097): the planning mirror (SC-022) mirrors
- *   again the issue's task, the tasks GitHub now shows as its sub-issues or as blocked by it, and
+ *   the task cannot follow is closed again. Each revert is told to the revert commenter
+ *   (SC-062), which comments on the issue and has its subscribers notified.
+ * - **Planning edits** made on GitHub are undone (FR-097): the planning mirror (SC-022) restores
+ *   the issue's task, the tasks GitHub now shows as its sub-issues or as blocked by it, and
  *   the task's own subtasks and the tasks it blocks.
  * - **New issues** become unscheduled tasks in the repository's receiving project (FR-100,
  *   FR-156, FR-157), through `issueOpened`.
@@ -104,9 +108,10 @@ const CLEAR_OPTION = `mutation ($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
 export class GitHubChangeHandler {
   readonly #db: Database
   readonly #github: () => GitHubClient
-  readonly #mirror: PlanningChanges
+  readonly #mirror: PlanningRestores
   readonly #services: ChangeHandlerServices
   readonly #field: StatusFieldConfig
+  readonly #reverts: RevertReports
   #queue: Promise<void> = Promise.resolve()
 
   /**
@@ -116,7 +121,7 @@ export class GitHubChangeHandler {
   constructor(
     db: Database,
     github: () => GitHubClient,
-    mirror: PlanningChanges,
+    mirror: PlanningRestores,
     services: ChangeHandlerServices,
     options: ChangeHandlerOptions = {},
   ) {
@@ -125,12 +130,13 @@ export class GitHubChangeHandler {
     this.#mirror = mirror
     this.#services = services
     this.#field = options.statusField ?? defaultStatusField
+    this.#reverts = options.reverts ?? NO_REVERT_REPORTS
   }
 
   /**
    * Handles a change to issue `number` of `repository` that the GitHub user `sender` made.
-   * Resolves once the change is taken in or reverted and the planning mirror is told of the tasks
-   * to mirror again; rejects with what GitHub refused, for the re-check to put right (DD-051).
+   * Resolves once the change is taken in or reverted, each revert is reported, and the planning
+   * mirror is told of the tasks to restore; rejects with what GitHub refused, for the re-check to put right (DD-051).
    *
    * Without `sender`, as the re-check calls it (SC-024), each change is recorded as made by whoever
    * GitHub names for it: the issue's closer for a close, the actor of its latest reopening for a
@@ -197,6 +203,7 @@ export class GitHubChangeHandler {
     let exists = now.state !== 'deleted'
     let open = now.state === 'open'
     let recreated = false
+    const reverted: Omit<Revert, 'taskId'>[] = []
 
     if (now.state !== linked.seenState) {
       const outcome = await this.#takeState(await stateChanger(), linked, now.state)
@@ -205,12 +212,15 @@ export class GitHubChangeHandler {
         await this.#recreate(client, repository, linked)
         recreated = true
         exists = true
+        reverted.push({ change: 'delete', replaced: number })
       } else if (now.state === 'open') {
         await this.#setState(client, repository, number, { state: 'closed' })
         open = false
+        reverted.push({ change: 'reopen' })
       } else {
         await this.#setState(client, repository, number, { state: 'open' })
         open = true
+        reverted.push({ change: now.state === 'not-planned' ? 'not-planned' : 'close' })
       }
     }
 
@@ -219,7 +229,10 @@ export class GitHubChangeHandler {
       if (value !== undefined && value !== seenStatus) {
         const taken = await this.#takeStatus(as(undefined), linked.taskId, value)
         if (taken) seenStatus = value
-        else await this.#resetStart(client, repository, now.items, seenStatus)
+        else {
+          await this.#resetStart(client, repository, now.items, seenStatus)
+          reverted.push({ change: 'start' })
+        }
       }
     }
 
@@ -234,7 +247,11 @@ export class GitHubChangeHandler {
     const onGitHub =
       now.state === 'deleted' ? [] : await this.#relatedOnGitHub(client, repository, number)
     const related = await this.#relatedInTool(linked.taskId, onGitHub)
-    this.#mirror.changed(exists ? [linked.taskId, ...related] : related)
+    // A re-created issue is given its task's planning, which is no revert of a change on GitHub.
+    if (recreated) this.#mirror.changed([linked.taskId])
+    this.#mirror.restore(exists && !recreated ? [linked.taskId, ...related] : related)
+    for (const revert of reverted)
+      await this.#reverts.reverted({ taskId: linked.taskId, ...revert })
   }
 
   /**

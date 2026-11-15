@@ -157,6 +157,23 @@ describe('a notification in words (SC-035)', () => {
     expect(view.link).toBeNull()
   })
 
+  it('tells a change reverted on GitHub, leading to its task', () => {
+    const view = viewOf(
+      notice('github-revert', {
+        task: { id: T, projectId: APOLLO },
+        repository: { id: 'x', owner: 'csillagu', name: 'tc-repo' },
+        number: 2,
+        change: 'close',
+      }),
+      names,
+    )
+    expect(view).toMatchObject({
+      label: 'Reverted on GitHub',
+      text: 'csillagu/tc-repo#2 (T): Its close on GitHub was reverted.',
+      link: `/tasks/${T}`,
+    })
+  })
+
   it('writes what it cannot name in general words', () => {
     const none: Names = { me: undefined, projects: new Map(), tasks: new Map(), people: new Map() }
     const view = viewOf(

@@ -5,14 +5,15 @@ import { taskIssues } from './github-issues.ts'
 
 /**
  * What a notification is about (SC-012): a new red flag (FR-083, FR-084), a proposal waiting for
- * review (FR-085), a project's request for a repository (FR-173), and a personal access token
- * GitHub refused (FR-186).
+ * review (FR-085), a project's request for a repository (FR-173), a personal access token
+ * GitHub refused (FR-186), and a change the tool reverted on GitHub (FR-086).
  */
 export const NOTIFICATION_KINDS = [
   'red-flag',
   'proposal-waiting',
   'repository-request',
   'token-refused',
+  'github-revert',
 ] as const
 
 export const notificationKind = pgEnum('notification_kind', NOTIFICATION_KINDS)

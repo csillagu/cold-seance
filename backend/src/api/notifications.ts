@@ -29,7 +29,8 @@ const notification = {
         'project they are admin of. `proposal-waiting`: a proposal waiting for their review. ' +
         "`repository-request`: a project's request for a repository they are admin of, waiting " +
         "for them. `token-refused`: GitHub refused a GitHub function's personal access token as " +
-        'expired or revoked (to system admins).',
+        'expired or revoked (to system admins). `github-revert`: a change made on GitHub that the ' +
+        'tool reverted, on an issue or in a project the reader is subscribed to.',
     },
     createdAt: { type: 'string', format: 'date-time' },
     detail: {
@@ -48,7 +49,10 @@ const notification = {
         },
         accountId: flag.accountId,
         date: flag.date,
-        task: { ...notifiedTask, description: flag.task.description },
+        task: {
+          ...notifiedTask,
+          description: `${flag.task.description}; the task whose issue it is (\`github-revert\`)`,
+        },
         overloads: flag.overloads,
         holiday: flag.holiday,
         blocker: { ...notifiedTask, description: flag.blocker.description },
@@ -67,13 +71,31 @@ const notification = {
           type: 'object',
           required: ['id', 'owner', 'name'],
           properties: { id: uuid, owner: { type: 'string' }, name: { type: 'string' } },
-          description: 'The repository asked for (`repository-request`)',
+          description:
+            'The repository asked for (`repository-request`), or of the issue (`github-revert`)',
         },
         requestedBy: {
           type: 'object',
           required: ['accountId', 'username'],
           properties: { accountId: uuid, username: { type: 'string' } },
           description: 'Who asked for it (`repository-request`)',
+        },
+        number: {
+          type: 'integer',
+          description:
+            'The issue (`github-revert`): for a deleted one, the issue created in its place',
+        },
+        change: {
+          type: 'string',
+          enum: ['close', 'delete', 'reopen', 'not-planned', 'start', 'planning'],
+          description:
+            'What was reverted (`github-revert`): a close, a deletion, a reopening, a close as ' +
+            "not planned, a move to the started option, or an edit of the issue's planning",
+        },
+        parts: {
+          type: 'array',
+          items: { type: 'string', enum: ['assignees', 'milestone', 'parent', 'blocked-by'] },
+          description: "The parts of the issue's planning set back (`github-revert`, `planning`)",
         },
         function: {
           type: 'string',

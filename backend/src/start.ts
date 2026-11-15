@@ -12,6 +12,7 @@ import { GitHubPlanningMirror } from './github/planning-mirror.ts'
 import { recheckLinkedIssues } from './github/recheck.ts'
 import { RecheckTimer } from './github/recheck-timer.ts'
 import { gitHubRepositoryReach, type RepositoryReach } from './github/repository-reach.ts'
+import { GitHubRevertCommenter } from './github/revert-commenter.ts'
 import { gitHubSeedingSource } from './github/seeding-source.ts'
 import { GitHubWebhookReceiver } from './github/webhooks.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
@@ -98,9 +99,16 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   // The mirror's failures are logged; the re-check puts them right (SC-022, DD-051). The app's log
   // is there by the time the mirror first runs, after a request has changed a task.
   let app: FastifyInstance | undefined
+  // Each change reverted on GitHub is explained on its issue, and its subscribers notified
+  // (SC-062); what fails is logged.
+  const reverts = new GitHubRevertCommenter(db, github, {
+    onError: (error, revert) =>
+      app?.log.error({ err: error, revert }, 'A revert on GitHub could not be reported'),
+  })
   const planningMirror = new GitHubPlanningMirror(db, github, {
     onError: (error, taskId) =>
       app?.log.error({ err: error, taskId }, "A task's planning could not be mirrored to GitHub"),
+    reverts,
   })
   const services = createServices(db, {
     github: options.repositoryReach ?? gitHubRepositoryReach(github),
@@ -112,6 +120,7 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   // the re-check (SC-024); what either fails to take in is logged, for the next re-check.
   const changeHandler = new GitHubChangeHandler(db, github, planningMirror, services, {
     statusField: config.github.statusField,
+    reverts,
   })
   const webhooks = new GitHubWebhookReceiver(db, config.github, changeHandler, github, {
     onError: (error, event) =>

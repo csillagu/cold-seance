@@ -8,12 +8,14 @@ import {
   taskIssues,
   tasks,
 } from '../db/schema.ts'
+import type { PlanningPart } from '../service/notifications.ts'
 import type { PlanningChanges } from '../service/planning-changes.ts'
 import type { Repository } from './app-tokens.ts'
 import { GitHubRequestError, type GitHubClient } from './client.ts'
 import { GitHubIssueCreator } from './issue-creator.ts'
 import { arrayField, numberField, objectField, stringField } from './json.ts'
 import { GitHubNotPlannedCloser } from './not-planned-closer.ts'
+import { NO_REVERT_REPORTS, type RevertReports } from './revert-commenter.ts'
 
 /** A task's linked issue, as the mirror needs it. */
 interface LinkedIssue {
@@ -41,6 +43,16 @@ export interface PlanningMirrorOptions {
    * GitHub cannot be reached. Nothing is retried: the re-check puts it right (DD-051).
    */
   onError?: (error: unknown, taskId: string) => void
+  /** Told of each task whose planning edited on GitHub the mirror set back (SC-062). */
+  reverts?: RevertReports
+}
+
+/**
+ * The planning mirror as the GitHub change handler (SC-023) tells it of the tasks whose issues'
+ * planning may have been edited on GitHub (FR-097), besides the changes made in the tool.
+ */
+export interface PlanningRestores extends PlanningChanges {
+  restore(taskIds: readonly string[]): void
 }
 
 /**
@@ -58,23 +70,31 @@ export interface PlanningMirrorOptions {
  * alone (FR-182): such a task is not mirrored, and a relation with its issue is neither added nor
  * removed.
  *
- * The service layer tells it of each change (`changed`), after the change is committed; it
- * mirrors the tasks one at a time in the background, so that two changes of one task cannot
+ * The service layer tells it of each change (`changed`), after the change is committed, and the
+ * GitHub change handler (SC-023) of each task whose issue's planning may have been edited on
+ * GitHub (`restore`). It mirrors the tasks one at a time in the background, so that two changes of one task cannot
  * overtake each other. A write that fails is put right by the re-check (DD-051), which calls
  * `mirrorAll`.
  *
  * Each task it is told of is first given its issue by the GitHub issue creator (SC-060), if it is
  * assigned to a repository and has none, so that a new issue is mirrored at once; and once
  * mirrored, a cancelled task's issue is closed as not planned by the not-planned closer (SC-061).
+ *
+ * What it writes to the issue of a task it was told of only to restore is a revert of an edit
+ * made on GitHub (FR-097), which it tells the revert commenter (SC-062) of. A task it was also
+ * told of as changed in the tool, before it was mirrored, is not: what it writes then may be the
+ * tool's own change.
  */
-export class GitHubPlanningMirror implements PlanningChanges {
+export class GitHubPlanningMirror implements PlanningRestores {
   readonly #db: Database
   readonly #github: () => GitHubClient
   readonly #onError: (error: unknown, taskId: string) => void
   readonly #creator: GitHubIssueCreator
   readonly #closer: GitHubNotPlannedCloser
+  readonly #reverts: RevertReports
   #client: GitHubClient | undefined
-  readonly #pending = new Set<string>()
+  /** The tasks to mirror, each with whether it is only to be restored. */
+  readonly #pending = new Map<string, boolean>()
   #running: Promise<void> | undefined
 
   /** `github` is called when the mirror first calls GitHub, so that the client is built then. */
@@ -82,13 +102,21 @@ export class GitHubPlanningMirror implements PlanningChanges {
     this.#db = db
     this.#github = github
     this.#onError = options.onError ?? (() => {})
+    this.#reverts = options.reverts ?? NO_REVERT_REPORTS
     const client = () => (this.#client ??= this.#github())
     this.#creator = new GitHubIssueCreator(db, client)
     this.#closer = new GitHubNotPlannedCloser(db, client)
   }
 
   changed(taskIds: readonly string[]): void {
-    for (const id of taskIds) this.#pending.add(id)
+    for (const id of taskIds) this.#pending.set(id, false)
+    this.#start()
+  }
+
+  restore(taskIds: readonly string[]): void {
+    for (const id of taskIds) {
+      if (!this.#pending.has(id)) this.#pending.set(id, true)
+    }
     this.#start()
   }
 
@@ -99,9 +127,11 @@ export class GitHubPlanningMirror implements PlanningChanges {
 
   /**
    * Mirrors every task that has a linked issue or is assigned to a repository, creating the issues
-   * still missing and closing those of cancelled tasks, and resolves once all are done.
+   * still missing and closing those of cancelled tasks, and resolves once all are done. The tasks
+   * it was told of before are mirrored first, as they were told.
    */
   async mirrorAll(): Promise<void> {
+    await this.idle()
     const linked = await this.#db
       .select({ taskId: tasks.id })
       .from(tasks)
@@ -114,19 +144,24 @@ export class GitHubPlanningMirror implements PlanningChanges {
   /**
    * Gives the task its GitHub issue if it has none yet (SC-060), brings the issue into line with
    * the task, and closes it as not planned if the task is cancelled (SC-061). Rejects with what
-   * GitHub refused.
+   * GitHub refused. With `restoring`, what it sets back on an issue it did not just create is
+   * told to the revert commenter.
    */
-  async syncTask(taskId: string): Promise<void> {
-    await this.#creator.create(taskId)
-    await this.mirrorTask(taskId)
+  async syncTask(taskId: string, restoring = false): Promise<void> {
+    const created = await this.#creator.create(taskId)
+    const parts = await this.mirrorTask(taskId)
     await this.#closer.close(taskId)
+    if (restoring && !created && parts.length > 0) {
+      await this.#reverts.reverted({ taskId, change: 'planning', parts })
+    }
   }
 
   /**
    * Brings the task's linked issue into line with the task. Nothing is done for a task with no
-   * linked issue, or one not synced with it (FR-182). Rejects with what GitHub refused.
+   * linked issue, or one not synced with it (FR-182). Answers the parts of the issue's planning
+   * it changed on GitHub. Rejects with what GitHub refused.
    */
-  async mirrorTask(taskId: string): Promise<void> {
+  async mirrorTask(taskId: string): Promise<PlanningPart[]> {
     const [task] = await this.#db
       .select({
         projectId: tasks.projectId,
@@ -139,9 +174,9 @@ export class GitHubPlanningMirror implements PlanningChanges {
       .from(tasks)
       .innerJoin(taskIssues, eq(taskIssues.taskId, tasks.id))
       .where(eq(tasks.id, taskId))
-    if (!task) return
+    if (!task) return []
     const own = (await this.#issuesOf([taskId])).get(taskId)
-    if (own === undefined || !own.synced) return
+    if (own === undefined || !own.synced) return []
     const client = (this.#client ??= this.#github())
 
     const { data: issue } = await client.rest('readIssues', own.repository, {
@@ -149,18 +184,28 @@ export class GitHubPlanningMirror implements PlanningChanges {
       path: ['issues', own.number],
     })
     const patch: Record<string, unknown> = {}
+    const parts: PlanningPart[] = []
 
     const logins = await this.#loginsOf(taskId)
     const current = arrayField(issue, 'assignees').map((user) => stringField(user, 'login'))
-    if (!sameLogins(logins, current)) patch['assignees'] = logins
+    if (!sameLogins(logins, current)) {
+      patch['assignees'] = logins
+      parts.push('assignees')
+    }
 
     if (task.milestoneVariant === 'fixed-date' && task.milestoneDate !== null) {
-      const number = await this.#milestone(client, taskId, own, task.title, task.milestoneDate, {
-        number: task.milestoneNumber,
-      })
+      const { number, written } = await this.#milestone(
+        client,
+        taskId,
+        own,
+        task.title,
+        task.milestoneDate,
+        { number: task.milestoneNumber },
+      )
       if (numberField(objectField(issue, 'milestone'), 'number') !== number) {
         patch['milestone'] = number
       }
+      if (written || patch['milestone'] !== undefined) parts.push('milestone')
     }
     if (Object.keys(patch).length > 0) {
       await client.rest('writeIssues', own.repository, {
@@ -170,8 +215,9 @@ export class GitHubPlanningMirror implements PlanningChanges {
       })
     }
 
-    await this.#parent(client, own, task.parentId)
-    await this.#blockers(client, taskId, own)
+    if (await this.#parent(client, own, task.parentId)) parts.push('parent')
+    if (await this.#blockers(client, taskId, own)) parts.push('blocked-by')
+    return parts
   }
 
   #start(): void {
@@ -183,10 +229,10 @@ export class GitHubPlanningMirror implements PlanningChanges {
   }
 
   async #drain(): Promise<void> {
-    for (const taskId of this.#pending) {
+    for (const [taskId, restoring] of this.#pending) {
       this.#pending.delete(taskId)
       try {
-        await this.syncTask(taskId)
+        await this.syncTask(taskId, restoring)
       } catch (error) {
         this.#onError(error, taskId)
       }
@@ -195,7 +241,8 @@ export class GitHubPlanningMirror implements PlanningChanges {
 
   /**
    * The GitHub milestone that holds the fixed-date milestone's date, made if the task has none
-   * yet or it is gone from GitHub, with its due date set to the task's: its number.
+   * yet or it is gone from GitHub, with its due date set to the task's: its number, and whether
+   * the milestone was written.
    */
   async #milestone(
     client: GitHubClient,
@@ -204,7 +251,7 @@ export class GitHubPlanningMirror implements PlanningChanges {
     title: string,
     date: string,
     stored: { number: number | null },
-  ): Promise<number> {
+  ): Promise<{ number: number; written: boolean }> {
     // Noon UTC is the same date wherever GitHub places the time of a due date.
     const dueOn = `${date}T12:00:00Z`
     if (stored.number !== null) {
@@ -221,8 +268,9 @@ export class GitHubPlanningMirror implements PlanningChanges {
             path: ['milestones', stored.number],
             body: { due_on: dueOn },
           })
+          return { number: stored.number, written: true }
         }
-        return stored.number
+        return { number: stored.number, written: false }
       }
     }
     const { data } = await client.rest('writeIssues', own.repository, {
@@ -237,11 +285,11 @@ export class GitHubPlanningMirror implements PlanningChanges {
       .update(taskIssues)
       .set({ milestoneNumber: number })
       .where(eq(taskIssues.taskId, taskId))
-    return number
+    return { number, written: true }
   }
 
-  /** Makes the issue the sub-issue of the parent task's issue, or of none. */
-  async #parent(client: GitHubClient, own: LinkedIssue, parentId: string | null): Promise<void> {
+  /** Makes the issue the sub-issue of the parent task's issue, or of none: whether it wrote. */
+  async #parent(client: GitHubClient, own: LinkedIssue, parentId: string | null): Promise<boolean> {
     const wanted = parentId === null ? undefined : (await this.#issuesOf([parentId])).get(parentId)
     const answer = await optional(
       client.rest('readIssues', own.repository, {
@@ -250,26 +298,28 @@ export class GitHubPlanningMirror implements PlanningChanges {
       }),
     )
     const current = answer === undefined ? undefined : issueRef(answer.data)
-    if (current?.githubId === wanted?.githubId) return
-    if (current !== undefined && (await this.#kept(current.githubId))) return
+    if (current?.githubId === wanted?.githubId) return false
+    if (current !== undefined && (await this.#kept(current.githubId))) return false
     if (wanted !== undefined) {
-      if (!wanted.synced) return
+      if (!wanted.synced) return false
       await client.rest('writeIssues', wanted.repository, {
         method: 'POST',
         path: ['issues', wanted.number, 'sub_issues'],
         body: { sub_issue_id: own.githubId, replace_parent: true },
       })
-    } else if (current !== undefined) {
-      await client.rest('writeIssues', current.repository, {
-        method: 'DELETE',
-        path: ['issues', current.number, 'sub_issue'],
-        body: { sub_issue_id: own.githubId },
-      })
+      return true
     }
+    if (current === undefined) return false
+    await client.rest('writeIssues', current.repository, {
+      method: 'DELETE',
+      path: ['issues', current.number, 'sub_issue'],
+      body: { sub_issue_id: own.githubId },
+    })
+    return true
   }
 
-  /** Makes the issue blocked by exactly the issues of the task's blockers. */
-  async #blockers(client: GitHubClient, taskId: string, own: LinkedIssue): Promise<void> {
+  /** Makes the issue blocked by exactly the issues of the task's blockers: whether it wrote. */
+  async #blockers(client: GitHubClient, taskId: string, own: LinkedIssue): Promise<boolean> {
     const blockerIds = await this.#db
       .select({ blockerId: taskBlockedBy.blockerId })
       .from(taskBlockedBy)
@@ -282,8 +332,10 @@ export class GitHubPlanningMirror implements PlanningChanges {
     ).map(issueRef)
     const currentIds = new Set(current.map((issue) => issue?.githubId))
     const wantedIds = new Set(wanted.map((issue) => issue.githubId))
+    let written = false
     for (const blocker of wanted) {
       if (currentIds.has(blocker.githubId) || !blocker.synced) continue
+      written = true
       await client.rest('writeIssues', own.repository, {
         method: 'POST',
         path: ['issues', own.number, 'dependencies', 'blocked_by'],
@@ -293,11 +345,13 @@ export class GitHubPlanningMirror implements PlanningChanges {
     for (const blocker of current) {
       if (blocker === undefined || wantedIds.has(blocker.githubId)) continue
       if (await this.#kept(blocker.githubId)) continue
+      written = true
       await client.rest('writeIssues', own.repository, {
         method: 'DELETE',
         path: ['issues', own.number, 'dependencies', 'blocked_by', blocker.githubId],
       })
     }
+    return written
   }
 
   /** The GitHub accounts of the task's assignees, in the task's order; people with none left off. */

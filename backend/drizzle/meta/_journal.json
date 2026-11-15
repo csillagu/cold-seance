@@ -232,6 +232,13 @@
       "when": 1794736178811,
       "tag": "0032_previous_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794755517492,
+      "tag": "0033_futuristic_texas_twister",
+      "breakpoints": true
     }
   ]
 }
