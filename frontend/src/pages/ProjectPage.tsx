@@ -23,7 +23,8 @@ type Project =
  * A project's page, at the address `/projects/<id>`: the place the project's views are shown in,
  * each at an address of its own below it, such as `/projects/<id>/kanban`, `/projects/<id>/gantt`, `/projects/<id>/load`, `/projects/<id>/variance` or `/projects/<id>/proposals`, with a
  * link to each, the saved views kept in it (FR-055) at `/projects/<id>/views`, its members and roles screen (SC-080) at `/projects/<id>/members`, its repository settings
- * (SC-081) at `/projects/<id>/repositories`, its part of the audit log
+ * (SC-081) at `/projects/<id>/repositories`, its seeding from GitHub (SC-095) at
+ * `/projects/<id>/seeding`, its part of the audit log
  * (SC-094) at `/projects/<id>/audit-log`, and the screen
  * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`. Beside its name is the control
  * that subscribes the person to it, and unsubscribes them (SC-093).
@@ -107,6 +108,9 @@ export function ProjectPage() {
         </NavLink>
         <NavLink to="repositories" className="page__view-link">
           Repositories
+        </NavLink>
+        <NavLink to="seeding" className="page__view-link">
+          Seeding
         </NavLink>
         <NavLink to="audit-log" className="page__view-link">
           Audit log

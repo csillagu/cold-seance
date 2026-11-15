@@ -15,7 +15,7 @@ import { fakeGitHub, type FakeGitHub } from '../helpers/github.ts'
 // defaults (SRC-252). An issue's "closing date in the GitHub Project" is the date GitHub records it
 // was closed (the owner's answer on #116), in the backend's time zone.
 //
-// Pending: the seeding screen's part of TC-149, TC-150 and TC-202 (SC-095: F27).
+// The seeding screen's part of TC-149, TC-150 and TC-202 (SC-095) is in e2e/tests/seeding.spec.ts.
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 

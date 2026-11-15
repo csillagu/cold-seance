@@ -176,10 +176,8 @@ test("TC-246: seeding from a repository waits for a repository admin's approval"
   browser,
   deployment,
 }) => {
-  // Pending: tc-seed's open issue #1 and the seeding run of step 2 wait for the GitHub seeding
-  // importer (SC-025, B09) and the project seeding screen (SC-095, F27). This checks the approval
-  // in the inbox, after which Apollo may be seeded from tc-seed.
   deployment.github.createRepository('csillagu/tc-seed')
+  deployment.github.issues.createIssue('csillagu/tc-seed', 'One')
   const alice = await deployment.seedAccount('alice')
   const bob = await deployment.seedAccount('bob')
   const bobPage = await signedIn(browser, deployment.url, bob)
@@ -201,6 +199,14 @@ test("TC-246: seeding from a repository waits for a repository admin's approval"
   expect(await repositoriesOf(alicePage, apollo)).toEqual(['csillagu/tc-seed'])
   // Negative: no issue of tc-seed is imported by the approval itself.
   expect(await tasksOf(alicePage, apollo)).toEqual([])
+
+  // As alice, run the seeding on Apollo's seeding screen (SC-095) and list Apollo's tasks: one,
+  // for #1, which has its title.
+  await alicePage.goto(`/projects/${apollo}/seeding`)
+  await alicePage.getByRole('checkbox', { name: 'csillagu/tc-seed' }).check()
+  await alicePage.getByRole('button', { name: 'Start seeding' }).click()
+  await expect(alicePage.getByRole('status')).toHaveText('The seeding succeeded: 1 task imported.')
+  expect(await tasksOf(alicePage, apollo)).toEqual([{ title: 'One', status: 'not-started' }])
 })
 
 test('TC-247: an unregistered repository cannot be added to a project', async ({
