@@ -419,6 +419,40 @@ describe('the group service', () => {
     })
   })
 
+  describe('setMemberRoleByUsername', () => {
+    it('adds the person with the username, matched regardless of case, with the role', async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('By name') })
+      expect(
+        await service.setMemberRoleByUsername(by(alice), group.id, ' BOB ', 'contributor'),
+      ).toEqual({ accountId: bob.id, username: 'bob', role: 'contributor' })
+      expect(await roleRows(group.id)).toEqual({ [alice.id]: 'admin', [bob.id]: 'contributor' })
+    })
+
+    it('refuses a username no account has, and changes nothing', async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('No such name') })
+      const error = await refused(
+        service.setMemberRoleByUsername(by(alice), group.id, 'nobody', 'read-only'),
+        'not-found',
+      )
+      expect(error.message).toBe('There is no such account')
+      expect(await roleRows(group.id)).toEqual({ [alice.id]: 'admin' })
+    })
+
+    it("holds the same rules as by account id: only the group's admins, and its last admin kept", async () => {
+      const group = await service.createGroup(by(alice), { name: fresh('Same rules') })
+      await service.setMemberRole(by(alice), group.id, bob.id, 'read-write')
+      await refused(
+        service.setMemberRoleByUsername(by(bob), group.id, 'root', 'read-only'),
+        'forbidden',
+      )
+      await refused(
+        service.setMemberRoleByUsername(by(alice), group.id, 'alice', 'read-only'),
+        'conflict',
+      )
+      expect(await roleRows(group.id)).toEqual({ [alice.id]: 'admin', [bob.id]: 'read-write' })
+    })
+  })
+
   describe('removeMember', () => {
     it('lets an admin take a member out of the group, and records it', async () => {
       const group = await service.createGroup(by(alice), { name: fresh('Remove') })

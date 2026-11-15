@@ -34,6 +34,7 @@ function stubbed() {
     listGroups: vi.spyOn(services.groups, 'listGroups'),
     listMembers: vi.spyOn(services.groups, 'listMembers'),
     setMemberRole: vi.spyOn(services.groups, 'setMemberRole'),
+    setMemberRoleByUsername: vi.spyOn(services.groups, 'setMemberRoleByUsername'),
     removeMember: vi.spyOn(services.groups, 'removeMember'),
     leaveGroup: vi.spyOn(services.groups, 'leaveGroup'),
     listProjects: vi.spyOn(services.groups, 'listProjects'),
@@ -193,6 +194,74 @@ describe('GET /api/groups/:groupId/members', () => {
     const response = await app.inject({ method: 'GET', url: `/api/groups/${GROUP.id}/members` })
     expect(response.statusCode).toBe(401)
     expect(groups.listMembers).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/groups/:groupId/members', () => {
+  const url = `/api/groups/${GROUP.id}/members`
+  const BOB_MEMBER = { accountId: BOB, username: 'bob', role: 'read-only' as const }
+
+  it('hands the service the caller, the group, the username and the role and sends the member', async () => {
+    const { app, groups } = stubbed()
+    groups.setMemberRoleByUsername.mockResolvedValue(BOB_MEMBER)
+    const response = await app.inject({
+      method: 'POST',
+      url,
+      headers: erin,
+      payload: { username: 'bob', role: 'read-only' },
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(BOB_MEMBER)
+    expect(groups.setMemberRoleByUsername).toHaveBeenCalledWith(
+      caller,
+      GROUP.id,
+      'bob',
+      'read-only',
+    )
+  })
+
+  it.each([
+    ['no username', url, { role: 'admin' }],
+    ['no role', url, { username: 'bob' }],
+    ['a role that is not one of the four', url, { username: 'bob', role: 'owner' }],
+    [
+      'a group id that is not a UUID',
+      '/api/groups/platform/members',
+      { username: 'bob', role: 'admin' },
+    ],
+  ])('refuses %s before the service is asked', async (_, target, payload) => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({ method: 'POST', url: target, headers: erin, payload })
+    expect(response.statusCode).toBe(400)
+    expect(groups.setMemberRoleByUsername).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['forbidden', 403, "Only the group's admins can manage its members"],
+    ['not-found', 404, 'There is no such account'],
+    ['conflict', 409, 'A group must keep at least one admin'],
+  ] as const)('answers a %s refusal with %i and its message', async (kind, statusCode, message) => {
+    const { app, groups } = stubbed()
+    groups.setMemberRoleByUsername.mockRejectedValue(new ServiceError(kind, message))
+    const response = await app.inject({
+      method: 'POST',
+      url,
+      headers: erin,
+      payload: { username: 'bob', role: 'read-only' },
+    })
+    expect(response.statusCode).toBe(statusCode)
+    expect(response.json().message).toBe(message)
+  })
+
+  it('refuses a caller no authenticator recognises with 401', async () => {
+    const { app, groups } = stubbed()
+    const response = await app.inject({
+      method: 'POST',
+      url,
+      payload: { username: 'bob', role: 'read-only' },
+    })
+    expect(response.statusCode).toBe(401)
+    expect(groups.setMemberRoleByUsername).not.toHaveBeenCalled()
   })
 })
 

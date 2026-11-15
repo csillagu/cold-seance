@@ -820,7 +820,7 @@ describe('test cases through the REST API', () => {
       expect(names(await listViews(alice))).toEqual(['My board', 'Project board'])
     })
 
-    // TC-233's browser steps are in e2e/tests/saved-views.spec.ts, the group deleted there
-    // through the REST API. Pending: its delete action on the group screens (SC-082, node F06).
+    // TC-233's browser steps are in e2e/tests/saved-views.spec.ts, the group deleted there with
+    // the group list screen's delete action (SC-082).
   })
 })

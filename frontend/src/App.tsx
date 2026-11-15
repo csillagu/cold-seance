@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import { Layout } from './layout/Layout.tsx'
 import { AccountsPage } from './pages/AccountsPage.tsx'
 import { AuditLogPage } from './pages/AuditLogPage.tsx'
@@ -7,6 +7,10 @@ import { CapacityPage } from './pages/CapacityPage.tsx'
 import { CompanyCalendarPage } from './pages/CompanyCalendarPage.tsx'
 import { GanttPage } from './pages/GanttPage.tsx'
 import { GitHubLinkPage } from './pages/GitHubLinkPage.tsx'
+import { GroupMembersPage } from './pages/GroupMembersPage.tsx'
+import { GroupPage } from './pages/GroupPage.tsx'
+import { GroupProjectsPage } from './pages/GroupProjectsPage.tsx'
+import { GroupsPage } from './pages/GroupsPage.tsx'
 import { KanbanPage } from './pages/KanbanPage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { NewProjectPage } from './pages/NewProjectPage.tsx'
@@ -50,6 +54,12 @@ export function App() {
         <Route path="accounts/:accountId/github" element={<GitHubLinkPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="company-calendar" element={<CompanyCalendarPage />} />
+        <Route path="groups" element={<GroupsPage />} />
+        <Route path="groups/:groupId" element={<GroupPage />}>
+          <Route index element={<Navigate to="members" replace />} />
+          <Route path="members" element={<GroupMembersPage />} />
+          <Route path="projects" element={<GroupProjectsPage />} />
+        </Route>
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>

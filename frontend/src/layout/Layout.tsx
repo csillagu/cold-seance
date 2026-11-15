@@ -27,7 +27,8 @@ type Projects =
  * Below the projects, the navigation leads to the project creation form (SC-079), which anyone
  * signed in may use; it and the members screen (SC-080) tell the layout, through
  * `useProjectsChanged()`, when the projects listed may have changed; and to the saved views the
- * person sees, from which the saved view editor (SC-091) saves new ones.
+ * person sees, from which the saved view editor (SC-091) saves new ones; and to every group
+ * (SC-082), and from there to each group's members (SC-083) and projects (SC-084).
  *
  * Below them, the navigation leads to the registered repositories (SC-085), which anyone signed in
  * may register, and from there to each one's admins (SC-086), and to the repository request inbox
@@ -103,6 +104,9 @@ export function Layout() {
               </NavLink>
               <NavLink to="/views" className="layout__link">
                 Saved views
+              </NavLink>
+              <NavLink to="/groups" className="layout__link">
+                Groups
               </NavLink>
               <h2 className="layout__nav-heading">GitHub</h2>
               <NavLink to="/repositories" className="layout__link">

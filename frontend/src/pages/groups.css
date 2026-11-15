@@ -1,0 +1,49 @@
+/* The group screens (SC-082, SC-083, SC-084). The design draws no group screen, so they take the
+   cards, fields, buttons and tables of the account screens (accounts.css), and the colours, radii
+   and type of the screens the design draws (SRC-249). */
+.groups__links {
+  display: inline-flex;
+  gap: 16px;
+}
+
+.groups__links a,
+.groups__projects a,
+.account__name a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.groups__links a:hover,
+.groups__projects a:hover,
+.account__name a:hover {
+  text-decoration: underline;
+}
+
+.groups__confirm {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.groups__leave {
+  margin-top: 16px;
+}
+
+.groups__projects {
+  max-width: 720px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.groups__projects li {
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.groups__projects li + li {
+  border-top: 1px solid var(--border);
+}

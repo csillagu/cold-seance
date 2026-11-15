@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import {
   accounts,
@@ -190,6 +190,48 @@ export class GroupService {
     accountId: string,
     role: string,
   ): Promise<GroupMember> {
+    return this.#setRole(caller, groupId, role, (tx) =>
+      isUuid(accountId) ? this.#accountWhere(tx, eq(accounts.id, accountId)) : undefined,
+    )
+  }
+
+  /**
+   * Gives the person with the username `username`, matched regardless of case, the role `role` in
+   * the group, as `setMemberRole` does for an account id, so that a group's admins can add people
+   * by the name they know them by (SC-083).
+   */
+  async setMemberRoleByUsername(
+    caller: Caller,
+    groupId: string,
+    username: string,
+    role: string,
+  ): Promise<GroupMember> {
+    const name = username.normalize('NFC').trim()
+    return this.#setRole(caller, groupId, role, (tx) =>
+      // PostgreSQL's lower() on both sides, as the unique index on usernames uses it.
+      this.#accountWhere(tx, sql`lower(${accounts.username}) = lower(${name})`),
+    )
+  }
+
+  async #accountWhere(
+    tx: Executor,
+    where: SQL,
+  ): Promise<{ id: string; username: string } | undefined> {
+    const [account] = await tx
+      .select({ id: accounts.id, username: accounts.username })
+      .from(accounts)
+      .where(where)
+    return account
+  }
+
+  async #setRole(
+    caller: Caller,
+    groupId: string,
+    role: string,
+    findAccount: (
+      tx: Executor,
+    ) => Promise<{ id: string; username: string } | undefined> | undefined,
+  ): Promise<GroupMember> {
     await this.#requireAccount(caller, CHANGE_REFUSAL)
     await this.#requireGroup(groupId)
     return this.#db.transaction(async (tx) => {
@@ -201,13 +243,9 @@ export class GroupService {
       if (!isProjectRole(role)) {
         throw new ServiceError('invalid', `A group role is one of ${PROJECT_ROLES.join(', ')}`)
       }
-      const [account] = isUuid(accountId)
-        ? await tx
-            .select({ username: accounts.username })
-            .from(accounts)
-            .where(eq(accounts.id, accountId))
-        : []
+      const account = await findAccount(tx)
       if (!account) throw new ServiceError('not-found', 'There is no such account')
+      const accountId = account.id
       const current = await this.#roleIn(tx, groupId, accountId)
       const member = { accountId, username: account.username, role }
       if (current === role) return member

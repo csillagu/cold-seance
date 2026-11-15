@@ -598,10 +598,17 @@ test('TC-233: deleting a group deletes its saved views', async ({ browser, deplo
     covers: ['Apollo'],
   })
 
-  // Step 1: root deletes Platform. The group screens' delete action is F06's; here it goes
-  // through the REST API, as that action does.
+  // Step 1: root deletes Platform, with the group list screen's delete action (SC-082).
   const rootsPage = await signedIn(browser, deployment.url, { id: '', ...ROOT })
-  await call(rootsPage, 'DELETE', `/groups/${platform}`)
+  await rootsPage
+    .getByRole('navigation', { name: 'Navigation' })
+    .getByRole('link', { name: 'Groups' })
+    .click()
+  await rootsPage.getByRole('button', { name: 'Delete Platform' }).click()
+  await rootsPage.getByRole('button', { name: 'Delete Platform for good' }).click()
+  await expect(rootsPage.getByRole('status')).toHaveText(
+    'Group Platform is deleted. Its projects stay.',
+  )
 
   // Step 2: alice lists every saved view they can see: Group board is gone.
   const main = await listedViews(alicesPage)
