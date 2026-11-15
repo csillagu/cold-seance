@@ -9,6 +9,7 @@ import { defaultFrontendDir, hasFrontend } from './frontend.ts'
 import { createGitHubClient, type GitHubClient } from './github/client.ts'
 import { GitHubPlanningMirror } from './github/planning-mirror.ts'
 import { gitHubRepositoryReach, type RepositoryReach } from './github/repository-reach.ts'
+import { gitHubSeedingSource } from './github/seeding-source.ts'
 import { setUpFirstAdmin } from './service/first-admin.ts'
 import { createServices } from './service/services.ts'
 
@@ -93,6 +94,7 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
   const services = createServices(db, {
     github: options.repositoryReach ?? gitHubRepositoryReach(github),
     planningChanges: planningMirror,
+    seeding: gitHubSeedingSource(github, { statusField: config.github.statusField }),
     ...(options.now ? { now: options.now } : {}),
   })
   app = buildApp(

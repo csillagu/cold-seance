@@ -11,7 +11,8 @@ import type { TaskCancellationService } from '../service/task-cancellation.ts'
 import type { TaskStatusService } from '../service/task-status.ts'
 import type { Repository } from './app-tokens.ts'
 import { GitHubRequestError, type GitHubClient } from './client.ts'
-import { arrayField, numberField, objectField, stringField } from './json.ts'
+import { numberField, objectField, stringField } from './json.ts'
+import { agreed, type ProjectItem, readProjectItems, same } from './project-items.ts'
 
 type SeenState = (typeof ISSUE_SEEN_STATES)[number]
 
@@ -29,16 +30,6 @@ interface LinkedTask {
   synced: boolean
 }
 
-/** An item of an issue in a GitHub Project, with the option of the status field it is in. */
-interface ProjectItem {
-  projectId: string
-  itemId: string
-  /** The option's name; null if the item has none. */
-  value: string | null
-  /** The status field and its options, as GitHub gives them with a value. */
-  field: { id: string; options: { id: string; name: string }[] } | undefined
-}
-
 /** The issue as GitHub answers it now. */
 type IssueNow =
   { state: 'open' | 'closed' | 'not-planned'; items: ProjectItem[] } | { state: 'deleted' }
@@ -54,25 +45,6 @@ export interface ChangeHandlerOptions {
   /** The Projects status field start and hold come from (SRC-252); `Status`, `In Progress`, `On Hold` unless given. */
   statusField?: StatusFieldConfig
 }
-
-const ITEMS_QUERY = `query ($owner: String!, $name: String!, $number: Int!, $field: String!) {
-  repository(owner: $owner, name: $name) {
-    issue(number: $number) {
-      projectItems(first: 50) {
-        nodes {
-          id
-          project { id }
-          fieldValueByName(name: $field) {
-            ... on ProjectV2ItemFieldSingleSelectValue {
-              name
-              field { ... on ProjectV2SingleSelectField { id options { id name } } }
-            }
-          }
-        }
-      }
-    }
-  }
-}`
 
 const SET_OPTION = `mutation ($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
   updateProjectV2ItemFieldValue(
@@ -402,42 +374,7 @@ export class GitHubChangeHandler {
       : stringField(data, 'state_reason') === 'not_planned'
         ? 'not-planned'
         : 'closed'
-    const answer = await client.graphql('projectsStatus', repository, ITEMS_QUERY, {
-      owner: repository.owner,
-      name: repository.name,
-      number,
-      field: this.#field.name,
-    })
-    const issue = objectField(
-      objectField(objectField(answer, 'repository'), 'issue'),
-      'projectItems',
-    )
-    const items = arrayField(issue, 'nodes').flatMap((node): ProjectItem[] => {
-      const itemId = stringField(node, 'id')
-      const projectId = stringField(objectField(node, 'project'), 'id')
-      if (itemId === undefined || projectId === undefined) return []
-      const value = objectField(node, 'fieldValueByName')
-      const field = objectField(value, 'field')
-      const fieldId = stringField(field, 'id')
-      return [
-        {
-          itemId,
-          projectId,
-          value: stringField(value, 'name') ?? null,
-          field:
-            fieldId === undefined
-              ? undefined
-              : {
-                  id: fieldId,
-                  options: arrayField(field, 'options').flatMap((o) => {
-                    const id = stringField(o, 'id')
-                    const name = stringField(o, 'name')
-                    return id === undefined || name === undefined ? [] : [{ id, name }]
-                  }),
-                },
-        },
-      ]
-    })
+    const items = await readProjectItems(client, repository, number, this.#field.name)
     return { state, items }
   }
 
@@ -504,21 +441,4 @@ export class GitHubChangeHandler {
       .where(or(eq(tasks.parentId, taskId), eq(taskBlockedBy.blockerId, taskId)))
     return [...new Set([...linked, ...near].map((row) => row.id))].filter((id) => id !== taskId)
   }
-}
-
-/**
- * The status option the issue's Project items agree on: null for none (no item, or no item in an
- * option), `undefined` if they are in different ones.
- */
-function agreed(items: readonly ProjectItem[]): string | null | undefined {
-  const values = new Set(items.map((item) => item.value))
-  if (values.size === 0) return null
-  if (values.size > 1) return undefined
-  const [value] = values
-  return value ?? null
-}
-
-/** Whether two option names are the same, ignoring case and the spaces around them. */
-function same(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase()
 }
