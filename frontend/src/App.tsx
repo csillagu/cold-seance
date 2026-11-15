@@ -21,6 +21,7 @@ import { ProjectAuditLogPage } from './pages/ProjectAuditLogPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProjectRepositoriesPage } from './pages/ProjectRepositoriesPage.tsx'
 import { ProjectSavedViewsPage } from './pages/ProjectSavedViewsPage.tsx'
+import { ProjectSeedingPage } from './pages/ProjectSeedingPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { RepositoriesPage } from './pages/RepositoriesPage.tsx'
@@ -70,6 +71,7 @@ export function App() {
           <Route path="members" element={<MembersPage />} />
           <Route path="proposals" element={<ProposalsPage />} />
           <Route path="repositories" element={<ProjectRepositoriesPage />} />
+          <Route path="seeding" element={<ProjectSeedingPage />} />
           <Route path="tasks/new" element={<NewTaskPage />} />
           <Route path="variance" element={<VariancePage />} />
           <Route path="views" element={<ProjectSavedViewsPage />} />
