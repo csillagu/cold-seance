@@ -245,4 +245,4 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC-023 | implemented | #122 | https://github.com/csillagu/cold-seance/pull/205 |
 | SC-020 | implemented | #115 | https://github.com/csillagu/cold-seance/pull/206 |
 | SC-059 | implemented | #115 | https://github.com/csillagu/cold-seance/pull/206 |
-| SC-025 | implemented | #116 | PRLINK |
+| SC-025 | implemented | #116 | https://github.com/csillagu/cold-seance/pull/207 |
