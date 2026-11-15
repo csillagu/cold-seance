@@ -32,7 +32,20 @@ interface LinkedTask {
 
 /** The issue as GitHub answers it now. */
 type IssueNow =
-  { state: 'open' | 'closed' | 'not-planned'; items: ProjectItem[] } | { state: 'deleted' }
+  | {
+      state: 'open' | 'closed' | 'not-planned'
+      items: ProjectItem[]
+      /** The GitHub login of whoever closed it, as GitHub names them, if it is closed. */
+      closedBy: string | undefined
+    }
+  | { state: 'deleted' }
+
+/**
+ * Who a change the re-check (SC-024) finds is recorded as made by where GitHub names no one, such
+ * as for a deleted issue or a move in the Projects status field. GitHub logins hold only letters,
+ * digits and hyphens, so no GitHub user can have it as theirs.
+ */
+export const RECHECK_ACTOR = '(re-check)'
 
 /** The parts of the service layer the handler makes its changes through (DD-039). */
 export interface ChangeHandlerServices {
@@ -118,11 +131,14 @@ export class GitHubChangeHandler {
    * Handles a change to issue `number` of `repository` that the GitHub user `sender` made.
    * Resolves once the change is taken in or reverted and the planning mirror is told of the tasks
    * to mirror again; rejects with what GitHub refused, for the re-check to put right (DD-051).
+   *
+   * Without `sender`, as the re-check calls it (SC-024), each change is recorded as made by whoever
+   * GitHub names for it: the issue's closer for a close, the actor of its latest reopening for a
+   * reopen; and as `RECHECK_ACTOR` where GitHub names no one, for a deleted issue or a move in the
+   * Projects status field.
    */
-  issueChanged(repository: Repository, number: number, sender: string): Promise<void> {
-    return this.#enqueue(() =>
-      this.#changed(repository, number, { githubLogin: sender, channel: 'github' }),
-    )
+  issueChanged(repository: Repository, number: number, sender?: string): Promise<void> {
+    return this.#enqueue(() => this.#changed(repository, number, sender))
   }
 
   /**
@@ -162,11 +178,20 @@ export class GitHubChangeHandler {
     if (taskId !== null) this.#mirror.changed([taskId])
   }
 
-  async #changed(repository: Repository, number: number, user: GitHubUser): Promise<void> {
+  async #changed(repository: Repository, number: number, sender?: string): Promise<void> {
     const linked = await this.#linked(repository, number)
     if (linked === undefined || !linked.synced) return
     const client = this.#github()
     const now = await this.#read(client, repository, number)
+    const as = (login: string | undefined): GitHubUser => ({
+      githubLogin: sender ?? login ?? RECHECK_ACTOR,
+      channel: 'github',
+    })
+    const stateChanger = async (): Promise<GitHubUser> => {
+      if (sender !== undefined || now.state === 'deleted') return as(undefined)
+      if (now.state !== 'open') return as(now.closedBy)
+      return as(await this.#reopenedBy(client, repository, number))
+    }
     let seenState = linked.seenState
     let seenStatus = linked.seenStatus
     let exists = now.state !== 'deleted'
@@ -174,7 +199,7 @@ export class GitHubChangeHandler {
     let recreated = false
 
     if (now.state !== linked.seenState) {
-      const outcome = await this.#takeState(user, linked, now.state)
+      const outcome = await this.#takeState(await stateChanger(), linked, now.state)
       if (outcome === 'taken') seenState = now.state
       else if (now.state === 'deleted') {
         await this.#recreate(client, repository, linked)
@@ -192,7 +217,7 @@ export class GitHubChangeHandler {
     if (open && now.state !== 'deleted') {
       const value = agreed(now.items)
       if (value !== undefined && value !== seenStatus) {
-        const taken = await this.#takeStatus(user, linked.taskId, value)
+        const taken = await this.#takeStatus(as(undefined), linked.taskId, value)
         if (taken) seenStatus = value
         else await this.#resetStart(client, repository, now.items, seenStatus)
       }
@@ -375,7 +400,20 @@ export class GitHubChangeHandler {
         ? 'not-planned'
         : 'closed'
     const items = await readProjectItems(client, repository, number, this.#field.name)
-    return { state, items }
+    return { state, items, closedBy: stringField(objectField(data, 'closed_by'), 'login') }
+  }
+
+  /** The GitHub login of whoever last reopened the issue, as its events name them, if any. */
+  async #reopenedBy(
+    client: GitHubClient,
+    repository: Repository,
+    number: number,
+  ): Promise<string | undefined> {
+    const events = await client.restPages('readIssues', repository, {
+      path: ['issues', number, 'events'],
+    })
+    const reopened = events.filter((event) => stringField(event, 'event') === 'reopened')
+    return stringField(objectField(reopened.at(-1), 'actor'), 'login')
   }
 
   /**

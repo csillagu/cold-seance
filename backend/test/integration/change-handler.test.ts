@@ -24,9 +24,10 @@ import { grantRole } from '../helpers/projects.ts'
 // with a status field that the tool uses" is a fake Project whose field is `Status`, with the
 // options `In Progress` and `On Hold`: the configuration's defaults (SRC-252).
 //
-// Pending: the step of each test case that waits "within an hour" for a change made on GitHub to
-// reach the tool, through a webhook or the re-check (SC-105, SC-024: B17), and the revert comments
-// (SC-062: B18).
+// The step of each test case that waits "within an hour" for a change made on GitHub to reach the
+// tool, through a webhook or the re-check (SC-105, SC-024), is in github-sync.test.ts.
+//
+// Pending: the revert comments (SC-062: B18).
 
 type Seeded = Awaited<ReturnType<typeof seedAccount>>
 

@@ -8,9 +8,10 @@ import { type Account, type Deployment, expect, ROOT, test } from '../fixtures.t
 // browser steps in task-details.spec.ts.
 //
 // Pending: TC-172's browser part, reading the proposal's creation through the MCP server on the
-// page, waits for the MCP server (SC-027, B19); TC-173's, reading T finished through GitHub, for
-// the webhook endpoint and re-check (SC-105, SC-024: B17) to bring the change to the GitHub change
-// handler (SC-023), which change-handler.test.ts feeds directly.
+// page, waits for the MCP server (SC-027, B19); TC-173's, reading T finished through GitHub, is not
+// written yet: the webhook endpoint and re-check (SC-105, SC-024) that bring the change to the
+// GitHub change handler (SC-023) are in place since #131, and backend/test/integration/
+// github-sync.test.ts sends such changes by webhook.
 
 /** A browser of its own for `account`, signed in on the sign-in page. */
 async function signedIn(browser: Browser, baseURL: string, account: Account): Promise<Page> {

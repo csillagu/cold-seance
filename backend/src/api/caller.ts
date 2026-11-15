@@ -14,7 +14,8 @@ export type Authenticator = (request: FastifyRequest) => Promise<Caller | undefi
 declare module 'fastify' {
   interface FastifyContextConfig {
     /**
-     * A route any caller reaches, authenticated or not: only signing in (SC-052). Every other
+     * A route any caller reaches, authenticated or not: only signing in (SC-052) and the GitHub
+     * webhook endpoint (SC-105), which checks each delivery's signature instead. Every other
      * route of the REST API refuses a caller no authenticator recognises.
      */
     public?: boolean
