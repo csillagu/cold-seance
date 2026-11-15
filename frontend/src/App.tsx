@@ -16,11 +16,15 @@ import { PersonLoadPage } from './pages/PersonLoadPage.tsx'
 import { ProjectAuditLogPage } from './pages/ProjectAuditLogPage.tsx'
 import { ProjectPage } from './pages/ProjectPage.tsx'
 import { ProjectRepositoriesPage } from './pages/ProjectRepositoriesPage.tsx'
+import { ProjectSavedViewsPage } from './pages/ProjectSavedViewsPage.tsx'
 import { ProposalPage } from './pages/ProposalPage.tsx'
 import { ProposalsPage } from './pages/ProposalsPage.tsx'
 import { RepositoriesPage } from './pages/RepositoriesPage.tsx'
 import { RepositoryPage } from './pages/RepositoryPage.tsx'
 import { RepositoryRequestsPage } from './pages/RepositoryRequestsPage.tsx'
+import { SavedViewEditorPage } from './pages/SavedViewEditorPage.tsx'
+import { SavedViewPage } from './pages/SavedViewPage.tsx'
+import { SavedViewsPage } from './pages/SavedViewsPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
 import { StartPage } from './pages/StartPage.tsx'
 import { TaskPage } from './pages/TaskPage.tsx'
@@ -58,6 +62,7 @@ export function App() {
           <Route path="repositories" element={<ProjectRepositoriesPage />} />
           <Route path="tasks/new" element={<NewTaskPage />} />
           <Route path="variance" element={<VariancePage />} />
+          <Route path="views" element={<ProjectSavedViewsPage />} />
         </Route>
         <Route path="proposals/:proposalId" element={<ProposalPage />} />
         <Route path="repositories" element={<RepositoriesPage />} />
@@ -68,6 +73,9 @@ export function App() {
         <Route path="settings/github" element={<GitHubLinkPage key="own" />} />
         <Route path="tasks/:taskId" element={<TaskPage />} />
         <Route path="tokens" element={<TokensPage />} />
+        <Route path="views" element={<SavedViewsPage />} />
+        <Route path="views/new" element={<SavedViewEditorPage />} />
+        <Route path="views/:viewId" element={<SavedViewPage />} />
         <Route path="*" element={<UnknownPage />} />
       </Route>
     </Routes>
