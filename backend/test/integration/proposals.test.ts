@@ -531,7 +531,7 @@ describe('the proposal store', () => {
       expect(entries.every((entry) => entry.subject === created.id)).toBe(true)
     })
 
-    it('shows a proposal only to someone with a role in every project it changes', async () => {
+    it('TC-284: a proposal is shown only to someone with a role in every project it changes', async () => {
       const zeus = await seedProject(x.db, alice, 'Zeus')
       await grantRole(x.db, bob, apollo, 'read-only')
       const a = await task(apollo, { title: 'A', durationWorkingDays: 1 })

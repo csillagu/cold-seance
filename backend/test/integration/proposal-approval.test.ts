@@ -14,20 +14,13 @@ import { as, seedAccount, testAuthenticator } from '../helpers/accounts.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { grantRole, seedProject } from '../helpers/projects.ts'
 
-// The proposal approval (SC-048: FR-077, FR-078, FR-080, FR-132) against a real PostgreSQL, each
+// The proposal approval (SC-048: FR-077, FR-078, FR-080, FR-132, FR-210) against a real PostgreSQL, each
 // test in a fresh test deployment whose clock the test sets: a fresh database, first system admin
 // `root`, and a global calendar with Saturday and Sunday as the weekend and no company holidays.
 // First the test cases' service and REST parts, then the rules through the service layer. Each
 // proposal is created through the service layer with the channel the MCP server will give it; the
 // MCP server itself comes with SC-027 (B19). The browser steps come with the proposal screens
 // (SC-034, SC-072; F23, F25).
-//
-// TC-113, TC-114 and TC-195 are pending on a question to the owner, on issue #130: their inputs
-// have alice, read-only in Borealis, create a proposal that changes Borealis, which the proposal
-// store refuses (FR-203, a reading that awaits the owner's confirmation), and have bob, with no
-// role in Apollo, approve his part of a proposal that also changes Apollo, which he may not read
-// (FR-106, FR-017). What they check is covered below under "a proposal over several projects",
-// with roles the store allows.
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -311,7 +304,7 @@ describe('the proposal approval', () => {
       for (const taskId of [a.id, b.id]) {
         const moves = movesOf(taskId)
         expect(moves).toHaveLength(1)
-        expect(moves[0]?.by.username).toBe('bob')
+        expect(moves[0]?.by).toEqual({ accountId: bob.id, username: 'bob' })
         expect(moves[0]?.channels).toEqual(['mcp', 'ui'])
       }
     })
@@ -357,8 +350,10 @@ describe('the proposal approval', () => {
   })
 
   describe('a proposal over several projects', () => {
-    // Apollo created by alice, Borealis by bob. alice is read-write in Borealis, so that the store
-    // takes her proposal; bob is read-only in Apollo, so that he may read it.
+    // TC-113, TC-114, TC-195 and TC-285: Apollo created by alice, Borealis by bob; alice is
+    // read-write in Borealis and bob read-only in Apollo (SRC-254, SRC-255). Each proposal is
+    // created through the service layer with the MCP server's channel; the MCP server itself
+    // comes with SC-027 (B19).
     let borealis: string
     let a: Task
     let b: Task
@@ -373,39 +368,51 @@ describe('the proposal approval', () => {
       proposal = await propose([[move(a.id, '2027-03-08')], [move(b.id, '2027-03-08')]])
     })
 
-    it("lets a read-write member approve their project's part, and applies nothing yet", async () => {
+    it("TC-113: a project's part of a proposal is approved by a read-write member of that project", async () => {
+      // Step 1: bob approves the Borealis part.
       const result = await openAndApprove(bob, proposal.id, borealis)
       expect(result.outcome).toBe('waiting-for-parts')
-      expect(result.proposal.status).toBe('waiting')
-      expect(result.proposal.approvals).toEqual([
+
+      // Step 2: the proposal's state, read through the REST API.
+      const stored = await ok<Proposal>(bob, 'GET', `/proposals/${proposal.id}`)
+      expect(stored.status).toBe('waiting')
+      expect(stored.approvals).toEqual([
         expect.objectContaining({ projectId: borealis, approvedBy: bob.id, channel: 'ui' }),
       ])
-      // The Apollo part is not approved by it, and neither move is applied.
-      expect(result.proposal.approvals.map((approval) => approval.projectId)).not.toContain(apollo)
-      expect(await startOf(a.id)).toBe('2027-03-01')
-      expect(await startOf(b.id)).toBe('2027-03-01')
+      // The Apollo part is not approved by it.
+      expect(stored.approvals.map((approval) => approval.projectId)).not.toContain(apollo)
     })
 
-    it("refuses a part's approval to someone without the read-write role in its project", async () => {
-      const seen = await versionSeenBy(bob, proposal.id)
-      const response = await approve(bob, proposal.id, apollo, seen)
+    it("TC-114: approving another project's part without its read-write role is rejected", async () => {
+      // Step 1: bob, read-only in Apollo, tries to approve the Apollo part.
+      const response = await approve(
+        bob,
+        proposal.id,
+        apollo,
+        await versionSeenBy(bob, proposal.id),
+      )
       expect(response.statusCode).toBe(403)
+
+      // Step 2: the Apollo part is still not approved, and A has not moved.
       const stored = await ok<Proposal>(bob, 'GET', `/proposals/${proposal.id}`)
       expect(stored.approvals).toEqual([])
       expect(await startOf(a.id)).toBe('2027-03-01')
     })
 
-    it("applies every change, each as its part's approver's, once every part is approved", async () => {
+    it('TC-195: a multi-project proposal applies nothing until every part is approved', async () => {
+      // Step 1: alice approves the Apollo part; neither move is applied.
       expect((await openAndApprove(alice, proposal.id, apollo)).outcome).toBe('waiting-for-parts')
       expect(await startOf(a.id)).toBe('2027-03-01')
       expect(await startOf(b.id)).toBe('2027-03-01')
       expect(mirrored).toEqual([])
 
+      // Step 2: bob approves the Borealis part; both moves are applied.
       const result = await openAndApprove(bob, proposal.id, borealis)
       expect(result.outcome).toBe('applied')
       expect(await startOf(a.id)).toBe('2027-03-08')
       expect(await startOf(b.id)).toBe('2027-03-08')
 
+      // Each move is made, and logged, as its own part's approver's (FR-139).
       const moved = await x.db.select().from(auditLog).where(eq(auditLog.action, 'task.updated'))
       const actorOf = (taskId: string) =>
         moved.filter((entry) => entry.subjectId === taskId).map((entry) => entry.actorAccountId)
@@ -413,17 +420,40 @@ describe('the proposal approval', () => {
       expect(actorOf(b.id)).toEqual([bob.id])
     })
 
-    it('counts a part approved before the proposal was edited no more', async () => {
-      await openAndApprove(bob, proposal.id, borealis)
+    it("TC-285: a part's approval stands when the plan changes afterwards", async () => {
+      const c = await oneDay('C', '2027-03-15')
+      const d = await oneDay('D', '2027-03-01')
+      const e = await oneDay('E', '2027-03-01', borealis, bob)
+      // P1 is the proposal made above, moving A and B; P2 moves D (G1) and E (G2).
+      const p2 = await propose([[move(d.id, '2027-03-08')], [move(e.id, '2027-03-08')]])
+
+      // Step 1: alice approves P1's Apollo part. Step 2: she moves C.
+      await openAndApprove(alice, proposal.id, apollo)
+      await ok(alice, 'PATCH', `/tasks/${c.id}`, { plannedStart: '2027-03-16' })
+
+      // Step 3: bob approves P1's Borealis part from his preview; P1 applies, without asking
+      // alice to approve again.
+      const applied = await openAndApprove(bob, proposal.id, borealis)
+      expect(applied.outcome).toBe('applied')
+      expect(await startOf(a.id)).toBe('2027-03-08')
+      expect(await startOf(b.id)).toBe('2027-03-08')
+
+      // Step 4: bob approves P2's Borealis part; alice then edits P2's G1.
+      await openAndApprove(bob, p2.id, borealis)
       now = at(1)
-      const g1 = proposal.groups[0]?.id ?? ''
-      await services.proposalEdits.editGroup(by(alice), proposal.id, g1, {
-        changes: [move(a.id, '2027-03-09')],
+      const g1 = p2.groups[0]?.id ?? ''
+      await services.proposalEdits.editGroup(by(alice), p2.id, g1, {
+        changes: [move(d.id, '2027-03-09')],
       })
-      const result = await openAndApprove(alice, proposal.id, apollo)
+
+      // Step 5: alice approves P2's Apollo part; the edit withdrew bob's approval, so P2 applies
+      // nothing.
+      const result = await openAndApprove(alice, p2.id, apollo)
       expect(result.outcome).toBe('waiting-for-parts')
-      expect(result.proposal.approvals.map((approval) => approval.projectId)).toEqual([apollo])
-      expect(await startOf(b.id)).toBe('2027-03-01')
+      const stored = await ok<Proposal>(alice, 'GET', `/proposals/${p2.id}`)
+      expect(stored.approvals.map((approval) => approval.projectId)).toEqual([apollo])
+      expect(await startOf(d.id)).toBe('2027-03-01')
+      expect(await startOf(e.id)).toBe('2027-03-01')
     })
   })
 
