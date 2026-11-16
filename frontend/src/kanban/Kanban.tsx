@@ -5,7 +5,6 @@ import { avatarColour } from '../gantt/avatar.ts'
 import type { PeopleById } from '../gantt/Gantt.tsx'
 import { formatDay, type TaskStatus } from '../gantt/gantt-model.ts'
 import {
-  COLUMNS,
   datesLabel,
   type KanbanCard,
   type KanbanColumn,
@@ -32,9 +31,9 @@ interface KanbanProps {
  * of its task's status, cancelled tasks in their own column (FR-129), and in each column the
  * unscheduled tasks at the bottom (FR-004, FR-145), as the approved design draws it (SRC-249).
  * Everything a card shows that a person sets can be changed from it (FR-053): its status by
- * moving it to another column, by dragging it or with its "Move to" control, and the rest in the
- * task dialog its title opens, the same as every view's (#209). Every change goes to the REST API, which allows or refuses it by the viewer's role in the card's
- * project (FR-060); a refusal is shown on the card.
+ * dragging it to another column (#224), and the rest in the task dialog its title opens, the same
+ * as every view's (#209). Every change goes to the REST API, which allows or refuses it by the
+ * viewer's role in the card's project (FR-060); a refusal is shown on the card.
  *
  * What a proposal under review would change is shown as pending, apart from the live plan: on a
  * card, in a dashed box of its own, and a task it would create as a dashed card below the live
@@ -83,7 +82,6 @@ export function Kanban({ name, model, people, onMove, onOpen }: KanbanProps) {
               error={errors.get(card.task.id) ?? null}
               onDragStart={() => setDragged(card.task)}
               onDragEnd={() => setDragged(null)}
-              onMove={(status) => move(card.task, status)}
               onOpen={() => onOpen(card.task)}
             />
           )}
@@ -169,7 +167,6 @@ function Card({
   error,
   onDragStart,
   onDragEnd,
-  onMove,
   onOpen,
 }: {
   card: KanbanCard
@@ -177,11 +174,10 @@ function Card({
   error: string | null
   onDragStart: () => void
   onDragEnd: () => void
-  onMove: (status: TaskStatus) => void
   onOpen: () => void
 }) {
   const { task } = card
-  const moves = movesFrom(task.status)
+  const draggable = movesFrom(task.status).length > 0
   const dates = datesLabel(task)
 
   return (
@@ -189,7 +185,7 @@ function Card({
       aria-label={task.title}
       data-task-id={task.id}
       data-red={card.red}
-      draggable={moves.length > 0}
+      draggable={draggable}
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', task.id)
         event.dataTransfer.effectAllowed = 'move'
@@ -266,27 +262,6 @@ function Card({
         </div>
       ))}
       <People ids={task.assignees} people={people} />
-      {moves.length > 0 ? (
-        <div className="kanban__actions">
-          <label className="kanban__move">
-            <span className="kanban__hidden">Move {task.title} to</span>
-            <select
-              value=""
-              onChange={(event) => {
-                const status = moves.find((move) => move === event.target.value)
-                if (status) onMove(status)
-              }}
-            >
-              <option value="">Move to…</option>
-              {moves.map((status) => (
-                <option key={status} value={status}>
-                  {COLUMNS.find((column) => column.status === status)!.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      ) : null}
       {error ? (
         <p role="alert" className="kanban__error">
           {error}
