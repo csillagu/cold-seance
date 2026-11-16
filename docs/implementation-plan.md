@@ -257,4 +257,4 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC-062 | implemented | #149 | https://github.com/csillagu/cold-seance/pull/213 |
 | SC-048 | implemented | #130 | https://github.com/csillagu/cold-seance/pull/214 |
 | SC-027 | implemented | #152 | https://github.com/csillagu/cold-seance/pull/217 |
-| SC-072 | implemented | #158 | https://github.com/csillagu/cold-seance/pull/PRNUM |
+| SC-072 | implemented | #158 | https://github.com/csillagu/cold-seance/pull/218 |
