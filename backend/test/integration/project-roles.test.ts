@@ -624,13 +624,10 @@ describe('test cases through the REST API', () => {
 
   // TC-154 to TC-159 (FR-106, FR-107, FR-108) check the roles on tasks, views, baselines and AI
   // proposals. TC-155 to TC-158, on tasks, statuses and assignment, are in task-roles.test.ts.
-  // Pending: TC-154 (baselines SC-009; the Gantt, SC-031, the Kanban, SC-030, the person load
-  // view, SC-032, and the baseline variance view, SC-033, are in e2e/tests/gantt.spec.ts,
-  // e2e/tests/kanban.spec.ts, e2e/tests/person-load.spec.ts and
-  // e2e/tests/baseline-variance.spec.ts). TC-159 is in mcp-server.test.ts. Each of those modules
-  // asks the role
-  // permission checks (SC-049) before it reads or changes anything; the checks themselves are
-  // tested role by role in src/service/permissions.test.ts.
+  // TC-154, every view and the REST reads of T and v1, is in e2e/tests/views.spec.ts. TC-159 is in
+  // mcp-server.test.ts. Each of those modules asks the role permission checks (SC-049) before it
+  // reads or changes anything; the checks themselves are tested role by role in
+  // src/service/permissions.test.ts.
 
   // FR-111's and FR-112's test cases in full: groups (SC-018), their members (SC-057) and their
   // projects (SC-058), and the tasks bob edits (SC-001), all through the REST API.
