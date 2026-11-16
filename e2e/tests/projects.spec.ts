@@ -30,11 +30,15 @@ async function openForm(page: Page, name: string) {
   await page.getByRole('button', { name: 'Create project' }).click()
 }
 
-/** Creates the project `name` on the form and waits for its page; answers the project's id. */
+/**
+ * Creates the project `name` on the form and waits for its page, which opens on its Kanban (#221);
+ * answers the project's id.
+ */
 async function createProject(page: Page, name: string): Promise<string> {
   await openForm(page, name)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
-  const id = /^\/projects\/([0-9a-f-]{36})$/.exec(new URL(page.url()).pathname)?.[1]
+  await expect(page).toHaveURL(/\/kanban$/)
+  const id = /^\/projects\/([0-9a-f-]{36})\/kanban$/.exec(new URL(page.url()).pathname)?.[1]
   expect(id).toBeDefined()
   return id ?? ''
 }

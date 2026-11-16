@@ -114,6 +114,23 @@ export function TaskDialog({ taskId, onClose, onChanged }: TaskDialogProps) {
 
   useEffect(() => dialog.current?.focus(), [])
 
+  // Escape closes the dialog wherever the focus is while it is open (#222), not only inside it.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeRef.current()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [])
+
+  /**
+   * Whether the press of the pointer began on the backdrop itself: a click there closes the dialog
+   * (#222), but a drag that began inside the dialog and ended on the backdrop does not.
+   */
+  const pressedOnBackdrop = useRef(false)
+
   /** Saves a change and reads the task again; gives whether it was saved. A refusal is shown. */
   const change = async (to: string, method: string, body: unknown): Promise<boolean> => {
     setError(null)
@@ -137,7 +154,17 @@ export function TaskDialog({ taskId, onClose, onChanged }: TaskDialogProps) {
   const title = loaded.state === 'loaded' ? loaded.task.title : 'Task'
 
   return (
-    <div className="gantt-export__backdrop">
+    <div
+      className="gantt-export__backdrop"
+      onMouseDown={(event) => {
+        pressedOnBackdrop.current = event.target === event.currentTarget
+      }}
+      onClick={(event) => {
+        const outside = pressedOnBackdrop.current && event.target === event.currentTarget
+        pressedOnBackdrop.current = false
+        if (outside) onClose()
+      }}
+    >
       <div
         ref={dialog}
         role="dialog"
@@ -145,9 +172,6 @@ export function TaskDialog({ taskId, onClose, onChanged }: TaskDialogProps) {
         aria-labelledby="task-dialog-title"
         tabIndex={-1}
         className="gantt-export gantt-task"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onClose()
-        }}
       >
         <h2 id="task-dialog-title" className="gantt-export__title">
           {title}

@@ -289,6 +289,29 @@ describe('the task dialog, opening', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  it('closes with Escape wherever the focus is', async () => {
+    const { onClose } = await open()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes on a click outside it, but not on one inside it or a drag out of it', async () => {
+    const { dialog, onClose } = await open()
+    const backdrop = dialog.parentElement
+    if (backdrop === null) throw new Error('The dialog has no backdrop')
+    fireEvent.mouseDown(dialog)
+    fireEvent.mouseUp(dialog)
+    fireEvent.click(dialog)
+    fireEvent.mouseDown(within(dialog).getByText('Blocked by'))
+    fireEvent.mouseUp(backdrop)
+    fireEvent.click(backdrop)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.mouseDown(backdrop)
+    fireEvent.mouseUp(backdrop)
+    fireEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('says so when the task is not visible to the viewer', async () => {
     fakeApi(() => ({
       status: 403,
