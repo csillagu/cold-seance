@@ -40,7 +40,7 @@ describe('dragging a bar on the Gantt (SC-067)', () => {
     expect(movable(floating, false)).toBe(false)
   })
 
-  it('freezes a closed task, done or cancelled (#223)', () => {
+  it('freezes a closed task, done or cancelled (#223, SC-119)', () => {
     expect(movable({ ...task, status: 'in-progress' }, false)).toBe(true)
     expect(movable({ ...task, status: 'on-hold' }, false)).toBe(true)
     expect(movable({ ...task, status: 'done' }, false)).toBe(false)
@@ -66,7 +66,7 @@ describe('dragging a bar on the Gantt (SC-067)', () => {
   })
 })
 
-describe('resizing a bar by its ends on the Gantt (#223)', () => {
+describe('resizing a bar by its ends on the Gantt (#223, SC-119)', () => {
   // 2027-03-01 is a Monday; the weekends are the non-working days.
   const weekend = (date: string) => weekday(date) >= 5
   const week = { start: '2027-03-01', finish: '2027-03-05' }

@@ -1,5 +1,5 @@
 /*
- * Scheduling an unscheduled task by drawing its bar on its lane of the Gantt (#228): what can be
+ * Scheduling an unscheduled task by drawing its bar on its lane of the Gantt (#228, SC-119): what can be
  * drawn, the days a drawing covers, and the change it saves. Pure functions, so that the Gantt and
  * its tests share them.
  */

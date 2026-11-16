@@ -28,7 +28,7 @@ const task: ApiTask = {
 // 2027-03-01 is a Monday; the weekends are the non-working days.
 const weekend = (date: string) => weekday(date) >= 5
 
-describe('drawing an unscheduled task on the Gantt (#228)', () => {
+describe('drawing an unscheduled task on the Gantt (#228, SC-119)', () => {
   it("draws a task's bar, places a fixed-date milestone, and leaves the rest inert", () => {
     expect(drawMode(task)).toBe('bar')
     expect(drawMode({ ...task, status: 'in-progress' })).toBe('bar')

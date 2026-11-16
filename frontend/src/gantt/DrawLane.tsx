@@ -51,7 +51,7 @@ interface DrawLaneProps {
 }
 
 /**
- * The lane of an unscheduled task, drawn on to give it dates (#228). Over it, the cursor is a
+ * The lane of an unscheduled task, drawn on to give it dates (#228, SC-119). Over it, the cursor is a
  * crosshair and a faint day under the pointer shows where a bar would start. Pressed and dragged
  * either way, a ghost bar grows from the press to the pointer by whole days, with its start, its
  * finish and its working days above it, kept in view; the timeline scrolls when the pointer nears

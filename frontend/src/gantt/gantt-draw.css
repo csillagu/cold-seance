@@ -1,5 +1,5 @@
 /*
- * Scheduling an unscheduled task by drawing its bar on its lane of the Gantt (#228): the lane's
+ * Scheduling an unscheduled task by drawing its bar on its lane of the Gantt (#228, SC-119): the lane's
  * crosshair, the faint day under the pointer, the ghost bar with its labels, the bar pending until
  * saved, and the selected row.
  */

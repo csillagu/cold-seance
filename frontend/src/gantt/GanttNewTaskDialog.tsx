@@ -27,7 +27,7 @@ interface GanttNewTaskDialogProps {
 /**
  * Creating a task on the Gantt (SC-067). On a Gantt covering several projects it asks which
  * project the task goes in, offering only those the viewer can write to, unless the view's filter
- * allows only one, which it then uses (FR-061). The task is created with its title, and its
+ * allows only one, which it then uses (SC-118, FR-061). The task is created with its title, and its
  * planned start and duration if given, so that it is drawn on its dates. A duration of 0 makes it
  * a milestone, fixed to the planned start, or floating without one (FR-212).
  */
