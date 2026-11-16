@@ -1,4 +1,5 @@
 import type { Browser, Locator, Page } from '@playwright/test'
+import { connectMcp } from '../../backend/test/helpers/mcp.ts'
 import { type Account, type Deployment, expect, ROOT, test } from '../fixtures.ts'
 
 // The audit log viewer (SC-094): the browser steps of the test cases that read the audit log
@@ -7,8 +8,8 @@ import { type Account, type Deployment, expect, ROOT, test } from '../fixtures.t
 // sides of these test cases are in backend/test/integration/audit-log.test.ts, and TC-170's
 // browser steps in task-details.spec.ts.
 //
-// Pending: TC-172's browser part, reading the proposal's creation through the MCP server on the
-// page, waits for the MCP server (SC-027, B19); TC-173's, reading T finished through GitHub, is not
+// TC-172's proposal is created by an MCP client, as an AI agent would, with alice's token. Pending:
+// TC-173's browser part, reading T finished through GitHub, is not
 // written yet: the webhook endpoint and re-check (SC-105, SC-024) that bring the change to the
 // GitHub change handler (SC-023) are in place since #131, and backend/test/integration/
 // github-sync.test.ts sends such changes by webhook.
@@ -220,4 +221,50 @@ test('TC-171: a change through the REST API is logged with the REST API channel'
   await expect(cells.nth(2)).toHaveText('REST API')
   const at = new Date((await entry.locator('time').getAttribute('datetime')) ?? '').getTime()
   expect(Math.abs(at - t)).toBeLessThan(60_000)
+})
+
+test('TC-172: creating a proposal through the MCP server is logged with the MCP channel', async ({
+  browser,
+  deployment,
+}) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, deployment.url, alice)
+  const apollo = await createProject(page, 'Apollo')
+  const task = field(
+    await call(page, 'POST', `/projects/${apollo}/tasks`, {
+      title: 'T',
+      plannedStart: '2027-03-01',
+      durationWorkingDays: 1,
+    }),
+    'id',
+  )
+  const token = field(await call(page, 'POST', '/tokens', {}), 'secret')
+
+  // Step 1: through the MCP server with alice's token, create a proposal moving T, at t.
+  const agent = await connectMcp(deployment.url, token)
+  const t = Date.now()
+  const created = await agent.call('create_proposal', {
+    groups: [
+      {
+        changes: [
+          { kind: 'update-task', task: { taskId: task }, fields: { plannedStart: '2027-03-02' } },
+        ],
+      },
+    ],
+  })
+  await agent.close()
+  expect(created.isError, JSON.stringify(created.json)).toBe(false)
+
+  // Step 2: as alice, read Apollo's audit log, on its page.
+  await openProjectLog(page, apollo, 'Apollo')
+  const log = page.getByRole('table', { name: 'Audit log' })
+  const entry = log.getByRole('row').filter({ hasText: 'Proposal created' })
+  await expect(entry).toHaveCount(1)
+  const cells = entry.getByRole('cell')
+  await expect(cells.nth(1)).toHaveText('alice')
+  await expect(cells.nth(2)).toHaveText('MCP server')
+  const at = new Date((await entry.locator('time').getAttribute('datetime')) ?? '').getTime()
+  expect(Math.abs(at - t)).toBeLessThan(60_000)
+  // Negative: no entry records a change to T itself.
+  await expect(log.getByRole('row').filter({ hasText: 'Task updated' })).toHaveCount(0)
 })

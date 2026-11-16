@@ -3,7 +3,8 @@ import { DrizzleQueryError } from 'drizzle-orm'
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import { ServiceError, type ServiceErrorKind } from '../service/errors.ts'
 
-const STATUS: Record<ServiceErrorKind, number> = {
+/** The HTTP status of each kind of service-layer refusal, as the REST API and the MCP server give it. */
+export const STATUS: Record<ServiceErrorKind, number> = {
   unauthenticated: 401,
   invalid: 400,
   forbidden: 403,

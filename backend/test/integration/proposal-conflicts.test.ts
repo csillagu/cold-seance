@@ -14,8 +14,9 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // a fresh test deployment: a fresh database, first system admin `root`, accounts `alice` and
 // `bob`, and project `Apollo` created by `alice`, where `bob` has the read-write role. First the
 // test cases' service and REST parts, then the rules through the service layer. Each proposal is
-// created through the service layer with the channel the MCP server will give it; the MCP server
-// itself comes with SC-027 (B19). The browser steps come with the conflict panel (SC-035, F24).
+// created through the service layer with the MCP server's channel; proposals made through the MCP
+// server itself (SC-027) are tested in mcp-server.test.ts. The browser steps come with the
+// conflict panel (SC-035, F24).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT'

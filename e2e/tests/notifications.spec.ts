@@ -1,15 +1,18 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test'
-import { repositories, taskIssues } from '../../backend/src/db/schema.ts'
+import { repositories, taskIssues, tasks } from '../../backend/src/db/schema.ts'
 import { createServices } from '../../backend/src/service/services.ts'
+import { connectMcp } from '../../backend/test/helpers/mcp.ts'
 import { type Account, type Deployment, expect, test } from '../fixtures.ts'
 
 // The in-app notification list (SC-035) and the subscription controls (SC-093) in the browser:
 // the browser steps of the test cases of FR-082, FR-087 and FR-133. Which notifications are sent,
 // and the subscriptions' rules, are the notification module's (SC-012), tested through the REST
 // API in backend/test/integration/notifications.test.ts. The test cases create each proposal
-// through the MCP server, which comes with SC-027 (B19); until then it is created through the
-// service layer with the channel the MCP server will give it, as the integration tests do. The
-// other inputs are put in place through the REST API, in the browser's own session.
+// through the MCP server; here it is created through the service layer with the MCP server's
+// channel, as the integration tests do, and backend/test/integration/mcp-server.test.ts creates
+// them through the MCP server itself. The other inputs are put in place through the REST API, in
+// the browser's own session. TC-123 reads bob's notifications with an MCP client, as an AI agent
+// would.
 
 /** The browsers the test opened, closed after it, before its deployment is closed. */
 const opened: BrowserContext[] = []
@@ -261,14 +264,29 @@ test('TC-122: notifications can be read through the REST API (the browser)', asy
   await bobReadsItInTheApp(bobsPage, proposal)
 })
 
-test('TC-123: notifications can be read through the MCP server (step 1: the in-app read)', async ({
+test('TC-123: notifications can be read through the MCP server', async ({
   browser,
   deployment,
 }) => {
-  // Pending: step 2 and the negative assertion, reading bob's notifications through the MCP
-  // server with his token, wait for the MCP server endpoint (SC-027, B19).
   const { bobsPage, proposal } = await proposalWaitingForBob(browser, deployment)
 
   // Step 1: bob reads his notifications in the app.
   await bobReadsItInTheApp(bobsPage, proposal)
+
+  // Step 2: bob's notifications through the MCP server, with his token: the same notification,
+  // about the proposal waiting for review.
+  const token = await call(bobsPage, 'POST', '/tokens', {})
+  if (typeof token !== 'object' || token === null || !('secret' in token)) {
+    throw new Error('No token was created')
+  }
+  const inApp = await call(bobsPage, 'GET', '/notifications')
+  const tasksBefore = await deployment.db.select().from(tasks)
+  const agent = await connectMcp(deployment.url, String(token.secret))
+  const read = await agent.call('read_notifications')
+  await agent.close()
+  expect(read).toEqual({ isError: false, json: inApp })
+  expect(read.json).toMatchObject([{ kind: 'proposal-waiting', detail: { proposalId: proposal } }])
+
+  // Negative: the read through the MCP server changes nothing in the plan.
+  expect(await deployment.db.select().from(tasks)).toEqual(tasksBefore)
 })

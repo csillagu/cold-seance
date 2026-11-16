@@ -15,7 +15,7 @@ const notifiedTask = {
 
 const flag = redFlag.properties
 
-const notification = {
+export const notification = {
   type: 'object',
   required: ['id', 'kind', 'createdAt', 'detail'],
   properties: {

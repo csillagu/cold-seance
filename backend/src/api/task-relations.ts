@@ -12,7 +12,7 @@ const taskRef = {
 } as const
 
 /** A task's relations as the routes send them (SC-002). */
-const relations = {
+export const relations = {
   type: 'object',
   required: ['taskId', 'parent', 'subtasks', 'blockedBy'],
   properties: {

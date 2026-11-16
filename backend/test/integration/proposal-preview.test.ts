@@ -14,8 +14,9 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // fresh test deployment: a fresh database, first system admin `root`, and a global calendar with
 // Saturday and Sunday as the weekend and no company holidays. First the test cases' service and
 // REST parts, then the rules through the service layer. Each proposal is created through the
-// service layer with the channel the MCP server will give it; the MCP server itself comes with
-// SC-027 (B19). The browser steps are in e2e/tests/proposal-preview.spec.ts (SC-034).
+// service layer with the MCP server's channel; proposals made through the MCP server itself
+// (SC-027) are tested in mcp-server.test.ts. The browser steps are in
+// e2e/tests/proposal-preview.spec.ts (SC-034).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PATCH'

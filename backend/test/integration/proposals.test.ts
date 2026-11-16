@@ -125,8 +125,8 @@ describe('the proposal store', () => {
         durationWorkingDays: 1,
       })
       const before = await x.db.select().from(tasks)
-      // Created through the service layer with the channel the MCP server will give it; the MCP
-      // server itself comes with SC-027 (B19).
+      // Created through the service layer with the MCP server's channel; proposals made through
+      // the MCP server itself (SC-027) are tested in mcp-server.test.ts.
       const changes = [
         {
           kind: 'create-task',
@@ -302,8 +302,8 @@ describe('the proposal store', () => {
     })
 
     it('TC-280: a proposal is created through the REST API and through the MCP server', async () => {
-      // Steps 1 and 3 for what step 1 made. Pending: step 2, creating it through the MCP server
-      // (SC-027, B19).
+      // Steps 1 and 3 for what step 1 made. In full, with step 2 through the MCP server, in
+      // mcp-server.test.ts.
       const a = await task(apollo, {
         title: 'A',
         plannedStart: '2027-03-01',

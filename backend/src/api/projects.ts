@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
 
-const project = {
+export const project = {
   type: 'object',
   required: ['id', 'name'],
   properties: {
