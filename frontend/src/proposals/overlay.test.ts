@@ -67,7 +67,7 @@ const elsewhere: ApiDifference = {
 
 const pending = (proposalId: string, differences: ApiDifference[]): PendingProposal => ({
   proposalId,
-  preview: { proposalId, differences, newRedFlags: [] },
+  preview: { proposalId, planVersion: 'v1', differences, newRedFlags: [] },
   refused: null,
 })
 

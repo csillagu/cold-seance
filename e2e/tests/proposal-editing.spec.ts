@@ -239,9 +239,6 @@ test('TC-116: an edit within 24 hours keeps a proposal from expiring', async ({
   browser,
   deployment,
 }) => {
-  // Pending: step 3's approval, and that A then starts 2027-03-09, wait for the proposal approval
-  // (SC-048, B14) and its control (SC-072, F25). Here, at t0 + 25 hours, the edited proposal still
-  // waits for review, not expired, and holds the edit.
   const alice = await deployment.seedAccount('alice')
   const page = await signedIn(browser, deployment.url, alice)
   const { a } = await apolloWithA(page)
@@ -266,6 +263,14 @@ test('TC-116: an edit within 24 hours keeps a proposal from expiring', async ({
   expect(read25.status).toBe('waiting')
   expect(read25.lastEditedAt).toBe(hours(23).toISOString())
   expect(await changesOf(page, proposal)).toEqual([[move(a, '2027-03-09')]])
+
+  // Step 3: as alice, approve the proposal, and read A: the approval succeeds, the proposal is
+  // not reported as expired, and A starts 2027-03-09.
+  const review = page.getByRole('region', { name: 'Review' })
+  await review.getByRole('button', { name: 'Approve' }).click()
+  await expect(review).toContainText('Approved by alice')
+  await expect(page.getByText('Expired')).toHaveCount(0)
+  expect(await startOf(page, a)).toBe('2027-03-09')
 
   await page.context().close()
 })

@@ -22,6 +22,8 @@ const proposal = {
   status: 'waiting',
   rejectedAt: null,
   rejectedBy: null,
+  appliedAt: null,
+  approvals: [],
   projectIds: [APOLLO],
   groups: [{ id: 'g1', changes: [{ id: 'c1', kind: 'update-task', projectId: APOLLO }] }],
 }
@@ -44,6 +46,7 @@ const task = (id: string, title: string, fields: Record<string, unknown> = {}) =
 
 const preview = {
   proposalId: P1,
+  planVersion: 'v1',
   differences: [
     {
       taskId: A,
@@ -461,5 +464,140 @@ describe('the proposal conflict panel (SC-070) and editor (SC-071)', () => {
     renderAt(`/proposals/${P1}`)
     await screen.findByRole('list', { name: 'Conflicts' })
     expect(screen.queryByRole('button', { name: /Edit group|Drop|Resolve/ })).toBeNull()
+  })
+})
+
+describe('the proposal approve and reject controls (SC-072)', () => {
+  /** The answers of a proposal whose approval answers `approval`, and whose plan is `tasks`. */
+  function reviewAnswers(
+    approval: (count: number) => FakeAnswer,
+    tasks: (count: number) => unknown[] = () => [task(A, 'A'), task(B, 'B')],
+  ) {
+    let approvals = 0
+    let reads = 0
+    const base = answers()
+    return (method: string, path: string): FakeAnswer => {
+      if (method === 'POST' && path === `/api/proposals/${P1}/approval`) {
+        approvals += 1
+        return approval(approvals)
+      }
+      if (path === `/api/projects/${APOLLO}/tasks`) {
+        reads += 1
+        return { status: 200, body: tasks(reads) }
+      }
+      return base(method, path)
+    }
+  }
+
+  it('approves the proposal against the version of the plan its preview shows', async () => {
+    const requests = fakeApi(
+      reviewAnswers(() => ({
+        status: 200,
+        body: {
+          outcome: 'applied',
+          proposal: {
+            ...proposal,
+            status: 'approved',
+            approvals: [{ projectId: APOLLO, approvedBy: BOB, channel: 'ui', approvedAt: '' }],
+          },
+        },
+      })),
+    )
+    renderAt(`/proposals/${P1}`)
+    const review = await screen.findByRole('region', { name: 'Review' })
+    fireEvent.click(within(review).getByRole('button', { name: 'Approve' }))
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'POST')).toEqual([
+        {
+          method: 'POST',
+          path: `/api/proposals/${P1}/approval`,
+          body: { projectId: APOLLO, planVersion: 'v1' },
+        },
+      ]),
+    )
+  })
+
+  it('shows who approved a part, and offers nothing to a proposal no longer waiting', async () => {
+    fakeApi(
+      answers({
+        [`/api/proposals/${P1}`]: {
+          status: 200,
+          body: {
+            ...proposal,
+            status: 'approved',
+            approvals: [{ projectId: APOLLO, approvedBy: BOB, channel: 'ui', approvedAt: '' }],
+          },
+        },
+      }),
+    )
+    renderAt(`/proposals/${P1}`)
+    const review = await screen.findByRole('region', { name: 'Review' })
+    expect(review).toHaveTextContent('Approved by bob')
+    expect(within(review).queryByRole('button')).toBeNull()
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+  })
+
+  it('asks to confirm again when the plan changed, showing what changed in it', async () => {
+    const requests = fakeApi(
+      reviewAnswers(
+        (count) => ({
+          status: 200,
+          body:
+            count === 1
+              ? { outcome: 'confirm-again', proposal, preview: { ...preview, planVersion: 'v2' } }
+              : { outcome: 'applied', proposal: { ...proposal, status: 'approved' } },
+        }),
+        (reads) => [task(A, 'A'), task(B, 'B', reads > 1 ? { plannedStart: '2027-03-02' } : {})],
+      ),
+    )
+    renderAt(`/proposals/${P1}`)
+    const review = await screen.findByRole('region', { name: 'Review' })
+    fireEvent.click(within(review).getByRole('button', { name: 'Approve' }))
+
+    const again = await within(review).findByRole('alert')
+    expect(again).toHaveTextContent('The plan changed since you opened this preview')
+    // Once the plan is read again, the notice lists what changed in it.
+    expect(
+      await within(again).findByRole('list', { name: 'Changed in the plan' }),
+    ).toHaveTextContent('B: start 1 Mar 2027 → 2 Mar 2027')
+    // The preview was read again: the confirmation goes against the version it now shows.
+    fireEvent.click(within(review).getByRole('button', { name: 'Confirm and approve' }))
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'POST').map((r) => r.body)).toHaveLength(2),
+    )
+    expect(requests.filter((r) => r.method === 'POST').map((r) => r.body)).toEqual([
+      { projectId: APOLLO, planVersion: 'v1' },
+      { projectId: APOLLO, planVersion: 'v1' },
+    ])
+  })
+
+  it('rejects the proposal after a second click to confirm', async () => {
+    const requests = fakeApi(answers())
+    renderAt(`/proposals/${P1}`)
+    const review = await screen.findByRole('region', { name: 'Review' })
+    fireEvent.click(within(review).getByRole('button', { name: 'Reject proposal' }))
+    expect(requests.some((r) => r.method === 'POST')).toBe(false)
+    fireEvent.click(within(review).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(review).getByRole('button', { name: 'Reject proposal' }))
+    fireEvent.click(within(review).getByRole('button', { name: 'Yes, reject' }))
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'POST')).toEqual([
+        { method: 'POST', path: `/api/proposals/${P1}/rejection`, body: {} },
+      ]),
+    )
+  })
+
+  it("shows the API's refusal of an approval", async () => {
+    const message = "Only the project's read-write members and admins can approve its part"
+    fakeApi(
+      reviewAnswers(() => ({
+        status: 403,
+        body: { statusCode: 403, error: 'Forbidden', message },
+      })),
+    )
+    renderAt(`/proposals/${P1}`)
+    const review = await screen.findByRole('region', { name: 'Review' })
+    fireEvent.click(within(review).getByRole('button', { name: 'Approve' }))
+    expect(await within(review).findByRole('alert')).toHaveTextContent(message)
   })
 })

@@ -49,6 +49,7 @@ function task(id: string, fields: Partial<PreviewTask> = {}): PreviewTask {
 
 const preview = (fields: Partial<ApiPreview>): ApiPreview => ({
   proposalId: 'x',
+  planVersion: 'v1',
   differences: [],
   newRedFlags: [],
   ...fields,

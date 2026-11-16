@@ -154,8 +154,8 @@ describe('the proposal store', () => {
     it('TC-098: dropping a group of proposed changes drops every change in it', async () => {
       // The service and REST part: the groups are stored as given, and G1 is dropped as one,
       // through the route the browser calls; the service has no way to drop one change on its
-      // own (SC-045). The approval applying only G2 is in proposal-approval.test.ts. Pending:
-      // doing it in the browser (SC-071, SC-072; F24, F25).
+      // own (SC-045). The approval applying only G2 is in proposal-approval.test.ts, and the
+      // test case in the browser in e2e/tests/proposal-review.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-only')
       const a = await task(apollo, {
         title: 'A',
@@ -190,7 +190,7 @@ describe('the proposal store', () => {
 
     it('TC-099: keeping a group of proposed changes keeps every change in it', async () => {
       // The part B10 holds: the two moves are stored as one group. Approving it with G1 kept is
-      // in proposal-approval.test.ts. Pending: doing it in the browser (SC-072, F25).
+      // in proposal-approval.test.ts, and in the browser in e2e/tests/proposal-review.spec.ts.
       const a = await task(apollo, {
         title: 'A',
         plannedStart: '2027-03-01',
@@ -242,7 +242,7 @@ describe('the proposal store', () => {
     it("TC-239: an approved proposal's change is logged with both the MCP and the UI channel", async () => {
       // The part B10 holds: the channel the proposal was made through is kept with it. An approval
       // logs each change with both channels, as TC-206's test in proposal-approval.test.ts
-      // checks. Pending: approving it in the browser (SC-072, F25).
+      // checks. Approving it in the browser is in e2e/tests/proposal-review.spec.ts.
       const a = await task(apollo, {
         title: 'A',
         plannedStart: '2027-03-01',

@@ -9,6 +9,8 @@ import {
 } from '../proposals/preview-model.ts'
 import { ConflictPanel } from '../proposals/ConflictPanel.tsx'
 import { ProposalEditor } from '../proposals/ProposalEditor.tsx'
+import { ReviewControls } from '../proposals/ReviewControls.tsx'
+import { type ApiApproval, partsOf, type PlanTask, planChanges } from '../proposals/review.ts'
 import {
   type ApiConflict,
   type ApiConflicts,
@@ -19,6 +21,7 @@ import {
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import '../proposals/proposals.css'
 import '../proposals/proposal-edit.css'
+import '../proposals/proposal-review.css'
 import '../tasks/task-editors.css'
 
 type Loaded =
@@ -30,10 +33,14 @@ type Loaded =
       projects: { id: string; name: string }[]
       /** The live plan's tasks, by id, to name those the proposal's changes name. */
       tasks: ReadonlyMap<string, string>
+      /** The members of the projects it changes, by account id, to name people. */
+      people: ReadonlyMap<string, string>
+      /** The live plan's tasks as read with the preview, to tell what changed in it since. */
+      plan: PlanTask[]
       /** The changes that conflict with the live plan (SC-070). */
       conflicts: ApiConflict[]
       /** The preview, or why the proposal cannot be previewed on the plan as it is now. */
-      preview: { model: PreviewModel } | { conflict: string }
+      preview: { model: PreviewModel; planVersion: string } | { conflict: string }
     }
   | { state: 'refused'; message: string }
   | { state: 'failed' }
@@ -54,6 +61,11 @@ export const NO_SUCH_PROPOSAL = 'There is no such proposal'
  * changes, and to resolve or drop each conflict; the REST API allows it only to the read-write
  * members and admins of the projects concerned (FR-074), and the page shows its refusal to anyone
  * else. After each edit or drop the page reads the proposal, its conflicts and its preview again.
+ *
+ * It also offers to approve each project's part against the preview shown, or to reject the
+ * proposal (SC-072). An approval is sent with the version of the plan the preview was made
+ * against; when the plan changed since, the REST API approves nothing, and the page reads
+ * everything again, shows what changed in the plan, and asks the reviewer to confirm (FR-078).
  */
 export function ProposalPage() {
   const { proposalId = '' } = useParams()
@@ -64,10 +76,15 @@ export function ProposalPage() {
   const [editing, setEditing] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  /** The plan as the reviewer saw it, while they must confirm again after it changed. */
+  const [seenPlan, setSeenPlan] = useState<PlanTask[] | null>(null)
 
   useEffect(() => {
     setEditing(null)
     setActionError(null)
+    setReviewError(null)
+    setSeenPlan(null)
   }, [proposalId])
 
   useEffect(() => {
@@ -96,7 +113,7 @@ export function ProposalPage() {
             const [project, members, tasks] = await Promise.all([
               get<{ id: string; name: string }>(projectPath(id)),
               get<{ accountId: string; username: string }[]>(`${projectPath(id)}/members`),
-              get<{ id: string; title: string }[]>(`${projectPath(id)}/tasks`),
+              get<PlanTask[]>(`${projectPath(id)}/tasks`),
             ])
             return { project, members, tasks }
           }),
@@ -115,11 +132,23 @@ export function ProposalPage() {
         creator: names.people.get(proposal.createdBy) ?? 'someone who is not a member',
         projects: projects.map(({ project }) => project),
         tasks: names.tasks,
+        people: names.people,
+        plan: projects.flatMap(({ tasks }) =>
+          tasks.map(({ id, title, plannedStart, plannedFinish }) => ({
+            id,
+            title,
+            plannedStart,
+            plannedFinish,
+          })),
+        ),
         conflicts: conflicts.conflicts,
         preview:
           'conflict' in preview
             ? { conflict: preview.conflict }
-            : { model: buildPreviewModel(preview.found, names) },
+            : {
+                model: buildPreviewModel(preview.found, names),
+                planVersion: preview.found.planVersion,
+              },
       })
     }
     load().catch((error: unknown) => {
@@ -140,9 +169,11 @@ export function ProposalPage() {
     (request: () => Promise<unknown>) => {
       setBusy(true)
       setActionError(null)
+      setReviewError(null)
       request()
         .then(() => {
           setEditing(null)
+          setSeenPlan(null)
           setVersion((v) => v + 1)
         })
         .catch((error: unknown) => {
@@ -165,6 +196,29 @@ export function ProposalPage() {
     setEditing(groupId)
   }
 
+  /**
+   * Sends an approval or a rejection, then reads everything again; shows the API's refusal, if
+   * any. `seen` is the plan the reviewer saw, kept when the API asks them to confirm again.
+   */
+  const review = (request: () => Promise<PlanTask[] | null>) => {
+    setBusy(true)
+    setReviewError(null)
+    setActionError(null)
+    request()
+      .then((seen) => {
+        setEditing(null)
+        setSeenPlan(seen)
+        setVersion((v) => v + 1)
+      })
+      .catch((error: unknown) => {
+        if (toSignIn(error)) return
+        setReviewError(
+          error instanceof ApiError ? error.message : 'The proposal could not be reviewed.',
+        )
+      })
+      .finally(() => setBusy(false))
+  }
+
   switch (loaded.state) {
     case 'loading':
       return <p className="page__note">Loading…</p>
@@ -183,9 +237,27 @@ export function ProposalPage() {
     case 'loaded':
       break
   }
-  const { proposal, creator, projects, preview, conflicts, tasks } = loaded
+  const { proposal, creator, projects, preview, conflicts, tasks, people, plan } = loaded
   const names = { tasks }
   const canAct = proposal.status === 'waiting'
+  const base = `/proposals/${encodeURIComponent(proposalId)}`
+  const approve = (projectId: string) =>
+    review(async () => {
+      const answer = await api<ApiApproval>(`${base}/approval`, {
+        method: 'POST',
+        body: {
+          projectId,
+          ...('planVersion' in preview ? { planVersion: preview.planVersion } : {}),
+        },
+      })
+      // Seen against the plan of the first preview, if the reviewer is asked again in a row.
+      return answer.outcome === 'confirm-again' ? (seenPlan ?? plan) : null
+    })
+  const reject = () =>
+    review(async () => {
+      await api(`${base}/rejection`, { method: 'POST', body: {} })
+      return null
+    })
   return (
     <section className="proposal">
       <h1 className="page__title">Proposal</h1>
@@ -228,6 +300,15 @@ export function ProposalPage() {
         }}
         onSave={save}
         onDrop={drop}
+      />
+      <ReviewControls
+        parts={partsOf(proposal, projects, people)}
+        canAct={canAct}
+        busy={busy}
+        confirmAgain={seenPlan === null ? null : planChanges(seenPlan, plan)}
+        error={reviewError}
+        onApprove={approve}
+        onReject={reject}
       />
       <p className="page__note">
         A preview of the proposal&rsquo;s changes on the plan as it is now. Nothing is saved: the

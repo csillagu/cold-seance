@@ -52,6 +52,8 @@ export interface ApiNewRedFlag {
 /** The live preview of a proposal, as the API gives it. */
 export interface ApiPreview {
   proposalId: string
+  /** The version of the plan the preview was made against, to approve it by (FR-078). */
+  planVersion: string
   differences: ApiDifference[]
   newRedFlags: ApiNewRedFlag[]
 }
