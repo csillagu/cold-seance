@@ -193,8 +193,8 @@ test('TC-169: a cycle is rejected alike through the UI, the REST API and the MCP
   await page.getByRole('button', { name: 'Add blocker' }).click()
   await expect(page.getByRole('alert')).toContainText('would create a cycle')
 
-  // Pending: step 2, through the REST API, closes with the REST routes in Z01 (SC-026); step 3,
-  // through the MCP server as a proposal, waits for the MCP server endpoint (SC-027).
+  // Steps 2 and 3, through the REST API and the MCP server, are in rest-api.spec.ts, which takes
+  // the test case in full.
 
   // Step 4: B is not blocked by A.
   expect(await blockersOf(page, b)).toEqual([])
