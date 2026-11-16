@@ -6,8 +6,18 @@ export interface ApiProposal {
   createdAt: string
   lastEditedAt: string
   status: ProposalStatus
+  /** The projects' parts approved since it was last edited (SC-048). */
+  approvals: ApiPartApproval[]
   projectIds: string[]
   groups: ApiGroup[]
+}
+
+/** A project's part of a proposal approved, as the REST API gives it. */
+export interface ApiPartApproval {
+  projectId: string
+  approvedBy: string
+  channel: 'ui' | 'rest-api' | 'mcp'
+  approvedAt: string
 }
 
 /** A task a change names: an existing one by its id, or one the proposal creates by its key. */
@@ -52,11 +62,12 @@ export interface ApiConflicts {
 }
 
 /** Where a proposal stands (SC-046). */
-export type ProposalStatus = 'waiting' | 'rejected' | 'expired'
+export type ProposalStatus = 'waiting' | 'approved' | 'rejected' | 'expired'
 
 /** A proposal's status as the screens say it. */
 export const PROPOSAL_STATUS_WORDS: Record<ProposalStatus, string> = {
   waiting: 'Waiting for review',
+  approved: 'Approved',
   rejected: 'Rejected',
   expired: 'Expired',
 }

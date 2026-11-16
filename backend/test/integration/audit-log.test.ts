@@ -765,7 +765,7 @@ describe('test cases through the REST API', () => {
       expect(move?.channels).not.toContain('github')
     })
 
-    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-072, F25). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
+    // TC-239 in full, bob approving the proposal in the browser, is in e2e/tests/proposal-review.spec.ts.
   })
 })
 

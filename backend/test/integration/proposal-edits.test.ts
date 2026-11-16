@@ -131,8 +131,9 @@ describe('proposal edits, rejection and expiry', () => {
     })
 
     it('TC-105: a read-write reviewer rejects a proposal', async () => {
-      // The service and REST part: the rejection, through the route the browser calls. Pending:
-      // rejecting it in the browser (SC-072, F25), and that approving it is refused (SC-048, B14).
+      // The service and REST part: the rejection, through the route the browser calls. Rejecting
+      // it in the browser, and that approving it is then refused, are in
+      // e2e/tests/proposal-review.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
@@ -173,7 +174,7 @@ describe('proposal edits, rejection and expiry', () => {
     it('TC-116: an edit within 24 hours keeps a proposal from expiring', async () => {
       // The service part: an edit at t0 + 23 hours keeps the proposal alive at t0 + 25 hours.
       // Making the edit in the browser (SC-071) is tested in e2e/tests/proposal-editing.spec.ts.
-      // Pending: approving it in the browser (SC-072, F25).
+      // Approving it in the browser is tested there too.
       const a = await taskA()
       const created = await propose([[move(a.id, '2027-03-08')]])
       const [group] = created.groups

@@ -1,0 +1,72 @@
+/*
+ * The proposal approve and reject controls (SC-072). The approved design (SRC-249,
+ * design/frontend/) does not draw them; they use its colours, type, radii and cards, as the
+ * proposal preview and editor do, and the task editors' buttons.
+ */
+.proposal-review {
+  margin: 8px 0 16px;
+}
+
+.proposal-review__parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.proposal-review__part {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+}
+
+.proposal-review__part-name {
+  font-weight: 600;
+}
+
+.proposal-review__approved {
+  color: var(--green);
+  font-weight: 500;
+}
+
+.proposal-review__waiting {
+  color: var(--muted);
+}
+
+.proposal-review__reject {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.proposal-review__reject-button {
+  border-color: var(--red-border);
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.proposal-review__again {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius-button);
+  background: var(--card);
+}
+
+.proposal-review__again-title {
+  margin: 0;
+  font-weight: 500;
+}
+
+.proposal-review__plan-changes {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}

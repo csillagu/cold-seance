@@ -19,9 +19,8 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // `root`, and a global calendar with Saturday and Sunday as the weekend and no company holidays.
 // First the test cases' service and REST parts, then the rules through the service layer. Each
 // proposal is created through the service layer with the MCP server's channel; the test cases made
-// through the MCP server itself (SC-027) are in mcp-server.test.ts. The browser steps come with the
-// proposal screens
-// (SC-034, SC-072; F23, F25).
+// through the MCP server itself (SC-027) are in mcp-server.test.ts. The browser steps are in
+// e2e/tests/proposal-preview.spec.ts and proposal-review.spec.ts (SC-034, SC-072).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -187,8 +186,8 @@ describe('the proposal approval', () => {
     })
 
     it('TC-109: approving a proposal applies all of its changes', async () => {
-      // The service and REST part: all or nothing, through the route the browser calls. Pending:
-      // opening and approving it in the browser (SC-072, F25).
+      // The service and REST part: all or nothing, through the route the browser calls. Opening
+      // and approving it in the browser is in e2e/tests/proposal-review.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-only')
       const a = await oneDay('A', '2027-03-01')
       const b = await oneDay('B', '2027-03-02')
@@ -207,8 +206,8 @@ describe('the proposal approval', () => {
     })
 
     it('TC-111: a plan change after the preview requires the reviewer to confirm again', async () => {
-      // The service and REST part: a changed plan asks for a new confirmation. Pending: the
-      // preview refreshed in the browser, showing C on 2027-03-16 (SC-072, F25).
+      // The service and REST part: a changed plan asks for a new confirmation. The preview
+      // refreshed in the browser, showing C on 2027-03-16, is in e2e/tests/proposal-review.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await oneDay('A', '2027-03-01')
       const c = await oneDay('C', '2027-03-15')
@@ -241,8 +240,8 @@ describe('the proposal approval', () => {
     })
 
     it('TC-098: dropping a group of proposed changes drops every change in it', async () => {
-      // The approval with G1 dropped (service). Dropping G1 is in proposals.test.ts. Pending: doing
-      // it in the browser (SC-071, SC-072; F24, F25).
+      // The approval with G1 dropped (service). Dropping G1 is in proposals.test.ts, and the test
+      // case in the browser in e2e/tests/proposal-review.spec.ts.
       await grantRole(x.db, bob, apollo, 'read-only')
       const a = await oneDay('A', '2027-03-01')
       const b = await oneDay('B', '2027-03-02')
@@ -267,7 +266,7 @@ describe('the proposal approval', () => {
     })
 
     it('TC-099: keeping a group of proposed changes keeps every change in it', async () => {
-      // The approval with G1 kept (service). Pending: doing it in the browser (SC-072, F25).
+      // The approval with G1 kept (service). In the browser: e2e/tests/proposal-review.spec.ts.
       const a = await oneDay('A', '2027-03-01')
       const b = await oneDay('B', '2027-03-02')
       const proposal = await propose([[move(a.id, '2027-03-08'), move(b.id, '2027-03-09')]])
