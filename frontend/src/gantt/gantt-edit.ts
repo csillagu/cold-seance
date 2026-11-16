@@ -7,7 +7,7 @@ import type { TaskChanges } from '../tasks/TaskEditForm.tsx'
 import { addDays, type ApiTask, daysBetween } from './gantt-model.ts'
 
 /**
- * Whether a task's bar can be dragged to other dates (#223). A closed task, done or cancelled, is
+ * Whether a task's bar can be dragged to other dates (#223, SC-119). A closed task, done or cancelled, is
  * frozen. A parent spans its subtasks' dates and a floating milestone lies where its blockers
  * finish, both set by the scheduler, so neither can; every other task with dates can.
  */
@@ -17,7 +17,7 @@ export function movable(task: ApiTask, parent: boolean): boolean {
 }
 
 /**
- * Whether a task's bar can be made longer or shorter by dragging one of its ends (#223): any bar
+ * Whether a task's bar can be made longer or shorter by dragging one of its ends (#223, SC-119): any bar
  * that can be moved, but a milestone's, which has one date and is only moved.
  */
 export function resizable(task: ApiTask, parent: boolean): boolean {

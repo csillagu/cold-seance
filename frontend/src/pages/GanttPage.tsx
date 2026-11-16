@@ -69,8 +69,8 @@ function localDate(date: Date): string {
  * Gantt as a Mermaid chart for GitHub markdown (SC-096, FR-063).
  *
  * What it shows can be changed on it (SC-067, FR-053): a bar dragged to other days, a dependency
- * drawn between two bars, the rest in the task dialog its title or bar opens (#209), and a new task
- * created with "New task".
+ * drawn between two bars, an unscheduled task's bar drawn on its lane (#228), the rest in the task
+ * dialog its title or bar opens (#209), and a new task created with "New task".
  * Each change goes to the REST API, which allows or refuses it by the viewer's role in the
  * project (FR-060); a refusal is shown above the Gantt, and once a change is saved the Gantt is
  * read again, as the scheduler may have moved other tasks with it.
@@ -150,35 +150,49 @@ export function GanttPage() {
   )
 
   const ganttEditing = useMemo<GanttEditing>(() => {
-    /** Saves a change made on the Gantt itself, and says above it if it was refused. */
+    /**
+     * Saves a change made on the Gantt itself, and says above it if it was refused; resolves true
+     * once saved and the Gantt read again, false if refused.
+     */
     const attempt = (path: string, method: string, body: unknown, failed: string) => {
       setRefused(null)
-      save(path, method, body).catch((error: unknown) => {
-        const why = error instanceof ApiError ? error.message : 'Try again.'
-        setRefused(`${failed}: ${why}`)
-      })
+      return save(path, method, body).then(
+        () => true,
+        (error: unknown) => {
+          const why = error instanceof ApiError ? error.message : 'Try again.'
+          setRefused(`${failed}: ${why}`)
+          return false
+        },
+      )
     }
     return {
       onMove: (task, start, days) =>
-        attempt(
+        void attempt(
           `/tasks/${encodeURIComponent(task.id)}`,
           'PATCH',
           moveChanges(task, start, days),
           `${task.title} was not moved`,
         ),
       onResize: (task, changes) =>
-        attempt(
+        void attempt(
           `/tasks/${encodeURIComponent(task.id)}`,
           'PATCH',
           changes,
           `${task.title} was not resized`,
         ),
       onLink: (task, blocker) =>
-        attempt(
+        void attempt(
           `/tasks/${encodeURIComponent(task.id)}/blocked-by`,
           'POST',
           { blockerId: blocker.id },
           `${task.title} was not made blocked by ${blocker.title}`,
+        ),
+      onSchedule: (task, changes) =>
+        attempt(
+          `/tasks/${encodeURIComponent(task.id)}`,
+          'PATCH',
+          changes,
+          `${task.title} was not scheduled`,
         ),
     }
   }, [save])
@@ -219,6 +233,7 @@ export function GanttPage() {
   }, [selectedId, toSignIn])
 
   const baseline = selected.state === 'loaded' ? selected.baseline : null
+  const today = localDate(new Date())
   const pending = useMemo(() => {
     if (loaded.state !== 'loaded') return []
     return pendingChanges(loaded.proposals ?? [], project.id, {
@@ -237,9 +252,10 @@ export function GanttPage() {
             loaded.calendar,
             baseline,
             pending,
+            today,
           )
         : null,
-    [loaded, baseline, pending],
+    [loaded, baseline, pending, today],
   )
 
   if (loaded.state === 'failed') {
@@ -316,7 +332,7 @@ export function GanttPage() {
         name={`Gantt of ${project.name}`}
         model={model}
         people={loaded.people}
-        today={localDate(new Date())}
+        today={today}
         editing={ganttEditing}
         onOpen={open}
       />

@@ -248,7 +248,9 @@ function baselineBars(baseline: ApiBaseline | null): Map<string, BaselineBar> {
  *   would make it lie on, beside its live bar; a task it would create is a row of its own, after
  *   the live plan's (SC-068, FR-073). The live rows are as the live plan has them.
  * - The days run from the Monday of the week of the first date to the Sunday of the week after
- *   the last, so that a note beside the last bar has room.
+ *   the last, so that a note beside the last bar has room. When nothing has a date, they run from
+ *   the week of `today`, if given, for {@link EMPTY_WEEKS} weeks, so that an unscheduled task's
+ *   bar can be drawn on them (#228).
  */
 export function buildGanttModel(
   tasks: readonly ApiTask[],
@@ -257,6 +259,7 @@ export function buildGanttModel(
   calendar: ApiCalendar,
   baseline: ApiBaseline | null = null,
   pending: readonly PendingChange[] = [],
+  today: string | null = null,
 ): GanttModel {
   const bars = baselineBars(baseline)
   const pendingOf = new Map<string, PendingBar[]>()
@@ -350,7 +353,7 @@ export function buildGanttModel(
     }
   }
 
-  const spans: BaselineBar[] = [
+  const dated: BaselineBar[] = [
     ...rows.map((row) => ({ start: row.start, finish: row.finish })),
     ...rows.flatMap((row) => (row.baseline ? [row.baseline] : [])),
     ...unscheduled.flatMap((row) => (row.baseline ? [row.baseline] : [])),
@@ -359,6 +362,10 @@ export function buildGanttModel(
       .concat(proposed.map((row) => row.bar))
       .flatMap(({ start, finish }) => (start && finish ? [{ start, finish }] : [])),
   ]
+  const spans =
+    dated.length === 0 && today !== null
+      ? [{ start: today, finish: addDays(today, (EMPTY_WEEKS - 2) * 7) }]
+      : dated
   return {
     rows,
     unscheduled,
@@ -385,6 +392,9 @@ export function arrowPath(
   }
   return `M${from.x} ${from.y} H${from.x + 6} V${rowGap} H${to.x - 10} V${to.y} H${to.x}`
 }
+
+/** How many weeks the timeline spans when nothing on it has a date (#228). */
+export const EMPTY_WEEKS = 6
 
 /**
  * The days the timeline spans, so that every bar fits, the baseline's too, with the non-working

@@ -1,0 +1,93 @@
+/*
+ * Scheduling an unscheduled task by drawing its bar on its lane of the Gantt (#228, SC-119): the lane's
+ * crosshair, the faint day under the pointer, the ghost bar with its labels, the bar pending until
+ * saved, and the selected row.
+ */
+.gantt__draw {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Where a bar would start: one day under the pointer, faint. */
+.gantt__draw-preview {
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* The bar being drawn: the regular bar, at reduced opacity, outlined with a dash. */
+.gantt__draw-ghost {
+  opacity: 0.5;
+  outline: 1.5px dashed var(--accent-strong);
+  outline-offset: 1px;
+  pointer-events: none;
+  will-change: left, width;
+}
+
+.gantt__milestone.gantt__draw-ghost {
+  outline-offset: 2px;
+}
+
+/* Its start, finish and working days, just above it; placed in view by the lane. */
+.gantt__draw-label {
+  position: absolute;
+  top: -14px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
+  background: var(--text);
+  color: var(--card);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.gantt__draw-length {
+  opacity: 0.75;
+}
+
+/* The drawn bar until the server confirms it. */
+.gantt__draw-saving {
+  opacity: 0.6;
+  pointer-events: none;
+  animation: gantt-draw-saving 1s ease-in-out infinite alternate;
+}
+
+@keyframes gantt-draw-saving {
+  to {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gantt__draw-saving {
+    animation: none;
+  }
+}
+
+/* The selected task: the one just drawn, or being drawn. */
+.gantt__row--selected .gantt__lane {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.gantt__row--selected .gantt__left {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* What is said to screen readers of a task scheduled by drawing, seen by no one. */
+.gantt__announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

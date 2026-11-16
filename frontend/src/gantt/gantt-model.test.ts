@@ -7,6 +7,7 @@ import {
   arrowPath,
   buildGanttModel,
   daysBetween,
+  EMPTY_WEEKS,
   formatDay,
   formatMonth,
   weekday,
@@ -439,5 +440,34 @@ describe('the pending overlay (SC-068)', () => {
     ])
     // The timeline spans the pending bars too.
     expect(model.days.at(-1)!.date).toBe('2027-03-28')
+  })
+})
+
+describe('the timeline of a plan with no dates (#228)', () => {
+  const u = task('U')
+
+  it('spans the weeks from the week of today, so that a bar can be drawn on them', () => {
+    // 2027-03-03 is a Wednesday.
+    const { days } = buildGanttModel([u], [relations('U')], [], calendar, null, [], '2027-03-03')
+    expect(days[0]?.date).toBe('2027-03-01')
+    expect(days).toHaveLength(EMPTY_WEEKS * 7)
+    expect(days.at(-1)?.date).toBe(addDays('2027-03-01', EMPTY_WEEKS * 7 - 1))
+    expect(days.find((day) => day.date === '2027-03-06')?.nonWorking).toBe(true)
+  })
+
+  it('has no days without today, and spans the dates there are when there are some', () => {
+    expect(buildGanttModel([u], [relations('U')], [], calendar).days).toEqual([])
+    const dated = buildGanttModel(
+      [a, u],
+      [relations('A'), relations('U')],
+      [],
+      calendar,
+      null,
+      [],
+      '2030-01-01',
+    )
+    expect(dated.days[0]?.date).toBe(
+      buildGanttModel([a], [relations('A')], [], calendar).days[0]?.date,
+    )
   })
 })
