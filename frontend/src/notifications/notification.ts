@@ -55,6 +55,15 @@ export interface NotificationView {
   createdAt: string
 }
 
+/**
+ * The task a notification's link leads to, by id, or null if it leads elsewhere: a task is opened
+ * in the task dialog where the notification is listed, as in every view (#209).
+ */
+export function taskOfLink(link: string | null): string | null {
+  const found = link === null ? null : /^\/tasks\/([^/?#]+)$/.exec(link)
+  return found ? decodeURIComponent(found[1]!) : null
+}
+
 /** How each GitHub function is named. */
 const FUNCTIONS = {
   readIssues: 'reading issues',

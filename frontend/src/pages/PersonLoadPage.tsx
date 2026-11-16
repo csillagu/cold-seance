@@ -19,6 +19,7 @@ import {
 import { PersonLoad } from '../load/PersonLoad.tsx'
 import { RatingPanel } from '../load/RatingPanel.tsx'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { TaskDialog } from '../tasks/TaskDialog.tsx'
 import { useProject } from './project-context.ts'
 
 type Loaded =
@@ -39,7 +40,8 @@ type Loaded =
  * across all projects as the REST API gives it to the viewer, and below it the project's eligible
  * but unassigned tasks, each rated by load. The span is four weeks from this week's Monday unless
  * the address asks for another (`?from=YYYY-MM-DD&to=YYYY-MM-DD`), which the form above the view
- * changes. Anyone with a role in the project can open it (FR-106); it changes nothing.
+ * changes. Anyone with a role in the project can open it (FR-106); it changes nothing itself. A
+ * task's title opens the task dialog (#209), and the view is read again after a change saved there.
  */
 export function PersonLoadPage() {
   const project = useProject()
@@ -47,6 +49,10 @@ export function PersonLoadPage() {
   const [params, setParams] = useSearchParams()
   const span = useMemo(() => spanOf(params, today()), [params])
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
+  /** The task whose dialog is open, by id. */
+  const [open, setOpen] = useState<string | null>(null)
+  /** Counts the changes saved in the task dialog, so that the view is read again after each. */
+  const [changes, setChanges] = useState(0)
 
   useEffect(() => {
     const abort = new AbortController()
@@ -83,7 +89,7 @@ export function PersonLoadPage() {
       setLoaded({ state: 'failed' })
     })
     return () => abort.abort()
-  }, [project.id, project.name, span.from, span.to, toSignIn])
+  }, [project.id, project.name, span.from, span.to, toSignIn, changes])
 
   return (
     <>
@@ -108,11 +114,19 @@ export function PersonLoadPage() {
             projectNames={loaded.projectNames}
             noLoad={loaded.noLoad}
             people={loaded.people}
+            onOpen={setOpen}
           />
           <div className="load">
-            <RatingPanel ratings={loaded.ratings} people={loaded.people} />
+            <RatingPanel ratings={loaded.ratings} people={loaded.people} onOpen={setOpen} />
           </div>
         </>
+      )}
+      {open !== null && (
+        <TaskDialog
+          taskId={open}
+          onClose={() => setOpen(null)}
+          onChanged={() => setChanges((count) => count + 1)}
+        />
       )}
     </>
   )

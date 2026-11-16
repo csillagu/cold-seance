@@ -74,7 +74,7 @@ type Send = (below: string, method: string, body?: unknown) => Promise<void>
  * repository it is assigned to, its status and the action that cancels it (SC-102), who can do
  * it, in the eligibility expression editor (SC-099), and who will do it, in the assignment editor
  * (SC-100), and its parent, subtasks and blockers, in the task relation editor (SC-101), each saved on its own through the REST API, which decides by the viewer's role in the
- * task's project what may be changed, and whose refusal is shown. The Kanban's cards lead here. Someone the task's project is not visible to is told so, in the API's
+ * task's project what may be changed, and whose refusal is shown. The task dialog of every view leads here (#209). Someone the task's project is not visible to is told so, in the API's
  * words, and shown nothing of it (FR-017).
  */
 export function TaskPage() {

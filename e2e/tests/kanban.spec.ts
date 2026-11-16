@@ -231,8 +231,9 @@ test('TC-071: a field shown on a Kanban card can be edited on the Kanban', async
 
   // Step 2: change each field T's card shows, on the Kanban. It shows its title, "No dates" and
   // "Unassigned": set the title to Draft v2, give it dates, and assign alice.
-  await card(kanban, 'Draft').getByRole('button', { name: 'Edit Draft' }).click()
-  const form = kanban.getByRole('form', { name: 'Edit Draft' })
+  // The fields are changed in the task dialog the card's title opens (#209).
+  await card(kanban, 'Draft').getByRole('button', { name: 'Open Draft' }).click()
+  const form = page.getByRole('dialog').getByRole('form', { name: 'Edit Draft' })
   await form.getByLabel('Title').fill('Draft v2')
   await form.getByLabel('Planned start').fill('2027-03-01')
   await form.getByLabel('Duration in working days').fill('2')

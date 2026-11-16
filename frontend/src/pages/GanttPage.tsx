@@ -4,8 +4,6 @@ import { ExportDialog } from '../gantt/ExportDialog.tsx'
 import { Gantt, type GanttEditing, type PeopleById } from '../gantt/Gantt.tsx'
 import { moveChanges } from '../gantt/gantt-edit.ts'
 import { GanttNewTaskDialog, type NewTask } from '../gantt/GanttNewTaskDialog.tsx'
-import { GanttTaskDialog } from '../gantt/GanttTaskDialog.tsx'
-import type { Member } from '../kanban/Kanban.tsx'
 import type { KanbanTask } from '../kanban/kanban-model.ts'
 import {
   type ApiBaseline,
@@ -23,6 +21,8 @@ import {
   type PendingProposal,
 } from '../proposals/overlay.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { TaskDialog } from '../tasks/TaskDialog.tsx'
+import type { Member } from '../tasks/TaskEditForm.tsx'
 import { useProject } from './project-context.ts'
 
 /** A baseline of the project as the API lists it (`GET /projects/{id}/baselines`). */
@@ -39,7 +39,6 @@ interface Plan {
   calendar: ApiCalendar
   baselines: BaselineSummary[]
   people: PeopleById
-  members: Member[]
   /** The proposals under review that change the project; null if they could not be read. */
   proposals: PendingProposal[] | null
 }
@@ -70,7 +69,8 @@ function localDate(date: Date): string {
  * Gantt as a Mermaid chart for GitHub markdown (SC-096, FR-063).
  *
  * What it shows can be changed on it (SC-067, FR-053): a bar dragged to other days, a dependency
- * drawn between two bars, the rest in a task's editor, and a new task created with "New task".
+ * drawn between two bars, the rest in the task dialog its title or bar opens (#209), and a new task
+ * created with "New task".
  * Each change goes to the REST API, which allows or refuses it by the viewer's role in the
  * project (FR-060); a refusal is shown above the Gantt, and once a change is saved the Gantt is
  * read again, as the scheduler may have moved other tasks with it.
@@ -86,7 +86,7 @@ export function GanttPage() {
   const [selected, setSelected] = useState<Selected>({ state: 'none' })
   const [exporting, setExporting] = useState(false)
   const exportButton = useRef<HTMLButtonElement>(null)
-  /** The task whose editor is open, by id, so that it shows the task as read again. */
+  /** The task whose dialog is open, by id. */
   const [editing, setEditing] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const newTaskButton = useRef<HTMLButtonElement>(null)
@@ -116,7 +116,6 @@ export function GanttPage() {
         calendar,
         baselines,
         people: new Map(members.map((member) => [member.accountId, member.username])),
-        members,
         proposals,
       })
     },
@@ -174,12 +173,20 @@ export function GanttPage() {
           { blockerId: blocker.id },
           `${task.title} was not made blocked by ${blocker.title}`,
         ),
-      onOpen: (task) => {
-        setRefused(null)
-        setEditing(task.id)
-      },
     }
   }, [save])
+
+  const open = useCallback((task: { id: string }) => {
+    setRefused(null)
+    setEditing(task.id)
+  }, [])
+
+  /** Reads the Gantt again, after a change made in the task dialog. */
+  const reload = useCallback(() => {
+    load().catch((error: unknown) => {
+      if (!toSignIn(error)) setLoaded({ state: 'failed' })
+    })
+  }, [load, toSignIn])
 
   const create = useCallback(
     (projectId: string, task: NewTask) =>
@@ -245,7 +252,6 @@ export function GanttPage() {
     setCreating(false)
     newTaskButton.current?.focus()
   }
-  const edited = editing === null ? undefined : loaded.tasks.find((task) => task.id === editing)
 
   return (
     <>
@@ -305,16 +311,10 @@ export function GanttPage() {
         people={loaded.people}
         today={localDate(new Date())}
         editing={ganttEditing}
+        onOpen={open}
       />
-      {edited && (
-        <GanttTaskDialog
-          task={edited}
-          tasks={loaded.tasks}
-          relations={loaded.relations.find((relations) => relations.taskId === edited.id)}
-          members={loaded.members}
-          save={save}
-          onClose={() => setEditing(null)}
-        />
+      {editing !== null && (
+        <TaskDialog taskId={editing} onClose={() => setEditing(null)} onChanged={reload} />
       )}
       {creating && (
         <GanttNewTaskDialog

@@ -3,7 +3,7 @@
  * dragged by some days, and the project a task created on the Gantt goes in. Pure functions, so
  * that the Gantt and its tests share them.
  */
-import type { TaskChanges } from '../kanban/Kanban.tsx'
+import type { TaskChanges } from '../tasks/TaskEditForm.tsx'
 import { addDays, type ApiTask } from './gantt-model.ts'
 
 /**

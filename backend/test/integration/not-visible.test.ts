@@ -80,7 +80,7 @@ describe('a project someone cannot see', () => {
     })
     const response = await open(alice, borealis)
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ id: borealis, name: 'Borealis' })
+    expect(response.json()).toEqual({ id: borealis, name: 'Borealis', role: 'read-only' })
   })
 
   it('answers a project that does not exist the same way, so the answer reveals nothing', async () => {

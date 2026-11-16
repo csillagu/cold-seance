@@ -99,7 +99,9 @@ async function openTheFourViews(page: Page, plannedText: string) {
   await page.getByLabel('To').fill('2027-03-05')
   await page.getByRole('button', { name: 'Show' }).click()
   await expect(page.getByRole('table', { name: 'Person load of Apollo' })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: 'T', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('main').getByRole('button', { name: 'Open T', exact: true }),
+  ).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
 
   await openView(page, 'Apollo', 'Baseline variance')

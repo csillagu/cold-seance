@@ -186,10 +186,10 @@ test('TC-021: a milestone pushed past its fixed date shows a red violation on th
   expect(await colourOf(gantt, 'M')).not.toBe(RED)
   await expect(arrow(gantt, 'M', 'A')).toHaveAttribute('data-red', 'false')
 
-  // Step 2: A's duration becomes 15 working days, finishing 2027-03-19, in A's editor on the
+  // Step 2: A's duration becomes 15 working days, finishing 2027-03-19, in A's task dialog on the
   // Gantt (SC-067).
-  await gantt.getByRole('button', { name: 'Edit A' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit A' })
+  await gantt.getByRole('button', { name: 'Open A' }).click()
+  const editor = page.getByRole('dialog', { name: 'A', exact: true })
   await editor.getByLabel('Duration in working days').fill('15')
   await editor.getByRole('button', { name: 'Save' }).click()
   await expect(editor).toHaveCount(0)
@@ -234,10 +234,10 @@ test('TC-029: a task turns red when an assigned person is overloaded during it (
   await expect(row(gantt, 'T1')).toHaveAttribute('data-red', 'false')
   expect(await colourOf(gantt, 'T1')).not.toBe(RED)
 
-  // Step 2: T2 gets its dates, putting alice at 200% on 2027-03-03, in T2's editor on the Gantt
+  // Step 2: T2 gets its dates, putting alice at 200% on 2027-03-03, in T2's task dialog on the Gantt
   // (SC-067).
-  await gantt.getByRole('button', { name: 'Edit T2' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit T2' })
+  await gantt.getByRole('button', { name: 'Open T2' }).click()
+  const editor = page.getByRole('dialog', { name: 'T2', exact: true })
   await editor.getByLabel('Planned start').fill('2027-03-03')
   await editor.getByLabel('Duration in working days').fill('1')
   await editor.getByRole('button', { name: 'Save' }).click()
@@ -322,9 +322,9 @@ test('TC-031: a red overload flag clears once the overload is gone (browser: the
     expect(await colourOf(gantt, title)).toBe(RED)
   }
 
-  // Step 2: remove alice from T2's assigned people, in T2's editor on the Gantt (SC-067).
-  await gantt.getByRole('button', { name: 'Edit T2' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit T2' })
+  // Step 2: remove alice from T2's assigned people, in T2's task dialog on the Gantt (SC-067).
+  await gantt.getByRole('button', { name: 'Open T2' }).click()
+  const editor = page.getByRole('dialog', { name: 'T2', exact: true })
   await editor.getByRole('checkbox', { name: 'alice' }).uncheck()
   await editor.getByRole('button', { name: 'Save' }).click()
   await expect(editor).toHaveCount(0)

@@ -368,7 +368,8 @@ test("TC-221: the UI offers 1% as an AI-only task's default load", async ({
   await expect(page.getByRole('heading', { name: 'T', level: 1 })).toBeVisible()
   expect(await call(page, 'GET', `/projects/${apollo}/tasks`)).toMatchObject([{ personLoad: 1 }])
 
-  // An existing task's AI share set to 100% on its Kanban card is offered 1% the same way.
+  // An existing task's AI share set to 100% in the task dialog its Kanban card's title opens is
+  // offered 1% the same way.
   await page
     .getByRole('navigation', { name: 'Navigation' })
     .getByRole('link', { name: 'Apollo' })
@@ -378,7 +379,7 @@ test("TC-221: the UI offers 1% as an AI-only task's default load", async ({
     .getByRole('navigation', { name: 'Views' })
     .getByRole('link', { name: 'Kanban' })
     .click()
-  await page.getByRole('button', { name: 'Edit U' }).click()
+  await page.getByRole('button', { name: 'Open U' }).click()
   await page.getByLabel('AI share in percent').fill('100')
   await expect(page.getByLabel('Person load in percent')).toHaveValue('1')
   await page.getByRole('button', { name: 'Save' }).click()

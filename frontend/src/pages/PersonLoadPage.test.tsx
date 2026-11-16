@@ -52,7 +52,14 @@ function fakeProject(overrides: Record<string, FakeAnswer> = {}) {
     if (override) return override
     switch (path) {
       case `/api/projects/${APOLLO}`:
-        return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
+        return { status: 200, body: { id: APOLLO, name: 'Apollo', role: 'read-only' } }
+      case `/api/tasks/${T1}`:
+        return {
+          status: 200,
+          body: { ...baseTask, id: T1, title: 'T1', personLoad: 100, actualFinish: null },
+        }
+      case `/api/tasks/${T1}/relations`:
+        return { status: 200, body: { taskId: T1, parent: null, subtasks: [], blockedBy: [] } }
       case `/api/projects/${BOREALIS}`:
         return { status: 200, body: { id: BOREALIS, name: 'Borealis' } }
       case `/api/projects/${APOLLO}/members`:
@@ -177,7 +184,7 @@ describe('the person load view (SC-032)', () => {
 
     // The row names the readable tasks behind the load, another project's by its name.
     const tasks = screen.getByRole('list', { name: 'Tasks of carol' })
-    expect(within(tasks).getByRole('link', { name: 'T1' })).toHaveAttribute('href', `/tasks/${T1}`)
+    expect(within(tasks).getByRole('button', { name: 'Open T1' })).toBeInTheDocument()
     expect(within(tasks).getByText(/Borealis/)).toBeInTheDocument()
   })
 
@@ -191,13 +198,32 @@ describe('the person load view (SC-032)', () => {
     )
     const details = screen.getByRole('region', { name: 'Load of carol on 2 Mar 2027' })
     expect(details).toHaveTextContent('Total 130% of 80% capacity · Overloaded')
-    expect(within(details).getByRole('link', { name: 'T1' })).toBeInTheDocument()
+    expect(within(details).getByRole('button', { name: 'Open T1' })).toBeInTheDocument()
     expect(within(details).getByText('Borealis')).toBeInTheDocument()
     expect(within(details).getByText('Other projects: 60%')).toBeInTheDocument()
     expect(details).not.toHaveTextContent(HIDDEN)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('region', { name: 'Load of carol on 2 Mar 2027' })).toBeNull()
+  })
+
+  it("opens the task dialog from a task's title, showing a read-only viewer no controls (#209)", async () => {
+    const requests = fakeProject()
+    renderView()
+    const tasks = await screen.findByRole('list', { name: 'Tasks of carol' })
+    fireEvent.click(within(tasks).getByRole('button', { name: 'Open T1' }))
+    const dialog = screen.getByRole('dialog')
+    const details = await within(dialog).findByLabelText('Details')
+    expect(details).toHaveTextContent('Assignedcarol')
+    expect(within(dialog).getByText('Not started')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('textbox')).toBeNull()
+    expect(within(dialog).queryByRole('combobox')).toBeNull()
+    expect(
+      within(dialog)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Close'])
+    expect(requests.every((request) => request.method === 'GET')).toBe(true)
   })
 
   it('lists the tasks that put load on no one, unscheduled ones among them', async () => {

@@ -173,7 +173,7 @@ describe('TC-165: an API token gets its owner’s read-only role', () => {
     // Step 1: a read succeeds.
     const read = await app.inject({ method: 'GET', url: `/api/projects/${apollo.id}`, headers })
     expect(read.statusCode).toBe(200)
-    expect(read.json()).toEqual(apollo)
+    expect(read.json()).toEqual({ ...apollo, role: 'read-only' })
 
     // Step 2: an edit is refused; here a change of Apollo's members, the one edit there is yet.
     const edit = await app.inject({

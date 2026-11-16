@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify'
+import { PROJECT_ROLES } from '../service/project-roles.ts'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
 
@@ -8,6 +9,21 @@ export const project = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
+  },
+} as const
+
+/** A project as one person reads it, with the role they hold in it. */
+const projectWithRole = {
+  type: 'object',
+  required: ['id', 'name', 'role'],
+  properties: {
+    ...project.properties,
+    role: {
+      type: 'string',
+      enum: [...PROJECT_ROLES],
+      description:
+        'The role the caller holds in the project, directly or through a group: the highest of them.',
+    },
   },
 } as const
 
@@ -49,7 +65,7 @@ export const projectRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group
           required: ['projectId'],
           properties: { projectId: { type: 'string', format: 'uuid' } },
         },
-        response: { 200: project },
+        response: { 200: projectWithRole },
       },
     },
     async (request) => services.projects.getProject(callerOf(request), request.params.projectId),

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
 import { avatarColour } from '../gantt/avatar.ts'
 import { formatDay, weekday } from '../gantt/gantt-model.ts'
+import { TaskTitleButton } from '../tasks/TaskTitleButton.tsx'
 import {
   type ApiDayLoad,
   cellLabel,
@@ -28,6 +28,8 @@ interface PersonLoadProps {
   noLoad: readonly NoLoadTask[]
   /** The usernames of the project's members, by account id. */
   people: ReadonlyMap<string, string>
+  /** Opens the task dialog of the task `taskId`: its title was clicked (#209). */
+  onOpen: (taskId: string) => void
 }
 
 /** The day of one person that is selected, to show what is behind its load. */
@@ -43,7 +45,7 @@ interface Selected {
  * tasks of the projects the viewer can read, by name, and the rest only as a percentage for other
  * projects (FR-046, DD-014). Each row names the readable tasks that load the person in the span.
  * Below, the project's tasks that put load on no one, unscheduled ones among them (FR-004), so
- * that every task of the project is in the view.
+ * that every task of the project is in the view. Each task's title opens the task dialog (#209).
  */
 export function PersonLoad({
   name,
@@ -53,6 +55,7 @@ export function PersonLoad({
   projectNames,
   noLoad,
   people,
+  onOpen,
 }: PersonLoadProps) {
   const [selected, setSelected] = useState<Selected | null>(null)
   const isSelected = (row: LoadRow, day: ApiDayLoad) =>
@@ -98,7 +101,10 @@ export function PersonLoad({
                       <ul className="load__tasks" aria-label={`Tasks of ${row.username}`}>
                         {row.tasks.map((task) => (
                           <li key={task.taskId}>
-                            <Link to={`/tasks/${task.taskId}`}>{task.title}</Link>{' '}
+                            <TaskTitleButton
+                              title={task.title}
+                              onOpen={() => onOpen(task.taskId)}
+                            />{' '}
                             <span className="load__faint">
                               {formatPercent(task.load)}
                               {projectOf(task.projectId) && ` · ${projectOf(task.projectId)}`}
@@ -137,6 +143,7 @@ export function PersonLoad({
           day={selected.day}
           projectOf={projectOf}
           onClose={() => setSelected(null)}
+          onOpen={onOpen}
         />
       )}
 
@@ -147,9 +154,11 @@ export function PersonLoad({
             {noLoad.map(({ task, reason }) => (
               <li key={task.id} className="load__item">
                 <article aria-label={task.title} className="load__item-body">
-                  <Link to={`/tasks/${task.id}`} className="load__item-title">
-                    {task.title}
-                  </Link>
+                  <TaskTitleButton
+                    title={task.title}
+                    className="load__item-title"
+                    onOpen={() => onOpen(task.id)}
+                  />
                   <span className="load__faint">{NO_LOAD_WORDS[reason]}</span>
                   <span className="load__faint">
                     {task.assignees.length === 0
@@ -181,13 +190,14 @@ interface DayDetailsProps {
   /** The name of a task's project, or null for the view's own project. */
   projectOf: (projectId: string) => string | null
   onClose: () => void
+  onOpen: (taskId: string) => void
 }
 
 /**
  * What is behind one person's load on one day: the tasks of the projects the viewer can read, by
  * name and load, and the load from the other projects only as a percentage (FR-046, DD-014).
  */
-function DayDetails({ username, day, projectOf, onClose }: DayDetailsProps) {
+function DayDetails({ username, day, projectOf, onClose, onOpen }: DayDetailsProps) {
   const title = `Load of ${username} on ${formatDay(day.date, true)}`
   return (
     <section className="load__panel load__details" aria-label={title}>
@@ -208,9 +218,11 @@ function DayDetails({ username, day, projectOf, onClose }: DayDetailsProps) {
         <ul className="load__list">
           {day.tasks.map((task) => (
             <li key={task.taskId} className="load__item">
-              <Link to={`/tasks/${task.taskId}`} className="load__item-title">
-                {task.title}
-              </Link>
+              <TaskTitleButton
+                title={task.title}
+                className="load__item-title"
+                onOpen={() => onOpen(task.taskId)}
+              />
               {projectOf(task.projectId) && (
                 <span className="load__faint">{projectOf(task.projectId)}</span>
               )}
