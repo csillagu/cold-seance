@@ -81,6 +81,37 @@ describe('creating a task with the task details editor (SC-098)', () => {
     ])
   })
 
+  it('creates a milestone fixed to its planned start for a duration of 0 (TC-286)', async () => {
+    const requests = serve()
+    renderPage()
+    type('Title', 'Launch')
+    type('Effort', '5')
+    type('Planned start', '2027-03-12')
+    type('Duration in working days', '0')
+    expect(within(form()).getByText(/a milestone fixed to the planned start/)).toBeInTheDocument()
+    expect(within(form()).queryByLabelText('Effort')).not.toBeInTheDocument()
+    expect(within(form()).queryByLabelText('AI share in percent')).not.toBeInTheDocument()
+    expect(within(form()).queryByLabelText('Planned finish')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByText('Task page')).toBeInTheDocument()
+    expect(requests.filter((r) => r.method === 'POST').map((r) => r.body)).toEqual([
+      { title: 'Launch', milestone: { variant: 'fixed-date', date: '2027-03-12' } },
+    ])
+  })
+
+  it('creates a floating milestone for a duration of 0 and no date (TC-286)', async () => {
+    const requests = serve()
+    renderPage()
+    type('Title', 'Docs ready')
+    type('Duration in working days', '0')
+    expect(within(form()).getByText(/a floating milestone/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(await screen.findByText('Task page')).toBeInTheDocument()
+    expect(requests.filter((r) => r.method === 'POST').map((r) => r.body)).toEqual([
+      { title: 'Docs ready', milestone: { variant: 'floating' } },
+    ])
+  })
+
   it('offers 1% once the AI share is 100%, and not before (TC-221)', () => {
     serve()
     renderPage()
@@ -96,7 +127,7 @@ describe('creating a task with the task details editor (SC-098)', () => {
     type('Duration in working days', '2.5')
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
     expect(within(form()).getByRole('alert')).toHaveTextContent(
-      'The duration is a whole number of working days, 1 or more.',
+      'The duration is a whole number of working days: 0 for a milestone, or 1 or more.',
     )
     expect(requests.filter((r) => r.method === 'POST')).toHaveLength(0)
   })

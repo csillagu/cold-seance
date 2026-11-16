@@ -65,14 +65,27 @@ export function draftIsAiOnly(draft: DetailsDraft): boolean {
 }
 
 /**
- * What is wrong with the draft before it is sent, or null: the task needs a title, and its
- * duration is a whole number of working days (DD-006). Anything else the REST API decides.
+ * Whether a new task's draft makes a milestone: a duration of 0 does (SRC-258), fixed to the
+ * planned start if one is typed, floating if not (FR-212).
  */
-export function detailsProblem(draft: DetailsDraft): string | null {
+export function draftIsMilestone(draft: DetailsDraft): boolean {
+  return draft.duration.trim() !== '' && numberOf(draft.duration) === 0
+}
+
+/**
+ * What is wrong with the draft before it is sent, or null: the task needs a title, and its
+ * duration is a whole number of working days (DD-006). A new task (`creating`) may also have a
+ * duration of 0, which makes it a milestone (FR-212); a task once made cannot become one (FR-194).
+ * Anything else the REST API decides.
+ */
+export function detailsProblem(draft: DetailsDraft, creating = false): string | null {
   if (draft.title.trim() === '') return 'The task needs a title.'
+  if (creating && draftIsMilestone(draft)) return null
   const duration = numberOf(draft.duration)
   if (duration !== null && (!Number.isInteger(duration) || duration < 1)) {
-    return 'The duration is a whole number of working days, 1 or more.'
+    return creating
+      ? 'The duration is a whole number of working days: 0 for a milestone, or 1 or more.'
+      : 'The duration is a whole number of working days, 1 or more.'
   }
   if (Number.isNaN(numberOf(draft.effort))) return 'The effort is not a number.'
   if (Number.isNaN(numberOf(draft.aiShare))) return 'The AI share is not a number.'
@@ -83,12 +96,30 @@ export function detailsProblem(draft: DetailsDraft): string | null {
 }
 
 /**
+ * How a milestone is asked for when it is created (FR-190): fixed to `date`, or floating when there
+ * is none, so that the scheduler places it where what it is blocked by finishes (FR-195).
+ */
+export function milestoneOn(date: string):
+  | { variant: 'fixed-date'; date: string }
+  | {
+      variant: 'floating'
+    } {
+  return date === '' ? { variant: 'floating' } : { variant: 'fixed-date', date }
+}
+
+/**
  * The fields a new task is created with (`POST /projects/{id}/tasks`): its title, and every other
- * field that was filled in. A task with no planned dates is created unscheduled (FR-003).
+ * field that was filled in. A task with no planned dates is created unscheduled (FR-003). A draft
+ * with a duration of 0 is created as a milestone on its planned start, or floating without one,
+ * with its title and description only (FR-212, FR-191).
  */
 export function newTaskFields(draft: DetailsDraft): Record<string, unknown> {
   const fields: Record<string, unknown> = { title: draft.title }
   if (draft.description !== '') fields['description'] = draft.description
+  if (draftIsMilestone(draft)) {
+    fields['milestone'] = milestoneOn(draft.start)
+    return fields
+  }
   if (draft.start !== '') fields['plannedStart'] = draft.start
   const duration = numberOf(draft.duration)
   if (duration !== null) fields['durationWorkingDays'] = duration

@@ -2,6 +2,7 @@ import { PersonLoadField } from './AssignmentEditor.tsx'
 import {
   type DetailsDraft,
   draftIsAiOnly,
+  draftIsMilestone,
   numberOf,
   type Repository,
   repositoryName,
@@ -13,22 +14,27 @@ import './task-details.css'
  * The fields of the task details editor (SC-098): title, description, planned dates or none, the
  * duration in whole working days (DD-006), effort and AI share. A milestone (`milestone`) has its
  * title and description here only. `offerPersonLoad` shows the person-load field, at 1% unless
- * changed (FR-149), once the AI share is set to 100%.
+ * changed (FR-149), once the AI share is set to 100%. A new task (`creating`) given a duration of
+ * 0 is a milestone (FR-212): its planned start is then its fixed date, or it floats without one,
+ * and the fields a milestone cannot have are hidden (FR-191).
  */
 export function TaskDetailsFields({
   draft,
   onChange,
   milestone = false,
+  creating = false,
   offerPersonLoad,
 }: {
   draft: DetailsDraft
   onChange: (draft: DetailsDraft) => void
   milestone?: boolean
+  creating?: boolean
   offerPersonLoad: boolean
 }) {
   const set = (field: keyof DetailsDraft) => (value: string) =>
     onChange({ ...draft, [field]: value })
   const noDates = draft.start === '' && draft.duration === '' && draft.finish === ''
+  const newMilestone = creating && draftIsMilestone(draft)
 
   return (
     <div className="task-editor task-details">
@@ -61,14 +67,14 @@ export function TaskDetailsFields({
                 Duration in working days
                 <input
                   type="number"
-                  min="1"
+                  min={creating ? '0' : '1'}
                   step="1"
                   inputMode="numeric"
                   value={draft.duration}
                   onChange={(event) => set('duration')(event.target.value)}
                 />
               </label>
-              {numberOf(draft.duration) === null ? (
+              {numberOf(draft.duration) === null && !newMilestone ? (
                 <label className="task-editor__field">
                   Planned finish
                   <input
@@ -80,7 +86,13 @@ export function TaskDetailsFields({
               ) : null}
             </div>
             <div className="task-editor__row">
-              {noDates ? (
+              {newMilestone ? (
+                <p className="task-editor__muted">
+                  {draft.start === ''
+                    ? 'Duration 0: a floating milestone, placed where what it is blocked by finishes.'
+                    : 'Duration 0: a milestone fixed to the planned start.'}
+                </p>
+              ) : noDates ? (
                 <p className="task-editor__muted">No planned dates: the task is unscheduled.</p>
               ) : (
                 <button
@@ -93,34 +105,36 @@ export function TaskDetailsFields({
               )}
             </div>
           </fieldset>
-          <div className="task-editor__row task-details__row">
-            <label className="task-editor__field">
-              Effort
-              <input
-                type="number"
-                min="0"
-                step="any"
-                inputMode="decimal"
-                value={draft.effort}
-                onChange={(event) => set('effort')(event.target.value)}
-              />
-            </label>
-            <label className="task-editor__field">
-              AI share in percent
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="any"
-                inputMode="decimal"
-                value={draft.aiShare}
-                onChange={(event) => set('aiShare')(event.target.value)}
-              />
-            </label>
-            {offerPersonLoad && draftIsAiOnly(draft) ? (
-              <PersonLoadField value={draft.personLoad} onChange={set('personLoad')} />
-            ) : null}
-          </div>
+          {newMilestone ? null : (
+            <div className="task-editor__row task-details__row">
+              <label className="task-editor__field">
+                Effort
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  value={draft.effort}
+                  onChange={(event) => set('effort')(event.target.value)}
+                />
+              </label>
+              <label className="task-editor__field">
+                AI share in percent
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  inputMode="decimal"
+                  value={draft.aiShare}
+                  onChange={(event) => set('aiShare')(event.target.value)}
+                />
+              </label>
+              {offerPersonLoad && draftIsAiOnly(draft) ? (
+                <PersonLoadField value={draft.personLoad} onChange={set('personLoad')} />
+              ) : null}
+            </div>
+          )}
         </>
       )}
     </div>

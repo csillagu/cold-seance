@@ -73,6 +73,41 @@ describe('the task details editor (SC-098)', () => {
     }
   })
 
+  it('makes a new task with a duration of 0 a milestone, fixed or floating (TC-286)', () => {
+    const draft = {
+      ...newDetailsDraft(),
+      title: 'Launch',
+      description: 'Go live',
+      duration: '0',
+      effort: '5',
+      aiShare: '20',
+      finish: '2027-03-20',
+    }
+    expect(detailsProblem(draft, true)).toBeNull()
+    expect(newTaskFields({ ...draft, start: '2027-03-12' })).toEqual({
+      title: 'Launch',
+      description: 'Go live',
+      milestone: { variant: 'fixed-date', date: '2027-03-12' },
+    })
+    expect(newTaskFields(draft)).toEqual({
+      title: 'Launch',
+      description: 'Go live',
+      milestone: { variant: 'floating' },
+    })
+  })
+
+  it('takes 0 only for a new task, which it makes a milestone (TC-286)', () => {
+    const draft = { ...newDetailsDraft(), title: 'T' }
+    expect(detailsProblem({ ...draft, duration: '0' })).toBe(
+      'The duration is a whole number of working days, 1 or more.',
+    )
+    for (const duration of ['2.5', '-1', 'x']) {
+      expect(detailsProblem({ ...draft, duration }, true)).toBe(
+        'The duration is a whole number of working days: 0 for a milestone, or 1 or more.',
+      )
+    }
+  })
+
   it('asks for a title', () => {
     expect(detailsProblem({ ...newDetailsDraft(), title: '  ' })).toBe('The task needs a title.')
   })
