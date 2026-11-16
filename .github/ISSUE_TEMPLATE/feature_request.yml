@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a new feature or a change to how cold-seance works.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what stands in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: How the tool could solve it. The requirements in `graph/` may already say something about it; link the items if so.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
