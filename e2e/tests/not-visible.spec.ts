@@ -31,8 +31,10 @@ test('TC-025: opening a project one cannot see says it is not visible', async ({
   await bobsPage.getByLabel('Project name').fill('Borealis')
   await bobsPage.getByRole('button', { name: 'Create project' }).click()
   await expect(bobsPage.getByRole('heading', { level: 1 })).toHaveText('Borealis')
+  // The project opens on its Kanban (#221).
+  await expect(bobsPage).toHaveURL(/\/kanban$/)
   const address = new URL(bobsPage.url()).pathname
-  expect(address).toMatch(/^\/projects\/[0-9a-f-]{36}$/)
+  expect(address).toMatch(/^\/projects\/[0-9a-f-]{36}\/kanban$/)
 
   // Step 1: as alice, open Borealis's address in the browser.
   const alicesPage = await signedIn(browser, deployment.url, alice)

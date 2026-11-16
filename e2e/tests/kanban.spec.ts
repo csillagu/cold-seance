@@ -77,11 +77,9 @@ async function readTask(page: Page, task: string): Promise<Record<string, unknow
 /** Opens the Kanban of the project `name` from the navigation, and gives the Kanban. */
 async function openKanban(page: Page, name: string): Promise<Locator> {
   await page.goto('/')
+  // A project opens on its Kanban (#221).
   await page.getByRole('navigation', { name: 'Navigation' }).getByRole('link', { name }).click()
-  await page
-    .getByRole('navigation', { name: 'Views' })
-    .getByRole('link', { name: 'Kanban' })
-    .click()
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}\/kanban$/)
   const kanban = page.getByRole('group', { name: `Kanban of ${name}` })
   await expect(kanban).toBeVisible()
   return kanban
