@@ -5,7 +5,15 @@ import {
   useRef,
   useState,
 } from 'react'
-import { daysDragged, movable } from './gantt-edit.ts'
+import type { TaskChanges } from '../tasks/TaskEditForm.tsx'
+import {
+  type BarEnd,
+  daysDragged,
+  movable,
+  resizable,
+  resizeChanges,
+  resizeDays,
+} from './gantt-edit.ts'
 import {
   addDays,
   type ApiTask,
@@ -49,6 +57,8 @@ export type PeopleById = ReadonlyMap<string, string>
 export interface GanttEditing {
   /** Moves `task`, drawn from `start`, by `days` days: its bar was dragged. */
   onMove: (task: ApiTask, start: string, days: number) => void
+  /** Makes `changes` to `task`: an end of its bar was dragged (#223). */
+  onResize: (task: ApiTask, changes: TaskChanges) => void
   /** Makes `task` blocked by `blocker`: a dependency was drawn from `blocker` to `task`. */
   onLink: (task: ApiTask, blocker: ApiTask) => void
 }
@@ -59,9 +69,10 @@ interface Point {
   y: number
 }
 
-/** A drag under way: a bar being moved, or a dependency being drawn from a bar. */
+/** A drag under way: a bar being moved or resized, or a dependency being drawn from a bar. */
 type Drag =
   | { kind: 'move'; row: GanttRow; x0: number; dx: number; pointer: number }
+  | { kind: 'resize'; row: GanttRow; end: BarEnd; x0: number; dx: number; pointer: number }
   | { kind: 'link'; row: GanttRow; from: Point; to: Point; pointer: number }
 
 interface GanttProps {
@@ -89,9 +100,10 @@ interface GanttProps {
  * after the live plan's (SC-068, FR-073).
  *
  * With `editing`, what it shows can be changed on it (SC-067, FR-053): a bar dragged sideways
- * moves its task by whole days, a line drawn from the handle at a bar's end to another task makes
- * that task blocked by it. With `onOpen`, a click on a task's title, or on its bar when the Gantt
- * can be edited, opens the task dialog, the same as every view's (#209).
+ * by its middle moves its task by whole days, and by one of its ends moves only that end (#223); a
+ * done or cancelled task's bar is frozen. A line drawn from the handle at a bar's end to another
+ * task makes that task blocked by it. With `onOpen`, a click on a task's title, or on its bar when
+ * the Gantt can be edited, opens the task dialog, the same as every view's (#209).
  */
 export function Gantt({ name, model, people, today, editing, onOpen }: GanttProps) {
   const { rows, unscheduled, proposed, days, dependencies, baseline } = model
@@ -106,6 +118,8 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
   const showToday = todayIndex >= 0 && todayIndex < days.length
   const group = (count: number) => (count > 0 ? GROUP_HEIGHT + count * ROW_HEIGHT : 0)
   const bodyHeight = rows.length * ROW_HEIGHT + group(unscheduled.length) + group(proposed.length)
+  /** The non-working days of the global calendar on the timeline, for resizing a bar (#223). */
+  const nonWorking = new Set(days.filter((day) => day.nonWorking).map((day) => day.date))
   const pending =
     proposed.length > 0 || [...rows, ...unscheduled].some((row) => row.pending.length > 0)
 
@@ -120,6 +134,13 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
     event.currentTarget.setPointerCapture(event.pointerId)
     setDrag({ kind: 'move', row, x0: event.clientX, dx: 0, pointer: event.pointerId })
   }
+  const startResize = (row: GanttRow, end: BarEnd, event: ReactPointerEvent<HTMLElement>) => {
+    if (!editing || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDrag({ kind: 'resize', row, end, x0: event.clientX, dx: 0, pointer: event.pointerId })
+  }
   const startLink = (row: GanttRow, index: number, event: ReactPointerEvent<HTMLElement>) => {
     if (!editing || event.button !== 0) return
     event.preventDefault()
@@ -130,8 +151,8 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
   }
   const onPointerMove = (event: ReactPointerEvent) => {
     if (!drag || event.pointerId !== drag.pointer) return
-    if (drag.kind === 'move') setDrag({ ...drag, dx: event.clientX - drag.x0 })
-    else setDrag({ ...drag, to: pointAt(event) })
+    if (drag.kind === 'link') setDrag({ ...drag, to: pointAt(event) })
+    else setDrag({ ...drag, dx: event.clientX - drag.x0 })
   }
   const onPointerUp = (event: ReactPointerEvent) => {
     if (!drag || !editing || event.pointerId !== drag.pointer) return
@@ -144,6 +165,15 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
       else if (!moved) onOpen?.(task)
       return
     }
+    if (drag.kind === 'resize') {
+      const by = Math.abs(drag.dx) >= CLICK_SLOP ? daysDragged(drag.dx, DAY_WIDTH) : 0
+      const changes =
+        resizable(task, drag.row.parent) && by !== 0
+          ? resizeChanges(task, drag.row, drag.end, by, (date) => nonWorking.has(date))
+          : null
+      if (changes) editing.onResize(task, changes)
+      return
+    }
     const target = document
       .elementFromPoint(event.clientX, event.clientY)
       ?.closest<HTMLElement>('[data-task-id]')?.dataset['taskId']
@@ -153,8 +183,14 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
   const rowEditing = (row: GanttRow, index: number): RowEditing | undefined =>
     editing && {
       dx: drag?.kind === 'move' && drag.row.task.id === row.task.id ? drag.dx : 0,
+      resizing:
+        drag?.kind === 'resize' && drag.row.task.id === row.task.id
+          ? { end: drag.end, dx: drag.dx }
+          : null,
       movable: movable(row.task, row.parent),
+      resizable: resizable(row.task, row.parent),
       onBarDown: (event) => startMove(row, event),
+      onEndDown: (end, event) => startResize(row, end, event),
       onHandleDown: (event) => startLink(row, index, event),
     }
 
@@ -466,9 +502,14 @@ function BaselineBarOf({
 interface RowEditing {
   /** How far its bar is being dragged, in pixels; 0 when it is not. */
   dx: number
+  /** Which end of its bar is being dragged, and how far in pixels; null when none is (#223). */
+  resizing: { end: BarEnd; dx: number } | null
   /** Whether its bar can be dragged to other dates. */
   movable: boolean
+  /** Whether its bar can be made longer or shorter by dragging an end (#223). */
+  resizable: boolean
   onBarDown: (event: ReactPointerEvent<HTMLElement>) => void
+  onEndDown: (end: BarEnd, event: ReactPointerEvent<HTMLElement>) => void
   onHandleDown: (event: ReactPointerEvent<HTMLElement>) => void
 }
 
@@ -523,6 +564,9 @@ function TaskRow({
           >
             {formatDay(addDays(row.start, daysDragged(editing.dx, DAY_WIDTH)))}
           </span>
+        )}
+        {editing?.resizing && editing.resizable && editing.resizing.dx !== 0 && (
+          <ResizeTip row={row} start={start} resizing={editing.resizing} />
         )}
         {editing && (
           <span
@@ -741,10 +785,31 @@ function PendingBarOf({
   )
 }
 
+/** The day the grabbed end of a bar being resized would go to, beside that end (#223). */
+function ResizeTip({
+  row,
+  start,
+  resizing,
+}: {
+  row: GanttRow
+  start: number
+  resizing: { end: BarEnd; dx: number }
+}) {
+  const by = resizeDays(row, resizing.end, daysDragged(resizing.dx, DAY_WIDTH))
+  const from = resizing.end === 'start' ? row.start : row.finish
+  const offset = daysBetween(row.start, from) + by
+  return (
+    <span role="status" className="gantt__drag-tip" style={{ left: (start + offset) * DAY_WIDTH }}>
+      {formatDay(addDays(from, by))}
+    </span>
+  )
+}
+
 /** Where the handle to draw a dependency from sits: just after the end of the bar. */
 function handleLeft(row: GanttRow, start: number, length: number): number {
   if (row.task.milestone) return start * DAY_WIDTH + DAY_WIDTH / 2 + DIAMOND - 2
-  return (start + length) * DAY_WIDTH - 9
+  // Clear of the bar's right end, which is grabbed to resize it (#223).
+  return (start + length) * DAY_WIDTH - 2
 }
 
 function Bar({
@@ -792,7 +857,19 @@ function Bar({
       />
     )
   }
-  const style: CSSProperties = { left: left + 4 + shift, width: width - 8 }
+  // A bar being resized follows the pointer at its grabbed end, one day long at the least.
+  const resizing = editing?.resizable ? editing.resizing : null
+  const most = width - DAY_WIDTH
+  const grow =
+    resizing === null
+      ? 0
+      : resizing.end === 'start'
+        ? -Math.min(resizing.dx, most)
+        : Math.max(resizing.dx, -most)
+  const style: CSSProperties = {
+    left: left + 4 + shift + (resizing?.end === 'start' ? -grow : 0),
+    width: width - 8 + grow,
+  }
   return (
     <span
       {...common}
@@ -807,6 +884,17 @@ function Bar({
       {!row.red && task.aiShare ? (
         <span className="gantt__ai" style={{ width: `${Math.min(task.aiShare, 100)}%` }} />
       ) : null}
+      {editing?.resizable &&
+        (['start', 'finish'] as const).map((end) => (
+          <span
+            key={end}
+            // Pointer only: the task's editor changes the start and the duration from the keyboard.
+            aria-hidden="true"
+            data-resize={end}
+            className={`gantt__resize gantt__resize--${end}`}
+            onPointerDown={(event) => editing.onEndDown(end, event)}
+          />
+        ))}
     </span>
   )
 }

@@ -655,6 +655,30 @@
   user-select: none;
 }
 
+/* The ends of a bar that can be resized (#223): grabbed to move only that end */
+.gantt__resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.gantt__resize--start {
+  left: 0;
+}
+
+.gantt__resize--finish {
+  right: 0;
+}
+
+.gantt__body--resize,
+.gantt__body--resize [data-movable] {
+  cursor: ew-resize;
+  user-select: none;
+}
+
 .gantt__body--link {
   cursor: crosshair;
   user-select: none;

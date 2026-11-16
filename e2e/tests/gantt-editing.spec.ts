@@ -224,3 +224,73 @@ test('TC-018: moving a task onto a company holiday is rejected in the UI', async
   // T is not stored on 2027-03-10 or on any other new date.
   expect(await fieldOf(page, t, 'plannedFinish')).toBe('2027-03-01')
 })
+
+/** Drags the `end` of the bar of `title`, its start or its finish, from the day `from` to `to`. */
+async function dragEnd(
+  page: Page,
+  gantt: Locator,
+  title: string,
+  end: 'start' | 'finish',
+  from: string,
+  to: string,
+) {
+  const grip = await middleOf(bar(gantt, title).locator(`[data-resize="${end}"]`))
+  const by = await distance(gantt, from, to)
+  await dragMouse(page, grip, { x: grip.x + by, y: grip.y })
+}
+
+test('#223: a bar is resized by its ends, the other end staying put', async ({
+  browser,
+  deployment,
+  baseURL,
+}) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  // Monday 2027-03-01 to Friday 2027-03-05.
+  const r = await createTask(page, apollo, {
+    title: 'R',
+    plannedStart: '2027-03-01',
+    durationWorkingDays: 5,
+  })
+  const gantt = await openGantt(page, 'Apollo')
+  await expect(bar(gantt, 'R').locator('[data-resize="finish"]')).toHaveCSS('cursor', 'ew-resize')
+  await expect(bar(gantt, 'R')).toHaveCSS('cursor', 'grab')
+
+  // The right end, dragged from Friday to Monday: the finish moves, the start stays.
+  await dragEnd(page, gantt, 'R', 'finish', '2027-03-05', '2027-03-08')
+  await expect(bar(gantt, 'R')).toHaveAttribute('data-finish', '2027-03-08')
+  await expect(bar(gantt, 'R')).toHaveAttribute('data-start', '2027-03-01')
+  expect(await fieldOf(page, r, 'durationWorkingDays')).toBe(6)
+
+  // The left end, dragged from Monday to Wednesday: the start moves, the finish stays.
+  await dragEnd(page, gantt, 'R', 'start', '2027-03-01', '2027-03-03')
+  await expect(bar(gantt, 'R')).toHaveAttribute('data-start', '2027-03-03')
+  await expect(bar(gantt, 'R')).toHaveAttribute('data-finish', '2027-03-08')
+  expect(await fieldOf(page, r, 'plannedStart')).toBe('2027-03-03')
+  expect(await fieldOf(page, r, 'durationWorkingDays')).toBe(4)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
+test('#223: a done task is frozen on the Gantt', async ({ browser, deployment, baseURL }) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  const d = await createTask(page, apollo, {
+    title: 'D',
+    plannedStart: '2027-03-01',
+    durationWorkingDays: 2,
+  })
+  await call(page, 'PUT', `/tasks/${d}/status`, { status: 'done' })
+  const gantt = await openGantt(page, 'Apollo')
+
+  // No resize ends and no grab cursor.
+  await expect(bar(gantt, 'D')).toHaveAttribute('data-movable', 'false')
+  await expect(bar(gantt, 'D').locator('[data-resize]')).toHaveCount(0)
+  await expect(bar(gantt, 'D')).not.toHaveCSS('cursor', 'grab')
+
+  // Dragged by its middle, it does not move.
+  await dragBar(page, gantt, 'D', '2027-03-01', '2027-03-03')
+  await expect(bar(gantt, 'D')).toHaveAttribute('data-start', '2027-03-01')
+  expect(await fieldOf(page, d, 'plannedStart')).toBe('2027-03-01')
+})
