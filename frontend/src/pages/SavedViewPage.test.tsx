@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, type FakeAnswer } from '../test/fetch.ts'
@@ -66,9 +66,16 @@ function answer(kind: string) {
       case `/api/projects/${BOREALIS}/members`:
         return { status: 200, body: [] }
       case `/api/projects/${APOLLO}`:
-        return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
+        return { status: 200, body: { id: APOLLO, name: 'Apollo', role: 'read-only' } }
       case `/api/projects/${BOREALIS}`:
-        return { status: 200, body: { id: BOREALIS, name: 'Borealis' } }
+        return { status: 200, body: { id: BOREALIS, name: 'Borealis', role: 'read-only' } }
+      case '/api/tasks/a':
+        return { status: 200, body: { ...baseTask, id: 'a', projectId: APOLLO, title: 'A-doing' } }
+      case `/api/projects/${APOLLO}/tasks`:
+        return {
+          status: 200,
+          body: [{ ...baseTask, id: 'a', projectId: APOLLO, title: 'A-doing' }],
+        }
       case `/api/projects/${APOLLO}/members`:
         return { status: 200, body: [{ accountId: ALICE, username: 'alice', role: 'admin' }] }
       case '/api/calendar':
@@ -126,6 +133,22 @@ describe('an opened saved view', () => {
     renderView()
     expect(await screen.findByRole('table', { name: 'Team board' })).toBeInTheDocument()
   })
+
+  for (const kind of ['kanban', 'gantt']) {
+    it(`opens the task dialog from a task's title on a ${kind}, for a read-only viewer too (#209)`, async () => {
+      const requests = fakeApi(answer(kind))
+      renderView()
+      const shown = await screen.findByRole(kind === 'kanban' ? 'group' : 'table', {
+        name: 'Team board',
+      })
+      fireEvent.click(within(shown).getByRole('button', { name: 'Open A-doing' }))
+      const dialog = screen.getByRole('dialog')
+      expect(await within(dialog).findByRole('heading', { name: 'A-doing' })).toBeInTheDocument()
+      expect(within(dialog).getByText('In Apollo')).toBeInTheDocument()
+      expect(within(dialog).queryByRole('combobox')).toBeNull()
+      expect(requests.every((request) => request.method === 'GET')).toBe(true)
+    })
+  }
 
   it('says so of a view that is not visible', async () => {
     fakeApi(answer('kanban'))

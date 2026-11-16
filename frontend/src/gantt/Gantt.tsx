@@ -51,8 +51,6 @@ export interface GanttEditing {
   onMove: (task: ApiTask, start: string, days: number) => void
   /** Makes `task` blocked by `blocker`: a dependency was drawn from `blocker` to `task`. */
   onLink: (task: ApiTask, blocker: ApiTask) => void
-  /** Opens the editor of `task`, for everything else it shows. */
-  onOpen: (task: ApiTask) => void
 }
 
 /** A point in the timeline's pixels, from the top left of its first row. */
@@ -73,8 +71,10 @@ interface GanttProps {
   people: PeopleById
   /** Today, `YYYY-MM-DD`: marked on the timeline if it lies within it. */
   today: string
-  /** What the viewer can change on it; without it, the Gantt only shows. */
+  /** What the viewer can change on it; without it, its bars cannot be dragged. */
   editing?: GanttEditing
+  /** Opens the task dialog of a task: its title, or its bar, was clicked (#209). */
+  onOpen?: (task: ApiTask) => void
 }
 
 /**
@@ -90,9 +90,10 @@ interface GanttProps {
  *
  * With `editing`, what it shows can be changed on it (SC-067, FR-053): a bar dragged sideways
  * moves its task by whole days, a line drawn from the handle at a bar's end to another task makes
- * that task blocked by it, and a click on a bar or a task's title opens its editor for the rest.
+ * that task blocked by it. With `onOpen`, a click on a task's title, or on its bar when the Gantt
+ * can be edited, opens the task dialog, the same as every view's (#209).
  */
-export function Gantt({ name, model, people, today, editing }: GanttProps) {
+export function Gantt({ name, model, people, today, editing, onOpen }: GanttProps) {
   const { rows, unscheduled, proposed, days, dependencies, baseline } = model
   const [drag, setDrag] = useState<Drag | null>(null)
   const arrows = useRef<SVGSVGElement>(null)
@@ -140,7 +141,7 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
       const moved = Math.abs(drag.dx) >= CLICK_SLOP
       const by = movable(task, drag.row.parent) && moved ? daysDragged(drag.dx, DAY_WIDTH) : 0
       if (by !== 0) editing.onMove(task, drag.row.start, by)
-      else if (!moved) editing.onOpen(task)
+      else if (!moved) onOpen?.(task)
       return
     }
     const target = document
@@ -155,7 +156,6 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
       movable: movable(row.task, row.parent),
       onBarDown: (event) => startMove(row, event),
       onHandleDown: (event) => startLink(row, index, event),
-      onOpen: () => editing.onOpen(row.task),
     }
 
   return (
@@ -225,6 +225,7 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
                 people={people}
                 baseline={baseline}
                 editing={rowEditing(row, index)}
+                onOpen={onOpen && (() => onOpen(row.task))}
               />
             ))}
             {proposed.length > 0 && (
@@ -258,7 +259,7 @@ export function Gantt({ name, model, people, today, editing }: GanttProps) {
                 first={first}
                 people={people}
                 baseline={baseline}
-                onOpen={editing && (() => editing.onOpen(row.task))}
+                onOpen={onOpen && (() => onOpen(row.task))}
               />
             ))}
             <div
@@ -359,7 +360,7 @@ function TaskCells({
   /** The first day it is drawn on, or null for an unscheduled task. */
   start: string | null
   people: PeopleById
-  /** Opens the task's editor, if the Gantt can be edited. */
+  /** Opens the task dialog, if the Gantt can open it. */
   onOpen: (() => void) | undefined
 }) {
   const assignees = task.assignees.map((id) => ({ id, name: people.get(id) }))
@@ -385,7 +386,7 @@ function TaskCells({
           <button
             type="button"
             className="gantt__title-text gantt__title-button"
-            aria-label={`Edit ${task.title}`}
+            aria-label={`Open ${task.title}`}
             onClick={onOpen}
           >
             {task.title}
@@ -469,7 +470,6 @@ interface RowEditing {
   movable: boolean
   onBarDown: (event: ReactPointerEvent<HTMLElement>) => void
   onHandleDown: (event: ReactPointerEvent<HTMLElement>) => void
-  onOpen: () => void
 }
 
 function TaskRow({
@@ -478,12 +478,14 @@ function TaskRow({
   people,
   baseline,
   editing,
+  onOpen,
 }: {
   row: GanttRow
   first: string
   people: PeopleById
   baseline: string | null
   editing: RowEditing | undefined
+  onOpen: (() => void) | undefined
 }) {
   const { task } = row
   const start = daysBetween(first, row.start)
@@ -509,7 +511,7 @@ function TaskRow({
         parent={row.parent}
         start={row.start}
         people={people}
-        onOpen={editing?.onOpen}
+        onOpen={onOpen}
       />
       <div role="cell" className="gantt__lane">
         <Bar row={row} left={start * DAY_WIDTH} width={length * DAY_WIDTH} editing={editing} />

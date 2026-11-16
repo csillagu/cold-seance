@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api.ts'
 import type { PeopleById } from '../gantt/Gantt.tsx'
 import type { ApiRedFlag, TaskStatus } from '../gantt/gantt-model.ts'
-import { Kanban, type Member, type TaskChanges } from '../kanban/Kanban.tsx'
+import { Kanban } from '../kanban/Kanban.tsx'
 import { buildKanbanModel, type KanbanModel, type KanbanTask } from '../kanban/kanban-model.ts'
 import { PendingBanner } from '../proposals/PendingBanner.tsx'
 import {
@@ -12,6 +12,8 @@ import {
   type PendingSummary,
 } from '../proposals/overlay.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { TaskDialog } from '../tasks/TaskDialog.tsx'
+import type { Member } from '../tasks/TaskEditForm.tsx'
 import { useProject } from './project-context.ts'
 
 type Loaded =
@@ -20,7 +22,6 @@ type Loaded =
       state: 'loaded'
       model: KanbanModel
       people: PeopleById
-      members: ReadonlyMap<string, readonly Member[]>
       /** The proposals under review that change the project; null if they could not be read. */
       proposals: PendingSummary[] | null
     }
@@ -29,8 +30,9 @@ type Loaded =
 /**
  * The Kanban of a project (SC-030), at `/projects/<id>/kanban`, inside the project's page. It reads
  * the project's tasks, its red flags and its members through the REST API and lays them out;
- * anyone with a role in the project can open it (FR-106). A move or an edit on a card goes to the
- * REST API, and the Kanban is read again once it is saved, as a change can move other tasks too.
+ * anyone with a role in the project can open it (FR-106). A card moved to another column goes to
+ * the REST API; a card's title opens the task dialog, the same as every view's (#209). The Kanban
+ * is read again once a change is saved, as a change can move other tasks too.
  *
  * Each proposal under review that changes the project is read with its live preview, and what it
  * would change is shown as pending, apart from the live cards, with a line above the Kanban naming
@@ -40,6 +42,8 @@ export function KanbanPage() {
   const project = useProject()
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
+  /** The task whose dialog is open, by id. */
+  const [open, setOpen] = useState<string | null>(null)
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -62,7 +66,6 @@ export function KanbanPage() {
         state: 'loaded',
         model: buildKanbanModel(projects, tasks, flags, pending),
         people,
-        members: new Map([[project.id, members]]),
         proposals: proposals && pendingSummaries(proposals, pending),
       })
     },
@@ -105,11 +108,13 @@ export function KanbanPage() {
     [save],
   )
 
-  const onEdit = useCallback(
-    (task: KanbanTask, changes: TaskChanges) =>
-      save(`/tasks/${encodeURIComponent(task.id)}`, 'PATCH', changes),
-    [save],
-  )
+  /** Reads the Kanban again, after a change made in the task dialog. */
+  const reload = useCallback(() => {
+    load().catch((error: unknown) => {
+      if (!toSignIn(error)) setLoaded({ state: 'failed' })
+    })
+  }, [load, toSignIn])
+  const onOpen = useCallback((task: KanbanTask) => setOpen(task.id), [])
 
   if (loaded.state === 'loading') return <p className="page__note">Loading…</p>
   if (loaded.state === 'failed') {
@@ -126,10 +131,12 @@ export function KanbanPage() {
         name={`Kanban of ${project.name}`}
         model={loaded.model}
         people={loaded.people}
-        members={loaded.members}
         onMove={onMove}
-        onEdit={onEdit}
+        onOpen={onOpen}
       />
+      {open !== null && (
+        <TaskDialog taskId={open} onClose={() => setOpen(null)} onChanged={reload} />
+      )}
     </>
   )
 }

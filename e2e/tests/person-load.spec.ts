@@ -470,7 +470,7 @@ test('TC-154: a read-only member sees the person load view and the project data'
 
   // The view opens, refuses bob nothing, and shows T behind alice's load.
   await expect(
-    page.getByRole('list', { name: 'Tasks of alice' }).getByRole('link', { name: 'T' }),
+    page.getByRole('list', { name: 'Tasks of alice' }).getByRole('button', { name: 'Open T' }),
   ).toBeVisible()
   await expect(cell(page, 'alice', '1 Mar 2027')).toHaveAccessibleName(/: 100% of 100% capacity$/)
   await expect(page.getByRole('alert')).toHaveCount(0)

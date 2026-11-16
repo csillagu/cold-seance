@@ -59,7 +59,9 @@ function answers(overrides: Record<string, FakeAnswer> = {}) {
     if (overrides[path]) return overrides[path]
     switch (path) {
       case `/api/projects/${APOLLO}`:
-        return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
+        return { status: 200, body: { id: APOLLO, name: 'Apollo', role: 'read-write' } }
+      case `/api/tasks/${A}`:
+        return { status: 200, body: tasks[0] }
       case `/api/projects/${APOLLO}/tasks`:
         return { status: 200, body: tasks }
       case `/api/projects/${APOLLO}/red-flags`:
@@ -363,15 +365,15 @@ describe('the Gantt page (SC-031)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The Gantt could not be loaded.')
   })
 
-  it('edits a task in its editor, opened from its title, and reads the Gantt again (SC-067)', async () => {
+  it('edits a task in the task dialog, opened from its title, and reads the Gantt again (SC-067, #209)', async () => {
     const requests = fakeApi((method, path) =>
       method === 'PATCH' ? { status: 200, body: tasks[0] } : answers()(method, path),
     )
     renderGantt()
     const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
-    fireEvent.click(within(gantt).getByRole('button', { name: 'Edit A' }))
-    const dialog = screen.getByRole('dialog', { name: 'Edit A' })
-    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'A2' } })
+    fireEvent.click(within(gantt).getByRole('button', { name: 'Open A' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(await within(dialog).findByLabelText('Title'), { target: { value: 'A2' } })
     const before = requests.length
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())

@@ -9,9 +9,11 @@ import {
   buildGanttModel,
   type TaskStatus,
 } from '../gantt/gantt-model.ts'
-import { Kanban, type Member, type TaskChanges } from '../kanban/Kanban.tsx'
+import { Kanban } from '../kanban/Kanban.tsx'
 import { buildKanbanModel, type KanbanTask } from '../kanban/kanban-model.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { TaskDialog } from '../tasks/TaskDialog.tsx'
+import type { Member } from '../tasks/TaskEditForm.tsx'
 import { describeCondition } from '../views/filter.ts'
 import { KIND_NAMES, type Named, placeOf, type SavedView } from '../views/saved-view.ts'
 import '../views/saved-views.css'
@@ -32,7 +34,6 @@ interface Opened {
   groups: Map<string, string>
   repositories: Map<string, string>
   flags: ApiRedFlag[]
-  members: Map<string, Member[]>
   people: PeopleById
   /** For a Gantt: the calendar and each task's relations. */
   gantt: { calendar: ApiCalendar; relations: ApiRelations[] } | null
@@ -57,13 +58,16 @@ function localDate(date: Date): string {
  * viewing it (FR-058). The REST API gives only the projects and tasks the viewer can read now, so a
  * view never shows a project they have lost access to (FR-059).
  *
- * Opening it changes nothing. A card moved or edited on its Kanban goes to the REST API, as on a
- * project's Kanban, and the view is read again once the change is saved; its Gantt only shows.
+ * Opening it changes nothing. A card moved on its Kanban goes to the REST API, as on a project's
+ * Kanban; on either kind, a task's title opens the task dialog, the same as every view's (#209).
+ * The view is read again once a change is saved.
  */
 export function SavedViewPage() {
   const { viewId = '' } = useParams()
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
+  /** The task whose dialog is open, by id. */
+  const [open, setOpen] = useState<string | null>(null)
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -114,7 +118,6 @@ export function SavedViewPage() {
           ]),
         ),
         flags: perProject.flatMap(({ flags }) => flags),
-        members: new Map(perProject.map(({ project, members }) => [project.id, members])),
         people,
         gantt,
       })
@@ -164,11 +167,13 @@ export function SavedViewPage() {
     [save],
   )
 
-  const onEdit = useCallback(
-    (task: KanbanTask, changes: TaskChanges) =>
-      save(`/tasks/${encodeURIComponent(task.id)}`, 'PATCH', changes),
-    [save],
-  )
+  /** Reads the view again, after a change made in the task dialog. */
+  const reload = useCallback(() => {
+    load().catch((error: unknown) => {
+      if (!toSignIn(error)) setLoaded({ state: 'failed' })
+    })
+  }, [load, toSignIn])
+  const onOpen = useCallback((task: { id: string }) => setOpen(task.id), [])
 
   switch (loaded.state) {
     case 'loading':
@@ -234,9 +239,8 @@ export function SavedViewPage() {
             name={view.name}
             model={buildKanbanModel(projects, loaded.tasks, loaded.flags)}
             people={loaded.people}
-            members={loaded.members}
             onMove={onMove}
-            onEdit={onEdit}
+            onOpen={onOpen}
           />
         ) : loaded.tasks.length === 0 ? (
           <p className="page__note">No task meets the view.</p>
@@ -251,9 +255,13 @@ export function SavedViewPage() {
             )}
             people={loaded.people}
             today={localDate(new Date())}
+            onOpen={onOpen}
           />
         )}
       </div>
+      {open !== null && (
+        <TaskDialog taskId={open} onClose={() => setOpen(null)} onChanged={reload} />
+      )}
     </section>
   )
 }

@@ -205,11 +205,14 @@ describe('the project service', () => {
   })
 
   describe('getProject', () => {
-    it('answers the project to anyone holding a role in it, and not-visible to anyone else', async () => {
+    it("answers the project, with the caller's role, to anyone holding a role in it, and not-visible to anyone else", async () => {
       const project = await service.createProject(by(alice), { name: fresh('Seen') })
-      expect(await service.getProject(by(alice), project.id)).toEqual(project)
+      expect(await service.getProject(by(alice), project.id)).toEqual({ ...project, role: 'admin' })
       await roles.setRole(by(alice), project.id, bob.id, 'read-only')
-      expect(await service.getProject(by(bob), project.id)).toEqual(project)
+      expect(await service.getProject(by(bob), project.id)).toEqual({
+        ...project,
+        role: 'read-only',
+      })
       for (const caller of [by(root), { accountId: 'nobody', channel: 'ui' } as const]) {
         const error = await refused(service.getProject(caller, project.id), 'not-visible')
         expect(error.message).toBe('This project is not visible to you')

@@ -1,0 +1,47 @@
+/* The task dialog (#209): what it shows of a task to a viewer who cannot change it. */
+.task-dialog__status {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.task-dialog__details {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.task-dialog__detail {
+  display: grid;
+  grid-template-columns: minmax(120px, 40%) 1fr;
+  gap: 8px;
+}
+
+.task-dialog__detail dt {
+  color: var(--muted);
+}
+
+.task-dialog__detail dd {
+  margin: 0;
+}
+
+.task-dialog__page-link {
+  margin-right: auto;
+  font-size: 13px;
+}
+
+/* A task's title that opens the task dialog. */
+.task-title-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-title-button:hover,
+.task-title-button:focus-visible {
+  text-decoration: underline;
+}

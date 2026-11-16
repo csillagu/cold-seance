@@ -236,16 +236,16 @@ describe('GET /api/projects/search', () => {
 })
 
 describe('GET /api/projects/:projectId', () => {
-  it('hands the service the caller and the project and sends the project', async () => {
+  it('hands the service the caller and the project and sends the project with their role', async () => {
     const { app, projects } = stubbed()
-    projects.getProject.mockResolvedValue(PROJECT)
+    projects.getProject.mockResolvedValue({ ...PROJECT, role: 'contributor' })
     const response = await app.inject({
       method: 'GET',
       url: `/api/projects/${PROJECT.id}`,
       headers: erin,
     })
     expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual(PROJECT)
+    expect(response.json()).toEqual({ ...PROJECT, role: 'contributor' })
     expect(projects.getProject).toHaveBeenCalledWith(caller, PROJECT.id)
   })
 

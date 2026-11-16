@@ -66,6 +66,13 @@ function fakeProject(overrides: Record<string, FakeAnswer> = {}) {
     const sent = requests.at(-1)?.body
     const body: Record<string, unknown> =
       typeof sent === 'object' && sent !== null ? { ...sent } : {}
+    const relations = /^\/api\/tasks\/([^/]+)\/relations$/.exec(path)
+    if (relations) {
+      return {
+        status: 200,
+        body: { taskId: relations[1], parent: null, subtasks: [], blockedBy: [] },
+      }
+    }
     const match = /^\/api\/tasks\/([^/]+)(\/status|\/cancel)?$/.exec(path)
     if (match) {
       const found = tasks.find((task) => task.id === match[1])
@@ -77,7 +84,7 @@ function fakeProject(overrides: Record<string, FakeAnswer> = {}) {
     }
     switch (path) {
       case `/api/projects/${APOLLO}`:
-        return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
+        return { status: 200, body: { id: APOLLO, name: 'Apollo', role: 'read-write' } }
       case `/api/projects/${APOLLO}/tasks`:
         return { status: 200, body: tasks }
       case `/api/projects/${APOLLO}/red-flags`:
@@ -238,13 +245,29 @@ describe('the Kanban page (SC-030)', () => {
     })
   })
 
-  it('edits the fields a card shows, sending only what changed', async () => {
+  it("opens the task dialog from a card's title, with no Edit or Open button on the card (#209)", async () => {
+    fakeProject()
+    renderKanban()
+    await screen.findByRole('group', { name: 'Kanban of Apollo' })
+
+    expect(within(card('Write guide')).queryByRole('button', { name: /^Edit/ })).toBeNull()
+    expect(within(card('Write guide')).queryByRole('link')).toBeNull()
+    fireEvent.click(within(card('Write guide')).getByRole('button', { name: 'Open Write guide' }))
+    const dialog = screen.getByRole('dialog')
+    expect(await within(dialog).findByRole('heading', { name: 'Write guide' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Blocked by' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('heading', { name: 'Parent' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('edits the fields a card shows in the task dialog, sending only what changed', async () => {
     const { requests } = fakeProject()
     renderKanban()
     await screen.findByRole('group', { name: 'Kanban of Apollo' })
 
-    fireEvent.click(within(card('Write guide')).getByRole('button', { name: 'Edit Write guide' }))
-    const form = screen.getByRole('form', { name: 'Edit Write guide' })
+    fireEvent.click(within(card('Write guide')).getByRole('button', { name: 'Open Write guide' }))
+    const form = await screen.findByRole('form', { name: 'Edit Write guide' })
     fireEvent.change(within(form).getByLabelText('Title'), { target: { value: 'Write guide v2' } })
     fireEvent.change(within(form).getByLabelText('Duration in working days'), {
       target: { value: '3' },

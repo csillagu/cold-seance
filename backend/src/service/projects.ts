@@ -6,7 +6,7 @@ import type { Caller } from './caller.ts'
 import { violates } from './db-errors.ts'
 import { notVisible, ServiceError } from './errors.ts'
 import type { GroupService } from './groups.ts'
-import type { ProjectRoleService } from './project-roles.ts'
+import type { ProjectRole, ProjectRoleService } from './project-roles.ts'
 import { characters } from './text.ts'
 import { isUuid } from './system-admins.ts'
 
@@ -14,6 +14,11 @@ import { isUuid } from './system-admins.ts'
 export interface Project {
   id: string
   name: string
+}
+
+/** A project as one person reads it: with the role they hold in it, directly or through a group. */
+export interface ProjectWithRole extends Project {
+  role: ProjectRole
 }
 
 /** The longest name a project can have, in characters. */
@@ -108,15 +113,17 @@ export class ProjectService {
 
   /**
    * The project, for someone who can see it: anyone who holds a role in it (FR-106). Anyone else
-   * is told that the project is not visible to them, whether or not it exists (FR-017).
+   * is told that the project is not visible to them, whether or not it exists (FR-017). With it,
+   * the role the caller holds in it, directly or through a group (FR-112), so that a screen can
+   * offer them only what that role allows (#209).
    */
-  async getProject(caller: Caller, projectId: string): Promise<Project> {
+  async getProject(caller: Caller, projectId: string): Promise<ProjectWithRole> {
     const [project] = isUuid(projectId)
       ? await this.#db.select(columns).from(projects).where(eq(projects.id, projectId))
       : []
     if (!project) throw notVisible()
-    await this.#roles.permissions.require(caller, projectId, 'read')
-    return project
+    const role = await this.#roles.permissions.require(caller, projectId, 'read')
+    return { ...project, role }
   }
 
   /**

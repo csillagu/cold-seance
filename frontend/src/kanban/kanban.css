@@ -343,3 +343,19 @@
   border: 1.5px dashed var(--accent);
   background: var(--accent-bg);
 }
+
+/* The title of a card opens the task dialog (#209). */
+.kanban__title-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kanban__title-button:hover,
+.kanban__title-button:focus-visible {
+  text-decoration: underline;
+}

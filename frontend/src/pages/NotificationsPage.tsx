@@ -5,12 +5,15 @@ import {
   type ApiNotification,
   type Names,
   projectsNamed,
+  taskOfLink,
   viewOf,
 } from '../notifications/notification.ts'
 import { type Subscriptions, subscriptionPath } from '../notifications/subscriptions.ts'
 import { formatWhen } from '../proposals/proposal.ts'
 import { useSignedIn } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { TaskDialog } from '../tasks/TaskDialog.tsx'
+import '../tasks/task-dialog.css'
 import '../notifications/notifications.css'
 import './pages.css'
 
@@ -60,7 +63,8 @@ async function namesFor(
 /**
  * The in-app notification list (SC-035), at `/notifications`: the signed-in person's
  * notifications, newest first, the only place the tool delivers them (FR-082, DD-003). Each says
- * what it is about and leads to it. Reading them leaves them in place, as the REST API's read
+ * what it is about and leads to it; one about a task opens the task dialog, as every view does
+ * (#209). Reading them leaves them in place, as the REST API's read
  * does. Below them are the projects and issues the person is subscribed to (SC-093), each with
  * the control that ends the subscription; a project their role subscribes them to has none.
  */
@@ -70,6 +74,8 @@ export function NotificationsPage() {
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The task whose dialog is open, by id. */
+  const [open, setOpen] = useState<string | null>(null)
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -151,7 +157,7 @@ export function NotificationsPage() {
                 <time dateTime={view.createdAt}>{formatWhen(view.createdAt)}</time>
               </div>
               <p className="notifications__text">
-                {view.link ? <Link to={view.link}>{view.text}</Link> : view.text}
+                <NotificationText link={view.link} text={view.text} onOpen={setOpen} />
               </p>
             </li>
           ))}
@@ -224,6 +230,28 @@ export function NotificationsPage() {
           })}
         </ul>
       )}
+      {open !== null && <TaskDialog taskId={open} onClose={() => setOpen(null)} />}
     </section>
   )
+}
+
+/** A notification's words, leading where it leads: a task's in the task dialog, the rest by link. */
+function NotificationText({
+  link,
+  text,
+  onOpen,
+}: {
+  link: string | null
+  text: string
+  onOpen: (taskId: string) => void
+}) {
+  const task = taskOfLink(link)
+  if (task !== null) {
+    return (
+      <button type="button" className="task-title-button" onClick={() => onOpen(task)}>
+        {text}
+      </button>
+    )
+  }
+  return link ? <Link to={link}>{text}</Link> : text
 }
