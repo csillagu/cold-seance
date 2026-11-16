@@ -242,8 +242,7 @@
   gap: 6px;
 }
 
-.kanban__button,
-.kanban__move select {
+.kanban__button {
   height: 26px;
   padding: 0 8px;
   border-radius: 6px;
@@ -313,15 +312,6 @@
 
 .kanban__muted {
   color: var(--muted);
-}
-
-.kanban__hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 /* A proposal under review, apart from the live plan (FR-073), as Main.dc.html draws it */

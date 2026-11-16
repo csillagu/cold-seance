@@ -133,6 +133,17 @@ function renderKanban() {
 const column = (name: string) => screen.getByRole('region', { name })
 const card = (title: string) => screen.getByRole('article', { name: title })
 
+/** Drags the card of a task and drops it on a column, the one way to move a card (#224). */
+function drag(title: string, to: string) {
+  const dataTransfer = {
+    setData: vi.fn<(format: string, data: string) => void>(),
+    effectAllowed: '',
+  }
+  fireEvent.dragStart(card(title), { dataTransfer })
+  fireEvent.dragOver(column(to), { dataTransfer })
+  fireEvent.drop(column(to), { dataTransfer })
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -169,34 +180,16 @@ describe('the Kanban page (SC-030)', () => {
     expect(within(triage).getByText('Unassigned')).toBeInTheDocument()
 
     const old = within(column('Cancelled')).getByRole('article', { name: 'Old flow' })
-    expect(within(old).queryByRole('combobox')).toBeNull()
+    expect(old).toHaveAttribute('draggable', 'false')
   })
 
-  it('moves a card to another column with its move control, and reads the Kanban again', async () => {
-    const { requests } = fakeProject()
+  it('has no "Move to" control on its cards: a card is moved by dragging it (#224)', async () => {
+    fakeProject()
     renderKanban()
     await screen.findByRole('group', { name: 'Kanban of Apollo' })
 
-    const select = within(card('Triage backlog')).getByRole('combobox', {
-      name: 'Move Triage backlog to',
-    })
-    expect(
-      within(select)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Move to…', 'In progress', 'On hold', 'Done', 'Cancelled'])
-    fireEvent.change(select, { target: { value: 'in-progress' } })
-
-    await waitFor(() =>
-      expect(
-        within(column('In progress')).getByRole('article', { name: 'Triage backlog' }),
-      ).toBeInTheDocument(),
-    )
-    expect(requests).toContainEqual({
-      method: 'PUT',
-      path: `/api/tasks/${U}/status`,
-      body: { status: 'in-progress' },
-    })
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(card('Triage backlog')).toHaveAttribute('draggable', 'true')
   })
 
   it('cancels a task moved to the cancelled column', async () => {
@@ -204,10 +197,7 @@ describe('the Kanban page (SC-030)', () => {
     renderKanban()
     await screen.findByRole('group', { name: 'Kanban of Apollo' })
 
-    fireEvent.change(
-      within(card('Write guide')).getByRole('combobox', { name: 'Move Write guide to' }),
-      { target: { value: 'cancelled' } },
-    )
+    drag('Write guide', 'Cancelled')
     await waitFor(() =>
       expect(
         within(column('Cancelled')).getByRole('article', { name: 'Write guide' }),
@@ -225,13 +215,7 @@ describe('the Kanban page (SC-030)', () => {
     renderKanban()
     await screen.findByRole('group', { name: 'Kanban of Apollo' })
 
-    const dataTransfer = {
-      setData: vi.fn<(format: string, data: string) => void>(),
-      effectAllowed: '',
-    }
-    fireEvent.dragStart(card('Triage backlog'), { dataTransfer })
-    fireEvent.dragOver(column('On hold'), { dataTransfer })
-    fireEvent.drop(column('On hold'), { dataTransfer })
+    drag('Triage backlog', 'On hold')
 
     await waitFor(() =>
       expect(
@@ -297,10 +281,7 @@ describe('the Kanban page (SC-030)', () => {
     renderKanban()
     await screen.findByRole('group', { name: 'Kanban of Apollo' })
 
-    fireEvent.change(
-      within(card('Triage backlog')).getByRole('combobox', { name: 'Move Triage backlog to' }),
-      { target: { value: 'in-progress' } },
-    )
+    drag('Triage backlog', 'In progress')
     expect(await within(card('Triage backlog')).findByRole('alert')).toHaveTextContent(
       'Read-only members cannot change tasks',
     )

@@ -165,9 +165,9 @@ test('TC-191: a cancelled task stays on the Kanban in the cancelled column', asy
   const apollo = await createProject(page, 'Apollo')
   const t = await createTask(page, apollo, { title: 'T' })
 
-  // Step 1: as alice, cancel T, on the Kanban, by moving its card to the cancelled column.
+  // Step 1: as alice, cancel T, on the Kanban, by dragging its card to the cancelled column.
   const kanban = await openKanban(page, 'Apollo')
-  await card(kanban, 'T').getByLabel('Move T to').selectOption('Cancelled')
+  await card(kanban, 'T').dragTo(column(kanban, 'Cancelled'))
   await expect(card(column(kanban, 'Cancelled'), 'T')).toBeVisible()
   expect((await readTask(page, t))['status']).toBe('cancelled')
 
