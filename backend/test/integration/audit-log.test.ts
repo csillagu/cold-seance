@@ -646,7 +646,7 @@ describe('test cases through the REST API', () => {
       expect(entries.some((e) => e.subject.type === 'task')).toBe(false)
     })
 
-    // Pending: TC-172 in full: through the MCP server with alice's token, create a proposal moving T in Apollo, and check that no entry records a change to T (SC-016, SC-055, SC-001, SC-010, SC-027).
+    // TC-172 in full, through the MCP server with alice's token, is in mcp-server.test.ts.
   })
 
   describe('TC-173: a change arriving from GitHub is logged with the GitHub channel', () => {
@@ -747,7 +747,7 @@ describe('test cases through the REST API', () => {
       }
     })
 
-    // Pending: TC-206 in full: bob approves a proposal alice's AI made through the MCP server (SC-016, SC-055, SC-001, SC-010, SC-048, SC-027).
+    // TC-206 in full, with the proposal made through the MCP server, is in mcp-server.test.ts.
   })
 
   describe("TC-239: an approved proposal's change is logged with both the MCP and the UI channel", () => {
@@ -765,7 +765,7 @@ describe('test cases through the REST API', () => {
       expect(move?.channels).not.toContain('github')
     })
 
-    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-016, SC-055, SC-001, SC-010, SC-048, SC-027, SC-052). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
+    // Pending: TC-239 in full: bob approves the proposal in the browser (SC-072, F25). SC-010 must keep the channel each proposal was made through, for SC-048 to hand to the audit log.
   })
 })
 

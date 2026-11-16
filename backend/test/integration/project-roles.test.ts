@@ -627,8 +627,8 @@ describe('test cases through the REST API', () => {
   // Pending: TC-154 (baselines SC-009; the Gantt, SC-031, the Kanban, SC-030, the person load
   // view, SC-032, and the baseline variance view, SC-033, are in e2e/tests/gantt.spec.ts,
   // e2e/tests/kanban.spec.ts, e2e/tests/person-load.spec.ts and
-  // e2e/tests/baseline-variance.spec.ts), TC-159
-  // (proposals SC-010, SC-048, MCP server SC-027). Each of those modules asks the role
+  // e2e/tests/baseline-variance.spec.ts). TC-159 is in mcp-server.test.ts. Each of those modules
+  // asks the role
   // permission checks (SC-049) before it reads or changes anything; the checks themselves are
   // tested role by role in src/service/permissions.test.ts.
 

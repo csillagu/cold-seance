@@ -18,8 +18,9 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // test in a fresh test deployment whose clock the test sets: a fresh database, first system admin
 // `root`, and a global calendar with Saturday and Sunday as the weekend and no company holidays.
 // First the test cases' service and REST parts, then the rules through the service layer. Each
-// proposal is created through the service layer with the channel the MCP server will give it; the
-// MCP server itself comes with SC-027 (B19). The browser steps come with the proposal screens
+// proposal is created through the service layer with the MCP server's channel; the test cases made
+// through the MCP server itself (SC-027) are in mcp-server.test.ts. The browser steps come with the
+// proposal screens
 // (SC-034, SC-072; F23, F25).
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
@@ -282,8 +283,8 @@ describe('the proposal approval', () => {
     })
 
     it("TC-206: an approved proposal's changes are logged as the approver's", async () => {
-      // The service part: the approver is logged. Pending: the proposal created through the MCP
-      // server (SC-027, B19).
+      // The service part: the approver is logged. In full, with the proposal created through the
+      // MCP server, in mcp-server.test.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const a = await oneDay('A', '2027-03-01')
       const b = await oneDay('B', '2027-03-01')
@@ -310,8 +311,8 @@ describe('the proposal approval', () => {
     })
 
     it('TC-159: a read-write member approves an AI proposal', async () => {
-      // The service part: bob approves. Pending: the proposal created through the MCP server
-      // (SC-027, B19).
+      // The service part: bob approves. In full, with the proposal created through the MCP server,
+      // in mcp-server.test.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const t = await oneDay('T', '2027-03-01')
       const proposal = await propose([[move(t.id, '2027-03-08')]])
@@ -328,8 +329,8 @@ describe('the proposal approval', () => {
     })
 
     it('TC-019: a move onto a weekend never reaches the plan through the MCP server', async () => {
-      // The approval of a weekend move is rejected (service). Pending: the proposal created through
-      // the MCP server (SC-027, B19).
+      // The approval of a weekend move is rejected (service). In full, with the proposal created
+      // through the MCP server, in mcp-server.test.ts.
       await grantRole(x.db, bob, apollo, 'read-write')
       const t = await task({ title: 'T', plannedStart: '2027-03-01', durationWorkingDays: 1 })
 
@@ -352,8 +353,7 @@ describe('the proposal approval', () => {
   describe('a proposal over several projects', () => {
     // TC-113, TC-114, TC-195 and TC-285: Apollo created by alice, Borealis by bob; alice is
     // read-write in Borealis and bob read-only in Apollo (SRC-254, SRC-255). Each proposal is
-    // created through the service layer with the MCP server's channel; the MCP server itself
-    // comes with SC-027 (B19).
+    // created through the service layer with the MCP server's channel.
     let borealis: string
     let a: Task
     let b: Task

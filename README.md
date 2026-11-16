@@ -23,7 +23,7 @@ npm run dev -w backend      # backend on http://localhost:3000, restarts on chan
 npm run dev -w frontend     # frontend dev server
 ```
 
-The backend listens on `server.host` and `server.port` (127.0.0.1:3000 unless set). It also serves the built frontend, `frontend/dist/`, if there is one: its files as they are, and its `index.html` for any other GET outside `/api`, since the frontend is a single-page application. Without a build it serves only the API and says so in its log.
+The backend listens on `server.host` and `server.port` (127.0.0.1:3000 unless set). It also serves the built frontend, `frontend/dist/`, if there is one: its files as they are, and its `index.html` for any other GET outside `/api` and `/mcp`, since the frontend is a single-page application. Without a build it serves only the API and says so in its log.
 
 ### Configuration
 
@@ -122,6 +122,8 @@ The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part o
 - refuses to start if a route lacks a success response schema that says what it sends (a `type`, and for an object its `properties` or a schema for its values), a body schema (POST, PUT, PATCH) or a params schema (a URL with parameters), so nothing goes out undescribed; a querystring schema is the route author's duty, as the guard cannot tell whether a route reads one;
 - answers every error as `{ statusCode, error, message }`: a `ServiceError` as 400, 403, 404 or 409 with its message, a request Fastify itself refuses (schema, JSON, content type) with Fastify's status and message, and any other error, even one carrying a status of its own, as 500 with no detail, logged on the server.
 - serves its OpenAPI description (SC-063) at `/api/openapi.json`, behind the same authentication. `@fastify/swagger` generates it from the routes' schemas as they are registered, so it always matches the running backend. So that it covers every route, the API refuses to start if a route would drop out of it or be described wrongly: a route with `hide: true` or the `X-HIDDEN` tag (only the description's own route is hidden), a route with a version constraint, a HEAD route declared by hand (the HEAD route Fastify adds for each GET is fine), or a shared schema `$id` added in two route groups with different content.
+
+The MCP server (SC-027) is served at `/mcp`, in `backend/src/mcp/mcp.ts`, over the MCP Streamable HTTP transport without sessions (DD-049). Point an MCP client at `<the tool's address>/mcp` with a personal access token, created on the API tokens page, as `Authorization: Bearer <token>` (DD-048); a request without a working token is refused with 401. Its tools are `list_projects`, `read_plan`, `read_notifications` and `create_proposal`: they read the plan and the caller's notifications, and create proposals, through the same service layer as the REST API, as the token's owner, through the MCP channel. It offers no other change to the plan (FR-068). Each answer has the REST API's shape for the same thing; a refusal is a tool error whose text is the REST API's error body.
 
 ### GitHub client
 

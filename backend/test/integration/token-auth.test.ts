@@ -232,8 +232,8 @@ describe('TC-165: an API token gets its owner’s read-only role', () => {
 
   // Pending: SC-055 refuses a token whose owner's account is no longer active. The tool has no
   // way yet to end an account, so the token's owner need only exist.
-  // TC-166 (MCP server access gets its owner's lack of a role) is pending the MCP server (SC-027),
-  // which recognises the same tokens through `ApiTokenService.resolve`.
+  // TC-166 (MCP server access gets its owner's lack of a role) is in mcp-server.test.ts: the MCP
+  // server (SC-027) recognises the same tokens through `ApiTokenService.resolve`.
 })
 
 describe('the backend', () => {

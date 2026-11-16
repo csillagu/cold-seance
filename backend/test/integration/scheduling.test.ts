@@ -312,9 +312,9 @@ describe('test cases of the scheduler through the REST API', () => {
     expect(await span(alice, t)).toEqual(['2027-03-01', '2027-03-01'])
   })
 
-  // Pending: TC-019 creates a proposal through the MCP server and approves it (SC-010, SC-048,
-  // SC-027). The approval will apply the move through the task service, whose rejection of a
-  // forbidden date TC-017 and TC-018 check.
+  // TC-019, which creates a proposal through the MCP server and approves it, is in
+  // mcp-server.test.ts. The approval applies the move through the task service, whose rejection of
+  // a forbidden date TC-017 and TC-018 check.
 
   it('TC-020: scheduling leaves a fixed-date milestone on its date', async () => {
     const apollo = await project(alice, 'Apollo')

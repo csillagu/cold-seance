@@ -17,7 +17,7 @@ import { grantRole, seedProject } from '../helpers/projects.ts'
 // FR-087, FR-133, FR-134, FR-155, FR-173 and FR-186 through the REST API, then the module's rules.
 // The subscription controls and the notification list in the browser are the frontend's (SC-093,
 // SC-035), tested in e2e/tests/notifications.spec.ts, and reading the notifications through the MCP
-// server is SC-027's (node B19).
+// server (SC-027) is tested in mcp-server.test.ts.
 
 type Account = Awaited<ReturnType<typeof seedAccount>>
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -228,8 +228,8 @@ describe('the notification module', () => {
     })
 
     it('TC-120: a proposal waiting for review notifies the read-write members of its project', async () => {
-      // Created through the service layer with the channel the MCP server will give it; the MCP
-      // server itself comes with SC-027 (B19).
+      // Created through the service layer with the MCP server's channel; proposals made through
+      // the MCP server itself (SC-027) are tested in mcp-server.test.ts.
       const apollo = await seedProject(x.db, alice, 'Apollo')
       await grantRole(x.db, bob, apollo, 'read-write')
       await grantRole(x.db, carol, apollo, 'read-only')
