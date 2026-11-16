@@ -166,6 +166,13 @@ export function GanttPage() {
           moveChanges(task, start, days),
           `${task.title} was not moved`,
         ),
+      onResize: (task, changes) =>
+        attempt(
+          `/tasks/${encodeURIComponent(task.id)}`,
+          'PATCH',
+          changes,
+          `${task.title} was not resized`,
+        ),
       onLink: (task, blocker) =>
         attempt(
           `/tasks/${encodeURIComponent(task.id)}/blocked-by`,

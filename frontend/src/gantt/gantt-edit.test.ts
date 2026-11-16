@@ -5,8 +5,11 @@ import {
   movable,
   moveChanges,
   newTaskProject,
+  resizable,
+  resizeChanges,
+  workingDays,
 } from './gantt-edit.ts'
-import type { ApiTask } from './gantt-model.ts'
+import { type ApiTask, weekday } from './gantt-model.ts'
 
 const task: ApiTask = {
   id: 'a',
@@ -37,6 +40,14 @@ describe('dragging a bar on the Gantt (SC-067)', () => {
     expect(movable(floating, false)).toBe(false)
   })
 
+  it('freezes a closed task, done or cancelled (#223)', () => {
+    expect(movable({ ...task, status: 'in-progress' }, false)).toBe(true)
+    expect(movable({ ...task, status: 'on-hold' }, false)).toBe(true)
+    expect(movable({ ...task, status: 'done' }, false)).toBe(false)
+    expect(movable({ ...task, status: 'cancelled' }, false)).toBe(false)
+    expect(movable({ ...fixed, status: 'done' }, false)).toBe(false)
+  })
+
   it('moves by whole days, the nearest to how far the bar was dragged', () => {
     expect(daysDragged(44, 44)).toBe(1)
     expect(daysDragged(21, 44)).toBe(0)
@@ -51,6 +62,69 @@ describe('dragging a bar on the Gantt (SC-067)', () => {
     expect(moveChanges(task, '2027-03-01', -3)).toEqual({ plannedStart: '2027-02-26' })
     expect(moveChanges(fixed, '2027-03-12', 3)).toEqual({
       milestone: { variant: 'fixed-date', date: '2027-03-15' },
+    })
+  })
+})
+
+describe('resizing a bar by its ends on the Gantt (#223)', () => {
+  // 2027-03-01 is a Monday; the weekends are the non-working days.
+  const weekend = (date: string) => weekday(date) >= 5
+  const week = { start: '2027-03-01', finish: '2027-03-05' }
+  const fiveDays: ApiTask = { ...task, plannedFinish: '2027-03-05', durationWorkingDays: 5 }
+
+  it('resizes a task that can be moved, but not a milestone, a parent or a closed task', () => {
+    expect(resizable(task, false)).toBe(true)
+    expect(resizable(fixed, false)).toBe(false)
+    expect(resizable(floating, false)).toBe(false)
+    expect(resizable(task, true)).toBe(false)
+    expect(resizable({ ...task, status: 'done' }, false)).toBe(false)
+    expect(resizable({ ...task, status: 'cancelled' }, false)).toBe(false)
+  })
+
+  it('counts the working days from one day to another, both included', () => {
+    expect(workingDays('2027-03-01', '2027-03-07', weekend)).toBe(5)
+    expect(workingDays('2027-03-06', '2027-03-07', weekend)).toBe(0)
+    expect(workingDays('2027-03-02', '2027-03-01', weekend)).toBe(0)
+  })
+
+  it('changes only the duration when the right end is dragged, by the working days gained or lost', () => {
+    expect(resizeChanges(fiveDays, week, 'finish', 3, weekend)).toEqual({ durationWorkingDays: 6 })
+    expect(resizeChanges(fiveDays, week, 'finish', -2, weekend)).toEqual({
+      durationWorkingDays: 3,
+    })
+  })
+
+  it('changes the start and the duration when the left end is dragged, so the finish stays', () => {
+    expect(resizeChanges(fiveDays, week, 'start', -3, weekend)).toEqual({
+      plannedStart: '2027-02-26',
+      durationWorkingDays: 6,
+    })
+    expect(resizeChanges(fiveDays, week, 'start', 2, weekend)).toEqual({
+      plannedStart: '2027-03-03',
+      durationWorkingDays: 3,
+    })
+  })
+
+  it('stops an end at the day of the other, leaving one working day', () => {
+    expect(resizeChanges(fiveDays, week, 'finish', -10, weekend)).toEqual({
+      durationWorkingDays: 1,
+    })
+    expect(resizeChanges(fiveDays, week, 'start', 9, weekend)).toEqual({
+      plannedStart: '2027-03-05',
+      durationWorkingDays: 1,
+    })
+  })
+
+  it('changes nothing when not dragged, or dragged onto non-working days only', () => {
+    expect(resizeChanges(fiveDays, week, 'finish', 0, weekend)).toBeNull()
+    expect(resizeChanges(fiveDays, week, 'start', 0, weekend)).toBeNull()
+    expect(resizeChanges(fiveDays, week, 'finish', 2, weekend)).toBeNull()
+  })
+
+  it('takes a task with no duration to last the working days of its bar', () => {
+    const noDuration = { ...fiveDays, durationWorkingDays: null }
+    expect(resizeChanges(noDuration, week, 'finish', 3, weekend)).toEqual({
+      durationWorkingDays: 6,
     })
   })
 })
