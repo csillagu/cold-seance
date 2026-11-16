@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, useLocation, useNavigate } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App.tsx'
 import { type FakeAnswer, fakeApi, UNAUTHENTICATED } from './test/fetch.ts'
@@ -12,6 +12,16 @@ const ALICE = { id: '6f1c2a5e-0000-4000-8000-000000000001', username: 'alice', s
 function Where() {
   const location = useLocation()
   return <output data-testid="where">{`${location.pathname}${location.search}`}</output>
+}
+
+/** Goes back one entry in the history, as the browser's Back button does. */
+function Back() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => void navigate(-1)}>
+      Back
+    </button>
+  )
 }
 
 function renderAt(path: string) {
@@ -151,6 +161,23 @@ describe('the sign-in page is outside the layout (SRC-223)', () => {
 })
 
 describe('a project page', () => {
+  it('opens on the Kanban, replacing the bare project address (#221)', async () => {
+    fakeApi(signedIn)
+    render(
+      <MemoryRouter initialEntries={['/', `/projects/${APOLLO.id}`]} initialIndex={1}>
+        <App />
+        <Where />
+        <Back />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('heading', { level: 1, name: 'Apollo' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByTestId('where')).toHaveTextContent(`/projects/${APOLLO.id}/kanban`),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByTestId('where')).toHaveTextContent(/^\/$/)
+  })
+
   it('tells someone a project is not visible to them, and shows nothing of it (FR-017)', async () => {
     fakeApi(signedIn)
     renderAt(`/projects/${BOREALIS}`)
