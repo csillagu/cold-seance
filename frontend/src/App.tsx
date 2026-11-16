@@ -64,6 +64,7 @@ export function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:projectId" element={<ProjectPage />}>
+          <Route index element={<Navigate to="kanban" replace />} />
           <Route path="audit-log" element={<ProjectAuditLogPage />} />
           <Route path="gantt" element={<GanttPage />} />
           <Route path="kanban" element={<KanbanPage />} />
