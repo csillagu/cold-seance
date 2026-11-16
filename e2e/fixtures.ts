@@ -70,7 +70,11 @@ export const test = base.extend<{ deployment: Deployment }>({
         },
         cwd: config.dir,
         frontendDir,
-        server: { logger: false },
+        // Closing ends every connection at once. A test's own browser contexts are still open at
+        // teardown; a request one of them still has running when the backend closes would leave
+        // its keep-alive connection open, and Fastify's default close would wait for it to time
+        // out (72 s), past the test's timeout.
+        server: { logger: false, forceCloseConnections: true },
         now,
         repositoryReach: github.reach,
         // The planning mirror calls the fake too, not GitHub, once a task has a repository.
