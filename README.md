@@ -1,9 +1,27 @@
 # cold-seance
 
+cold-seance is a self-hosted, open-source project planning tool for teams that work on GitHub. The tool holds the plan: tasks, subtasks, blocked-by relations, milestones, assignments and dates. It mirrors that plan to the linked GitHub issues, and GitHub can only start, hold and finish tasks.
+
+- **Views:** Kanban, Gantt (with constraint violations in red and optional baseline bars), the load of each person across projects, baseline variance, and an inbox of unscheduled tasks created from GitHub issues.
+- **Scheduling:** within a project, a change to one task's dates moves the tasks that depend on it. A clash across projects is flagged for the owners to resolve and never changes the other project.
+- **AI proposes, people approve:** a REST API and an MCP server let an AI assistant read the plan and propose changes. A person reviews each proposal in the browser before it is applied.
+- **GitHub:** each task can have a linked issue. The tool keeps the issue's assignees, sub-issues, blocked-by relations and milestone in line with the task, and reads starts, holds and closes back from GitHub, through webhooks and a periodic re-check.
+
+> **Status:** under active development. Not every feature described in the requirements is built yet; the [implementation plan](docs/implementation-plan.md) records what is.
+
+- **Install:** with Docker Compose, the published image `ghcr.io/csillagu/cold-seance` and PostgreSQL; see [Installing with Docker Compose](#installing-with-docker-compose).
+- **Configure:** a YAML file or environment variables, with a GitHub App or a personal access token for each GitHub function; see [Configuration](#configuration) and [`backend/config.example.yaml`](backend/config.example.yaml).
+- **Contribute:** see [`CONTRIBUTING.md`](CONTRIBUTING.md). To report a vulnerability, see [`SECURITY.md`](SECURITY.md).
+- **License:** [Apache License 2.0](LICENSE).
+
+## How the project is organised
+
 The requirements live in [`graph/`](graph/) (a [reqlite](https://github.com/major-solutions/reqlite) graph). Two documents order the work:
 
 - [`docs/implementation-plan.md`](docs/implementation-plan.md), the **implementation plan**: every solution component in build order, in waves, with the status of each. It is the record of what is done.
 - [`plan/work-graph.md`](plan/work-graph.md), the **parallel work graph**: the components not yet built, cut into issue-sized nodes with "blocked by" relations, so that several people or agents can work at once. Its data is in [`plan/work-graph.yaml`](plan/work-graph.yaml). [`plan/create-issues.py`](plan/create-issues.py) turns it into GitHub issues, and agents take them one at a time as [`plan/agent-prompt.md`](plan/agent-prompt.md) sets out.
+
+Much of the code is written by AI coding agents (Claude Code) working on those issues; [`CLAUDE.md`](CLAUDE.md) holds the rules they follow. [`docs/initial-requirements.md`](docs/initial-requirements.md) is the stakeholder's original input, kept frozen, and [`design/`](design/) holds the approved look of the frontend.
 
 ## Development
 
