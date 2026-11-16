@@ -294,3 +294,149 @@ test('#223: a done task is frozen on the Gantt', async ({ browser, deployment, b
   await expect(bar(gantt, 'D')).toHaveAttribute('data-start', '2027-03-01')
   expect(await fieldOf(page, d, 'plannedStart')).toBe('2027-03-01')
 })
+
+/** The lane of the unscheduled task `title`, drawn on to schedule it (#228). */
+const drawLane = (gantt: Locator, title: string) => row(gantt, title).locator('[data-draw="lane"]')
+
+/** The middle of the column of the day `date`, across the page, on the row of `title`. */
+async function dayOn(gantt: Locator, title: string, date: string) {
+  const column = await middleOf(gantt.locator(`[data-date="${date}"]`))
+  const lane = await middleOf(drawLane(gantt, title))
+  return { x: column.x, y: lane.y }
+}
+
+test('#228: an unscheduled task is scheduled by drawing its bar on its lane, right to left', async ({
+  browser,
+  deployment,
+  baseURL,
+}) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  await createTask(page, apollo, { title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
+  const u = await createTask(page, apollo, { title: 'U' })
+  const gantt = await openGantt(page, 'Apollo')
+  await expect(row(gantt, 'U')).toHaveAttribute('data-unscheduled', 'true')
+  await expect(drawLane(gantt, 'U')).toHaveCSS('cursor', 'crosshair')
+
+  // Hovering shows a faint day where a bar would start.
+  const tuesday = await dayOn(gantt, 'U', '2027-03-09')
+  await page.mouse.move(tuesday.x, tuesday.y)
+  await expect(row(gantt, 'U').locator('[data-draw="preview"]')).toBeVisible()
+
+  // Drawn from Tuesday 9 back to Wednesday 3 March: the earlier day is the start, and the labels
+  // say the start, the finish and the working days, the weekend between not counted.
+  const wednesday = await dayOn(gantt, 'U', '2027-03-03')
+  await page.mouse.down()
+  await page.mouse.move(wednesday.x, wednesday.y, { steps: 10 })
+  const ghost = row(gantt, 'U').locator('[data-draw="ghost"]')
+  await expect(ghost).toHaveAttribute('data-start', '2027-03-03')
+  await expect(ghost).toHaveAttribute('data-finish', '2027-03-09')
+  await expect(row(gantt, 'U').locator('[data-draw="label"]')).toHaveText(
+    /3 Mar.*9 Mar.*5 working days/,
+  )
+  await page.mouse.up()
+
+  // U moves up into the scheduled rows, selected, on the days drawn, and it is announced.
+  await expect(bar(gantt, 'U')).toHaveAttribute('data-start', '2027-03-03')
+  await expect(bar(gantt, 'U')).toHaveAttribute('data-finish', '2027-03-09')
+  await expect(row(gantt, 'U')).not.toHaveAttribute('data-unscheduled')
+  await expect(row(gantt, 'U')).toHaveAttribute('data-selected', 'true')
+  await expect(page.getByRole('status').filter({ hasText: 'Scheduled U' })).toHaveText(
+    'Scheduled U: 3 Mar – 9 Mar',
+  )
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  const rows = await gantt
+    .getByRole('row')
+    .evaluateAll((all) => all.map((one) => one.getAttribute('aria-label')))
+  expect(rows.slice(1)).toEqual(['A', 'U'])
+
+  // It stores the start and the working days; the finish is derived from them (FR-144).
+  expect(await fieldOf(page, u, 'plannedStart')).toBe('2027-03-03')
+  expect(await fieldOf(page, u, 'durationWorkingDays')).toBe(5)
+  expect(await fieldOf(page, u, 'plannedFinish')).toBe('2027-03-09')
+})
+
+test('#228: a plain click, Escape and letting go off the lane change nothing', async ({
+  browser,
+  deployment,
+  baseURL,
+}) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  await createTask(page, apollo, { title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
+  const u = await createTask(page, apollo, { title: 'U' })
+  const gantt = await openGantt(page, 'Apollo')
+  const monday = await dayOn(gantt, 'U', '2027-03-01')
+  const friday = await dayOn(gantt, 'U', '2027-03-05')
+
+  // A plain click.
+  await page.mouse.click(monday.x, monday.y)
+
+  // Escape while drawing.
+  await page.mouse.move(monday.x, monday.y)
+  await page.mouse.down()
+  await page.mouse.move(friday.x, friday.y, { steps: 5 })
+  await expect(row(gantt, 'U').locator('[data-draw="ghost"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(row(gantt, 'U').locator('[data-draw="ghost"]')).toHaveCount(0)
+  await page.mouse.up()
+
+  // Let go on another row.
+  await page.mouse.move(monday.x, monday.y)
+  await page.mouse.down()
+  await page.mouse.move(friday.x, friday.y - 40, { steps: 5 })
+  await page.mouse.up()
+
+  await expect(row(gantt, 'U')).toHaveAttribute('data-unscheduled', 'true')
+  expect(await fieldOf(page, u, 'plannedStart')).toBeNull()
+  expect(await fieldOf(page, u, 'durationWorkingDays')).toBeNull()
+})
+
+test('#228: a refused drawing goes back and the refusal is shown', async ({
+  browser,
+  deployment,
+  baseURL,
+}) => {
+  const root = await signedIn(browser, baseURL!, deployment.root)
+  await call(root, 'PATCH', '/calendar', { addHolidays: ['2027-03-10'] })
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  await createTask(page, apollo, { title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
+  const u = await createTask(page, apollo, { title: 'U' })
+  const gantt = await openGantt(page, 'Apollo')
+
+  // Drawn from the company holiday, which a task cannot start on.
+  await dragMouse(
+    page,
+    await dayOn(gantt, 'U', '2027-03-10'),
+    await dayOn(gantt, 'U', '2027-03-12'),
+  )
+  await expect(page.getByRole('alert')).toContainText('U was not scheduled')
+  await expect(row(gantt, 'U')).toHaveAttribute('data-unscheduled', 'true')
+  await expect(row(gantt, 'U').locator('[data-draw="saving"]')).toHaveCount(0)
+  expect(await fieldOf(page, u, 'plannedStart')).toBeNull()
+})
+
+test('#228: the lanes of a done task and of a floating milestone are inert', async ({
+  browser,
+  deployment,
+  baseURL,
+}) => {
+  const alice = await deployment.seedAccount('alice')
+  const page = await signedIn(browser, baseURL!, alice)
+  const apollo = await createProject(page, 'Apollo')
+  await createTask(page, apollo, { title: 'A', plannedStart: '2027-03-01', durationWorkingDays: 1 })
+  const d = await createTask(page, apollo, { title: 'D' })
+  await call(page, 'PUT', `/tasks/${d}/status`, { status: 'done' })
+  await createTask(page, apollo, { title: 'F', milestone: { variant: 'floating' } })
+  const gantt = await openGantt(page, 'Apollo')
+
+  for (const title of ['D', 'F']) {
+    await expect(row(gantt, title)).toHaveAttribute('data-unscheduled', 'true')
+    await expect(drawLane(gantt, title)).toHaveCount(0)
+    await expect(row(gantt, title).getByRole('cell').last()).not.toHaveCSS('cursor', 'crosshair')
+  }
+})

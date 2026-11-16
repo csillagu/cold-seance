@@ -2,10 +2,13 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react'
 import type { TaskChanges } from '../tasks/TaskEditForm.tsx'
+import { DrawLane } from './DrawLane.tsx'
+import { drawMode, spanText } from './gantt-draw.ts'
 import {
   type BarEnd,
   daysDragged,
@@ -22,6 +25,7 @@ import {
   daysBetween,
   formatDay,
   formatMonth,
+  type GanttDay,
   type GanttDependency,
   type GanttModel,
   type GanttRow,
@@ -61,6 +65,24 @@ export interface GanttEditing {
   onResize: (task: ApiTask, changes: TaskChanges) => void
   /** Makes `task` blocked by `blocker`: a dependency was drawn from `blocker` to `task`. */
   onLink: (task: ApiTask, blocker: ApiTask) => void
+  /**
+   * Makes `changes` to an unscheduled `task`: its bar was drawn on its lane, or a fixed-date
+   * milestone placed on it (#228). Resolves true once saved and the Gantt read again, false if
+   * refused.
+   */
+  onSchedule: (task: ApiTask, changes: TaskChanges) => Promise<boolean>
+}
+
+/** A task just scheduled by drawing on its lane: where its row was, to follow it to its new place. */
+interface Arrival {
+  id: string
+  /** The top of its row in the unscheduled part, in viewport pixels. */
+  top: number
+}
+
+/** Whether the viewer asked for less motion. */
+function reducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 }
 
 /** A point in the timeline's pixels, from the top left of its first row. */
@@ -104,11 +126,43 @@ interface GanttProps {
  * done or cancelled task's bar is frozen. A line drawn from the handle at a bar's end to another
  * task makes that task blocked by it. With `onOpen`, a click on a task's title, or on its bar when
  * the Gantt can be edited, opens the task dialog, the same as every view's (#209).
+ *
+ * An unscheduled task's lane is drawn on to give it dates (#228): its bar dragged out by whole
+ * days, or a fixed-date milestone placed with a click. Once saved, the task moves up into the
+ * scheduled rows, followed there by a short transition, and stays selected; its new dates are
+ * announced to screen readers.
  */
 export function Gantt({ name, model, people, today, editing, onOpen }: GanttProps) {
   const { rows, unscheduled, proposed, days, dependencies, baseline } = model
   const [drag, setDrag] = useState<Drag | null>(null)
   const arrows = useRef<SVGSVGElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  /** The task selected by drawing on its lane, by id (#228). */
+  const [selected, setSelected] = useState<string | null>(null)
+  /** What was last said to screen readers of a task scheduled by drawing (#228). */
+  const [announced, setAnnounced] = useState('')
+  const arrival = useRef<Arrival | null>(null)
+
+  // A task scheduled by drawing on its lane, once read again among the scheduled rows: its row is
+  // moved from where it was to its new place with a short transition, and its dates announced.
+  useLayoutEffect(() => {
+    const coming = arrival.current
+    if (!coming) return
+    const row = rows.find((candidate) => candidate.task.id === coming.id)
+    const element = body.current?.querySelector<HTMLElement>(
+      `[data-task-id="${coming.id}"]:not([data-unscheduled])`,
+    )
+    if (!row || !element) return
+    arrival.current = null
+    setAnnounced(`Scheduled ${row.task.title}: ${spanText(row)}`)
+    const by = coming.top - element.getBoundingClientRect().top
+    if (by !== 0 && typeof element.animate === 'function' && !reducedMotion()) {
+      element.animate([{ transform: `translateY(${by}px)` }, { transform: 'none' }], {
+        duration: 320,
+        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      })
+    }
+  }, [rows])
   if (rows.length === 0 && unscheduled.length === 0 && proposed.length === 0) {
     return <p className="page__note">This project has no tasks yet.</p>
   }
@@ -180,6 +234,21 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
     const blocked = [...rows, ...unscheduled].find((other) => other.task.id === target)?.task
     if (blocked && blocked.id !== task.id) editing.onLink(blocked, task)
   }
+  /** Schedules an unscheduled task drawn on its lane, from where its row is (#228). */
+  const schedule = (task: ApiTask, changes: TaskChanges, top: number): Promise<boolean> => {
+    if (!editing) return Promise.resolve(false)
+    arrival.current = { id: task.id, top }
+    return editing.onSchedule(task, changes).then((saved) => {
+      if (!saved && arrival.current?.id === task.id) arrival.current = null
+      return saved
+    })
+  }
+  /** Leaves the task selected only while the pointer is pressed on its own row. */
+  const keepSelection = (event: ReactPointerEvent) => {
+    if (selected === null || !(event.target instanceof Element)) return
+    const on = event.target.closest<HTMLElement>('[data-task-id]')?.dataset['taskId']
+    if (on !== selected) setSelected(null)
+  }
   const rowEditing = (row: GanttRow, index: number): RowEditing | undefined =>
     editing && {
       dx: drag?.kind === 'move' && drag.row.task.id === row.task.id ? drag.dx : 0,
@@ -248,7 +317,9 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
           </div>
           <div
             role="rowgroup"
+            ref={body}
             className={'gantt__body' + (drag ? ` gantt__body--${drag.kind}` : '')}
+            onPointerDownCapture={keepSelection}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={() => setDrag(null)}
@@ -261,6 +332,7 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
                 people={people}
                 baseline={baseline}
                 editing={rowEditing(row, index)}
+                selected={row.task.id === selected}
                 onOpen={onOpen && (() => onOpen(row.task))}
               />
             ))}
@@ -295,6 +367,14 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
                 first={first}
                 people={people}
                 baseline={baseline}
+                selected={row.task.id === selected}
+                drawing={
+                  editing && {
+                    days,
+                    onPress: () => setSelected(row.task.id),
+                    onDraw: (changes, top) => schedule(row.task, changes, top),
+                  }
+                }
                 onOpen={onOpen && (() => onOpen(row.task))}
               />
             ))}
@@ -332,6 +412,9 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
           </div>
         </div>
       </div>
+      <p role="status" className="gantt__announce">
+        {announced}
+      </p>
       <Legend
         baseline={baseline}
         crossProject={dependencies.some((dependency) => dependency.crossProject)}
@@ -519,6 +602,7 @@ function TaskRow({
   people,
   baseline,
   editing,
+  selected,
   onOpen,
 }: {
   row: GanttRow
@@ -526,6 +610,8 @@ function TaskRow({
   people: PeopleById
   baseline: string | null
   editing: RowEditing | undefined
+  /** Whether it is the selected task (#228). */
+  selected: boolean
   onOpen: (() => void) | undefined
 }) {
   const { task } = row
@@ -540,10 +626,12 @@ function TaskRow({
       data-task-id={task.id}
       data-red={row.red}
       data-cancelled={cancelled}
+      data-selected={selected}
       className={
         'gantt__row' +
         (row.red ? ' gantt__row--red' : '') +
-        (cancelled ? ' gantt__row--cancelled' : '')
+        (cancelled ? ' gantt__row--cancelled' : '') +
+        (selected ? ' gantt__row--selected' : '')
       }
     >
       <TaskCells
@@ -608,22 +696,40 @@ function TaskRow({
   )
 }
 
-/** An unscheduled task, below the scheduled ones: no bar, as it has no planned dates (FR-004). */
+/** What an unscheduled task's lane is drawn on with, when the Gantt can be edited (#228). */
+interface LaneDrawing {
+  days: readonly GanttDay[]
+  /** Selects the task: the pointer was pressed on its lane. */
+  onPress: () => void
+  /** Saves what was drawn, from the row at `top`; resolves true once saved. */
+  onDraw: (changes: TaskChanges, top: number) => Promise<boolean>
+}
+
+/**
+ * An unscheduled task, below the scheduled ones: no bar, as it has no planned dates (FR-004). With
+ * `drawing`, its lane is drawn on to give it dates, unless it is closed or a floating milestone
+ * (#228).
+ */
 function UnscheduledTaskRow({
   row,
   first,
   people,
   baseline,
+  selected,
+  drawing,
   onOpen,
 }: {
   row: UnscheduledRow
   first: string
   people: PeopleById
   baseline: string | null
+  selected: boolean
+  drawing: LaneDrawing | undefined
   onOpen: (() => void) | undefined
 }) {
   const { task } = row
   const cancelled = task.status === 'cancelled'
+  const mode = drawing ? drawMode(task) : null
   return (
     <div
       role="row"
@@ -631,7 +737,12 @@ function UnscheduledTaskRow({
       data-task-id={task.id}
       data-unscheduled="true"
       data-cancelled={cancelled}
-      className={'gantt__row' + (cancelled ? ' gantt__row--cancelled' : '')}
+      data-selected={selected}
+      className={
+        'gantt__row' +
+        (cancelled ? ' gantt__row--cancelled' : '') +
+        (selected ? ' gantt__row--selected' : '')
+      }
     >
       <TaskCells
         task={task}
@@ -646,6 +757,16 @@ function UnscheduledTaskRow({
           <span className="gantt__unscheduled">
             No planned dates{cancelled ? ', cancelled' : ''}
           </span>
+        )}
+        {drawing && mode && (
+          <DrawLane
+            mode={mode}
+            title={task.title}
+            days={drawing.days}
+            dayWidth={DAY_WIDTH}
+            onPress={drawing.onPress}
+            onDraw={(changes, _span, top) => drawing.onDraw(changes, top)}
+          />
         )}
         {baseline !== null && row.baseline && (
           <BaselineBarOf title={task.title} bar={row.baseline} name={baseline} first={first} />

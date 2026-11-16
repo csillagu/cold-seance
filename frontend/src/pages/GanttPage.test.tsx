@@ -545,3 +545,111 @@ describe('the Gantt page (SC-031)', () => {
     })
   })
 })
+
+describe('drawing an unscheduled task on its lane (#228)', () => {
+  const PIN = '00000000-0000-4000-8000-0000000000d1'
+  // A fixed-date milestone with no date yet, and A, so that the timeline starts on 2027-03-01.
+  const unpinned = {
+    ...tasks[1]!,
+    id: PIN,
+    title: 'Launch',
+    milestone: { variant: 'fixed-date', date: null },
+  }
+  const pinned = { ...unpinned, milestone: { variant: 'fixed-date', date: '2027-03-03' } }
+  const LEFT = 468
+  const DAY = 44
+
+  /**
+   * Lays the Gantt out as a browser would, which jsdom does not: the task table 468px wide, the
+   * timeline after it, its days 44px wide, and the panel wide enough to show them.
+   */
+  function layOut() {
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      const box = (left: number, right: number) => new DOMRect(left, 0, right - left, 40)
+      if (this.classList.contains('gantt__left')) return box(0, LEFT)
+      if (this.classList.contains('gantt__scroll')) return box(0, 4000)
+      if (this.getAttribute('data-draw') === 'lane') return box(LEFT, 4000)
+      return box(0, 0)
+    })
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /** The middle of the day `index` days after the timeline's first, across the page. */
+  const dayX = (index: number) => LEFT + index * DAY + DAY / 2
+
+  it('places a fixed-date milestone with no date on the day clicked, and announces it', async () => {
+    layOut()
+    let saved = false
+    const requests = fakeApi((method, path) => {
+      if (method === 'PATCH') {
+        saved = true
+        return { status: 200, body: pinned }
+      }
+      if (path === `/api/projects/${APOLLO}/tasks`) {
+        return { status: 200, body: [tasks[0], saved ? pinned : unpinned] }
+      }
+      if (path === `/api/tasks/${PIN}/relations`) {
+        return { status: 200, body: { taskId: PIN, parent: null, subtasks: [], blockedBy: [] } }
+      }
+      return answers({ [`/api/projects/${APOLLO}/red-flags`]: { status: 200, body: [] } })(
+        method,
+        path,
+      )
+    })
+    renderGantt()
+    const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+    const row = within(gantt).getByRole('row', { name: 'Launch' })
+    const lane = row.querySelector('[data-draw="lane"]')!
+    expect(lane).toHaveAttribute('title', 'Click to place Launch')
+
+    fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: dayX(2), clientY: 20 })
+    fireEvent.pointerUp(lane, { button: 0, pointerId: 1, clientX: dayX(2), clientY: 20 })
+
+    await waitFor(() =>
+      expect(requests).toContainEqual({
+        method: 'PATCH',
+        path: `/api/tasks/${PIN}`,
+        body: { milestone: { variant: 'fixed-date', date: '2027-03-03' } },
+      }),
+    )
+    const moved = await within(gantt).findByRole('img', { name: /^Launch: fixed-date milestone/ })
+    expect(moved).toHaveAttribute('data-start', '2027-03-03')
+    expect(within(gantt).getByRole('row', { name: 'Launch' })).toHaveAttribute(
+      'data-selected',
+      'true',
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('Scheduled Launch: 3 Mar')
+  })
+
+  it("changes nothing with a plain click on a task's lane", async () => {
+    layOut()
+    const triage = {
+      ...tasks[0]!,
+      id: U,
+      title: 'Triage backlog',
+      plannedStart: null,
+      plannedFinish: null,
+      durationWorkingDays: null,
+    }
+    const requests = fakeApi(
+      answers({ [`/api/projects/${APOLLO}/tasks`]: { status: 200, body: [tasks[0], triage] } }),
+    )
+    renderGantt()
+    const gantt = await screen.findByRole('table', { name: 'Gantt of Apollo' })
+    const lane = within(gantt)
+      .getByRole('row', { name: 'Triage backlog' })
+      .querySelector('[data-draw="lane"]')!
+    expect(lane).toHaveAttribute('title', 'Drag to schedule Triage backlog')
+
+    fireEvent.pointerDown(lane, { button: 0, pointerId: 1, clientX: dayX(2), clientY: 20 })
+    fireEvent.pointerUp(lane, { button: 0, pointerId: 1, clientX: dayX(2) + 1, clientY: 20 })
+
+    expect(requests.some((request) => request.method === 'PATCH')).toBe(false)
+    expect(lane.querySelector('[data-draw="saving"]')).toBeNull()
+  })
+})
