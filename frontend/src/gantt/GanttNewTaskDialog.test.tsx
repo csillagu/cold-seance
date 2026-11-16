@@ -41,6 +41,40 @@ describe('creating a task on the Gantt (SC-067)', () => {
     })
   })
 
+  it('creates a milestone for a duration of 0: fixed to the start, or floating (TC-286)', async () => {
+    const { onCreate, onClose, dialog } = open()
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'Launch' } })
+    fireEvent.change(within(dialog).getByLabelText('Duration in working days'), {
+      target: { value: '0' },
+    })
+    expect(within(dialog).getByText(/a floating milestone/)).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Planned start'), {
+      target: { value: '2027-03-12' },
+    })
+    expect(within(dialog).getByText(/a milestone fixed to the planned start/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onCreate).toHaveBeenCalledWith('apollo', {
+      title: 'Launch',
+      milestone: { variant: 'fixed-date', date: '2027-03-12' },
+    })
+  })
+
+  it('creates a floating milestone for a duration of 0 and no start (TC-286)', async () => {
+    const { onCreate, dialog } = open()
+    fireEvent.change(within(dialog).getByLabelText('Title'), { target: { value: 'Docs ready' } })
+    fireEvent.change(within(dialog).getByLabelText('Duration in working days'), {
+      target: { value: '0' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }))
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith('apollo', {
+        title: 'Docs ready',
+        milestone: { variant: 'floating' },
+      }),
+    )
+  })
+
   it('asks for the project on a Gantt of several, offering only writable ones (FR-061)', async () => {
     const { onCreate, dialog } = open([apollo, borealis, ceres])
     const project = within(dialog).getByLabelText('Project')

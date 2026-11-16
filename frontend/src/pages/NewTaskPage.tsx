@@ -23,7 +23,8 @@ function refusal(error: unknown): string {
  * Creating a task in a project, at `/projects/<id>/tasks/new`, with the task details editor
  * (SC-098): its title, description, planned dates or none (FR-003), duration in whole working days
  * (FR-002), effort, AI share and, optionally, one of the repositories the project pulls issues
- * from (FR-141). Once created, the task's page opens, where who can do it and who will do it are
+ * from (FR-141). A duration of 0 makes it a milestone, fixed to its planned start or floating
+ * (FR-212). Once created, the task's page opens, where who can do it and who will do it are
  * set. The REST API decides by the viewer's role whether they may create it, and the page says so
  * in the API's words.
  */
@@ -51,7 +52,7 @@ export function NewTaskPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    const problem = detailsProblem(draft)
+    const problem = detailsProblem(draft, true)
     if (problem) {
       setError(problem)
       return
@@ -95,7 +96,7 @@ export function NewTaskPage() {
       <h2 id="new-task-heading" className="task-page__heading">
         New task
       </h2>
-      <TaskDetailsFields draft={draft} onChange={setDraft} offerPersonLoad />
+      <TaskDetailsFields draft={draft} onChange={setDraft} creating offerPersonLoad />
       {repositories === 'failed' ? (
         <p className="task-editor__muted">The repositories could not be loaded.</p>
       ) : repositories === null ? null : repositories.length === 0 ? (

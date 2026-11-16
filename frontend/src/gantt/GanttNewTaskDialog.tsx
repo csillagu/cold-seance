@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api.ts'
+import { milestoneOn } from '../tasks/task-details.ts'
 import { type GanttProject, newTaskProject } from './gantt-edit.ts'
 import '../kanban/kanban.css'
 import './gantt-export.css'
@@ -10,6 +11,7 @@ export interface NewTask {
   title: string
   plannedStart?: string
   durationWorkingDays?: number
+  milestone?: ReturnType<typeof milestoneOn>
 }
 
 interface GanttNewTaskDialogProps {
@@ -26,7 +28,8 @@ interface GanttNewTaskDialogProps {
  * Creating a task on the Gantt (SC-067). On a Gantt covering several projects it asks which
  * project the task goes in, offering only those the viewer can write to, unless the view's filter
  * allows only one, which it then uses (FR-061). The task is created with its title, and its
- * planned start and duration if given, so that it is drawn on its dates.
+ * planned start and duration if given, so that it is drawn on its dates. A duration of 0 makes it
+ * a milestone, fixed to the planned start, or floating without one (FR-212).
  */
 export function GanttNewTaskDialog({
   projects,
@@ -42,6 +45,7 @@ export function GanttNewTaskDialog({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const first = useRef<HTMLInputElement>(null)
+  const milestone = duration.trim() !== '' && Number(duration) === 0
 
   useEffect(() => first.current?.focus(), [])
 
@@ -49,8 +53,11 @@ export function GanttNewTaskDialog({
     event.preventDefault()
     const projectId = where.ask ? project : where.project.id
     const task: NewTask = { title }
-    if (start !== '') task.plannedStart = start
-    if (duration.trim() !== '') task.durationWorkingDays = Number(duration)
+    if (milestone) task.milestone = milestoneOn(start)
+    else {
+      if (start !== '') task.plannedStart = start
+      if (duration.trim() !== '') task.durationWorkingDays = Number(duration)
+    }
     setError(null)
     setSaving(true)
     try {
@@ -126,12 +133,19 @@ export function GanttNewTaskDialog({
             Duration in working days
             <input
               type="number"
-              min="1"
+              min="0"
               step="1"
               value={duration}
               onChange={(event) => setDuration(event.target.value)}
             />
           </label>
+          {milestone && (
+            <p className="gantt-task__muted">
+              {start === ''
+                ? 'Duration 0: a floating milestone, placed where what it is blocked by finishes.'
+                : 'Duration 0: a milestone fixed to the planned start.'}
+            </p>
+          )}
           <div className="gantt-export__actions">
             <button
               type="submit"
