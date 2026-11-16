@@ -6,6 +6,7 @@
 export * from './schema/core.ts'
 export * from './schema/github-issues.ts'
 export * from './schema/notifications.ts'
+export * from './schema/proposal-approvals.ts'
 export * from './schema/proposals.ts'
 export * from './schema/recheck.ts'
 export * from './schema/red-flags.ts'

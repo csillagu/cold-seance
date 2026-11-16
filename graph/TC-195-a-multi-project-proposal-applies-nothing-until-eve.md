@@ -9,7 +9,7 @@ Verify that a proposal spanning several projects applies none of its changes unt
 ## Inputs
 
 - A fresh test deployment, first system admin `root`; accounts `alice` (with an access token) and `bob`.
-- Project `Apollo` created by `alice`, with task `A` (2027-03-01, 1 working day); project `Borealis` created by `bob`, with task `B` (2027-03-01, 1 working day), where `alice` has the read-only role.
+- Project `Apollo` created by `alice`, with task `A` (2027-03-01, 1 working day); project `Borealis` created by `bob`, with task `B` (2027-03-01, 1 working day), where `alice` has the read-write role; `bob` has the read-only role in `Apollo`.
 - A proposal, created through the MCP server with `alice`'s token, moving `A` and `B` to 2027-03-08.
 
 ## Procedure

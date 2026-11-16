@@ -15,5 +15,6 @@ It delivers:
 - [FR-078](FR-078-ask-the-reviewer-to-confirm-again-if-the-plan-chan.md): Ask the reviewer to confirm again if the plan changed since the preview
 - [FR-080](FR-080-let-each-project-s-part-of-a-proposal-be-approved.md): Let each project's part of a proposal be approved in that project
 - [FR-132](FR-132-apply-a-multi-project-proposal-only-when-every-par.md): Apply a multi-project proposal only when every part is approved
+- [FR-210](FR-210-keep-a-part-s-approval-when-the-plan-changes-afte.md): Keep a part's approval when the plan changes afterwards
 
-Origin: split off from SC-011, which the quality review found bundled, at the owner's request in the design session of 2026-11-02: "1 yes please split. I want reqlite reviewer to be happy." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate for this component as it now stands. The owner confirmed Claude's list of proposed estimates in the design session of 2026-11-02, answering "correct" to it.
+Origin: split off from SC-011, which the quality review found bundled, at the owner's request in the design session of 2026-11-02: "1 yes please split. I want reqlite reviewer to be happy." The boundary and name are Claude's; it awaits the owner's confirmation. Effort: Claude's estimate for this component as it now stands. The owner confirmed Claude's list of proposed estimates in the design session of 2026-11-02, answering "correct" to it. FR-210 was added for issue #130, from the owner's answer in the design session of 2026-11-15.

@@ -84,7 +84,9 @@ export type ProposedChange =
  * The proposals (SC-010): each a set of changes to the plan (FR-069), made by `created_by` through
  * `channel`, the REST API or the MCP server (FR-204). `last_edited_at` is when it was created or
  * last edited, which its expiry is counted from (DD-024, SC-046). `rejected_at` and `rejected_by`
- * are when and by whom it was rejected (FR-075, SC-045), both or neither.
+ * are when and by whom it was rejected (FR-075, SC-045), both or neither. `applied_at` is when its
+ * changes were applied, once every project's part of it was approved (FR-077, FR-132, SC-048); a
+ * proposal is not both rejected and applied.
  */
 export const proposals = pgTable(
   'proposals',
@@ -98,12 +100,17 @@ export const proposals = pgTable(
     lastEditedAt: timestamp('last_edited_at', { withTimezone: true }).notNull().defaultNow(),
     rejectedAt: timestamp('rejected_at', { withTimezone: true }),
     rejectedBy: uuid('rejected_by').references(() => accounts.id),
+    appliedAt: timestamp('applied_at', { withTimezone: true }),
   },
   (table) => [
     check('proposals_channel', sql`${table.channel} in ('rest-api', 'mcp')`),
     check(
       'proposals_rejection',
       sql`(${table.rejectedAt} is null) = (${table.rejectedBy} is null)`,
+    ),
+    check(
+      'proposals_rejected_or_applied',
+      sql`${table.rejectedAt} is null or ${table.appliedAt} is null`,
     ),
   ],
 )

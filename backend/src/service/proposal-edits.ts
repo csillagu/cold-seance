@@ -183,12 +183,16 @@ export class ProposalEditService {
    * Locks the proposal for the rest of the transaction, so that two edits or an edit and a
    * rejection are made one after the other, and returns the projects it changes. Refused as not
    * found, as not visible to someone with no role in one of its projects (FR-017), and as a
-   * conflict if it is rejected or has expired (SC-046).
+   * conflict if it was approved, is rejected or has expired (SC-046).
    */
   async #open(tx: Transaction, caller: Caller, proposalId: string): Promise<string[]> {
     if (!isUuid(proposalId)) throw noProposal()
     const [proposal] = await tx
-      .select({ lastEditedAt: proposals.lastEditedAt, rejectedAt: proposals.rejectedAt })
+      .select({
+        lastEditedAt: proposals.lastEditedAt,
+        rejectedAt: proposals.rejectedAt,
+        appliedAt: proposals.appliedAt,
+      })
       .from(proposals)
       .where(eq(proposals.id, proposalId))
       .for('update')
@@ -198,6 +202,9 @@ export class ProposalEditService {
       await this.#roles.permissions.require(caller, projectId, 'read', tx)
     }
     const status = proposalStatus(proposal, this.#now())
+    if (status === 'approved') {
+      throw new ServiceError('conflict', 'The proposal was approved and applied')
+    }
     if (status === 'rejected') {
       throw new ServiceError('conflict', 'The proposal was rejected')
     }

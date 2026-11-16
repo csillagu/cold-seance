@@ -44,6 +44,7 @@ const TASK: PreviewedTask = {
 
 const PREVIEW: ProposalPreview = {
   proposalId: P1,
+  planVersion: 'c0ffee',
   differences: [
     {
       taskId: A,
@@ -106,6 +107,7 @@ describe('GET /api/proposals/:proposalId/preview', () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({
       proposalId: P1,
+      planVersion: 'c0ffee',
       differences: PREVIEW.differences,
       newRedFlags: [{ kind: 'overload', projectId: APOLLO, accountId: ERIN, date: '2027-03-05' }],
     })
