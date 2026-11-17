@@ -1,0 +1,63 @@
+name: Windows package
+
+# The Windows portable zip (SC-120, DD-061), built and tested on Windows (SC-123): started by hand
+# and as a service (SC-121), and backed up and restored with its script (SC-122), against the
+# PostgreSQL the Windows runner has installed. Called by CI on every pull request, and by the
+# Windows release (SC-124), which publishes the zip this job keeps as its artifact.
+on:
+  workflow_call:
+    outputs:
+      artifact-id:
+        description: The id of the artifact holding the zip.
+        value: ${{ jobs.package.outputs.artifact-id }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build and test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    env:
+      # The runner's PostgreSQL, whose superuser password is `root`.
+      TEST_DATABASE_URL: postgres://postgres:root@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # Installed but stopped on the runner. Its bin folder is left off PATH, so the backup script
+      # has to find pg_dump where PostgreSQL's Windows installer puts it, as on a user's machine.
+      - name: Start PostgreSQL
+        shell: pwsh
+        run: |
+          $service = Get-Service -Name 'postgresql*'
+          Set-Service -InputObject $service -Status Running
+      - run: npm ci
+      - run: npm run build
+      # The zip's Node.js runtime is the one setup-node installed: Node.js's own Windows build.
+      - run: node scripts/package-windows.ts --out package/cold-seance
+      - name: Zip
+        shell: pwsh
+        run: '& "$env:SystemRoot\System32\tar.exe" -a -c -f cold-seance-windows-x64.zip -C package cold-seance'
+      # Unpacked from the zip itself into a folder whose path has a space in it.
+      - name: Unpack
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'unpacked zip'
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -x -f cold-seance-windows-x64.zip -C $dir
+          "TEST_WINDOWS_PACKAGE=$(Join-Path $dir 'cold-seance')" >> $env:GITHUB_ENV
+      - run: npm run test:windows
+      - id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-package
+          path: cold-seance-windows-x64.zip
+          retention-days: 14

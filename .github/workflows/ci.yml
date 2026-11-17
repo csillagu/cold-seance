@@ -162,6 +162,11 @@ jobs:
       - run: docker build -t "$TEST_IMAGE" .
       - run: npm run test:image
 
+  # The Windows portable zip (SC-120 to SC-123, DD-061), built and tested on Windows.
+  windows:
+    name: Windows package
+    uses: ./.github/workflows/windows-package.yml
+
   # The image the Compose install runs (SC-029), published from main once every check has passed.
   # Pushes to main no longer run CI (#196), so publishing takes a manual dispatch on main.
   publish:

@@ -1,0 +1,27 @@
+<!--
+  The Windows service of cold-seance (SC-121, DD-061), for WinSW, the wrapper next to this file
+  (cold-seance-service.exe). Registering the service is optional: from an administrator's command
+  prompt in this folder, `cold-seance-service.exe install` registers it to start at boot, and
+  `cold-seance-service.exe uninstall` removes it. See the README, "Installing on Windows".
+
+  The service runs the backend on the Node.js runtime in this folder (%BASE%), from this folder,
+  so it reads config.yaml from here. When the service is stopped, WinSW sends the backend Ctrl+C,
+  which it takes as an interrupt and closes cleanly; only if it has not ended within the stop
+  timeout is it stopped by force.
+-->
+<service>
+  <id>cold-seance</id>
+  <name>cold-seance</name>
+  <description>cold-seance project planning tool</description>
+  <executable>%BASE%\node.exe</executable>
+  <arguments>"%BASE%\backend\dist\server.js"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <env name="NODE_ENV" value="production" />
+  <startmode>Automatic</startmode>
+  <stoptimeout>30 sec</stoptimeout>
+  <!-- cold-seance-service.out.log and .err.log in this folder, rolled over at 10 MB, 8 kept. -->
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

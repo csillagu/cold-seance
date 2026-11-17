@@ -37,6 +37,16 @@ export default defineConfig({
           hookTimeout: 30_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'windows',
+          include: ['test/windows/**/*.test.ts'],
+          globalSetup: ['test/integration/global-setup.ts'],
+          testTimeout: 180_000,
+          hookTimeout: 120_000,
+        },
+      },
     ],
   },
 })
