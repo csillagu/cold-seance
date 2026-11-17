@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars holds secrets and is ignored by git.
+gcp_project                 = "my-gcp-project"
+github_app_id               = 123456
+github_app_private_key_file = "~/keys/cold-seance-test.private-key.pem"
+github_projects_token       = "ghp_change-me"
+first_admin_password        = "change-me-to-a-long-password"
+
+# zone                     = "us-east1-b"
+# domain                   = ""
+# acme_email               = ""
+# recheck_interval_minutes = 2
+# running                  = true

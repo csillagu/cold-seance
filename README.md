@@ -59,20 +59,21 @@ The backend does not start if a required setting is missing, a value is not vali
 
 ### Checks
 
-| Command                           | What it runs                                                                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run check`                   | Everything below except the integration tests: run it before you push                                                                     |
-| `npm run format` / `format:check` | Prettier                                                                                                                                  |
-| `npm run lint`                    | oxlint, with type-aware rules                                                                                                             |
-| `npm run typecheck`               | `tsc` in both packages                                                                                                                    |
-| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                                                |
-| `npm run test:unit`               | Vitest unit tests, both packages                                                                                                          |
-| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                                     |
-| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                                              |
-| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL                                    |
-| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                      |
-| `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE` |
-| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                  |
+| Command                           | What it runs                                                                                                                                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                   | Everything below except the integration tests: run it before you push                                                                                     |
+| `npm run format` / `format:check` | Prettier                                                                                                                                                  |
+| `npm run lint`                    | oxlint, with type-aware rules                                                                                                                             |
+| `npm run typecheck`               | `tsc` in both packages                                                                                                                                    |
+| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                                                                |
+| `npm run test:unit`               | Vitest unit tests, both packages                                                                                                                          |
+| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                                                     |
+| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                                                              |
+| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL                                                    |
+| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                                      |
+| `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE`                 |
+| `npm run test:live`               | The live GitHub tests (SC-126), against the test deployment and a real repository; needs the `LIVE_` variables of [Live GitHub tests](#live-github-tests) |
+| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                                  |
 
 ### Parallel branches
 
@@ -212,6 +213,61 @@ The tool does not back itself up: the backups are yours (SC-122, DD-061). A dump
 
 **Test a restore once:** restore a dump into a scratch database as above, start the tool on it, and check that your projects are there. A backup that was never restored may not restore.
 
+### Test deployment on Google Cloud
+
+The project's own test deployment (SC-125, DD-062), which the live GitHub tests below run against, is described by Terraform scripts in [`deploy/gcp/`](deploy/gcp/). It is a test bed for the project, not a way to install the tool: it runs the published image on one `e2-micro` machine, Google Cloud's free tier, behind Caddy for HTTPS, with its database on Neon's free plan. Nothing is deployed from CI; apply the scripts from your own machine.
+
+**Before the first apply**, on GitHub:
+
+1. Create the test repository, such as `csillagu/cold-seance-live`. Use it for these tests only: the suite creates and deletes issues and milestones in it.
+2. Register a GitHub App by hand (DD-058) with the repository permissions **Issues: read and write** and **Metadata: read**, and with its webhook turned off (the test deployment uses none). Install it on the test repository only, and generate a private key.
+3. Create a GitHub Project owned by the repository's owner, with a single-select field `Status` whose options include `In Progress` and `On Hold`.
+4. Create a classic personal access token with the `repo` and `read:project` scopes, for the deployment to read the Projects status field with. A GitHub App cannot read a Project owned by a user, so the App reads and writes issues (`readIssues`, `writeIssues`) and the token reads the status field (`projectsStatus`).
+
+Then, with [Terraform](https://developer.hashicorp.com/terraform/install) 1.9 or later, the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install) signed in (`gcloud auth application-default login`), a Google Cloud project with billing enabled (the free tier still needs a billing account) and a [Neon API key](https://neon.com/docs/manage/api-keys):
+
+```sh
+cd deploy/gcp
+cp terraform.tfvars.example terraform.tfvars   # fill it in; it is ignored by git
+export NEON_API_KEY=...
+terraform init
+terraform apply
+terraform output url                           # the deployment's address, LIVE_URL below
+```
+
+The machine takes a few minutes to start the first time, while it pulls the images and Caddy obtains a certificate from Let's Encrypt. Its host name is the machine's address under [sslip.io](https://sslip.io), unless `domain` names one whose DNS record points at `terraform output address`.
+
+- **Updating to the latest image**: the machine pulls the image each time it starts the tool. Restart it with the command `terraform output restart` prints. A change to the variables reaches the tool the same way, after `terraform apply`.
+- **Stopping between test runs**: set `running = false` and apply; set it back to `true` to start it again. A stopped machine lets Neon's database sleep, which saves its free compute hours: while the machine runs, its re-check every 2 minutes (`recheck_interval_minutes`) keeps the database awake.
+- **Logs**: `terraform output ssh` opens a shell on the machine; `sudo journalctl -u cold-seance -u caddy` shows the tool's and Caddy's.
+- **Secrets**: the settings and the App's key reach the machine through its metadata, which only the Google Cloud project's users can read. Terraform's state, `terraform.tfstate`, holds every secret in plain text: keep it on your machine, or in a private bucket, and never commit it.
+- **Cost**: the machine and its disk are in the free tier in `us-west1`, `us-central1` and `us-east1` only, for one machine per billing account. Its external address may be billed, a few dollars a month.
+- **Removing it**: `terraform destroy` deletes the machine, its address and the Neon project with all its data.
+
+### Live GitHub tests
+
+`npm run test:live` runs the GitHub steps of the test cases against the test deployment and the real test repository (SC-126, DD-062), where the integration tests use a fake of GitHub. The tests are in `backend/test/live/`, each named with its test case's id. Each run works in projects of its own, named after it, on the deployment, and when it ends it removes the test repository from them and deletes the issues and milestones it made on GitHub. The projects stay, since the tool cannot delete a project. The deployment has no webhook, so a change made on GitHub reaches it at its next re-check, which each test waits for: a run takes several minutes. TC-147, a new issue opened on GitHub becoming a task, needs a webhook and is not run.
+
+| Variable                                                                           | What it is                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIVE_URL`                                                                         | The deployment's address (`terraform output url`)                                                                                                                                                                                                                                              |
+| `LIVE_ADMIN_USERNAME`                                                              | Its first system admin (`root` unless set), whom the tests act as in the tool. The tests link this account to `LIVE_GITHUB_TOKEN`'s GitHub user                                                                                                                                                |
+| `LIVE_ADMIN_PASSWORD`                                                              | Their password                                                                                                                                                                                                                                                                                 |
+| `LIVE_GITHUB_REPOSITORY`                                                           | The test repository, `owner/name`                                                                                                                                                                                                                                                              |
+| `LIVE_GITHUB_TOKEN`                                                                | The token the tests act on GitHub with, standing for the GitHub users the test cases name: a classic token with the `repo` and `project` scopes, of an admin of the test repository (only an admin can delete issues). It can be the deployment's token, if that token has the `project` scope |
+| `LIVE_GITHUB_PROJECT_NUMBER`                                                       | The number of the GitHub Project with the status field                                                                                                                                                                                                                                         |
+| `LIVE_GITHUB_PROJECT_OWNER`                                                        | Its owner, the repository's owner unless set                                                                                                                                                                                                                                                   |
+| `LIVE_STATUS_FIELD_NAME`, `LIVE_STATUS_FIELD_STARTED`, `LIVE_STATUS_FIELD_ON_HOLD` | The status field and its options, if not `Status`, `In Progress` and `On Hold`: the same as the deployment's `status_field`                                                                                                                                                                    |
+| `LIVE_TIMEZONE`                                                                    | The deployment's time zone (`timezone`), `UTC` unless set                                                                                                                                                                                                                                      |
+| `LIVE_WAIT_MINUTES`                                                                | How long a test waits for the re-check to take a change in, 6 unless set: three times the deployment's re-check interval                                                                                                                                                                       |
+
+```sh
+LIVE_URL=https://1-2-3-4.sslip.io LIVE_ADMIN_PASSWORD=... LIVE_GITHUB_REPOSITORY=csillagu/cold-seance-live \
+  LIVE_GITHUB_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live
+```
+
+The workflow [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the same suite on GitHub Actions, started by hand from the Actions tab only (SC-127). It takes its settings from the repository's `live` environment: `LIVE_ADMIN_PASSWORD` and `LIVE_GITHUB_TOKEN` as its secrets, the others as its variables. Give the environment required reviewers if the tokens should be used only on a person's approval.
+
 ### REST API
 
 The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part of the service layer gets a route group, added to `routeGroups` in `backend/src/api/api.ts`, and each module of the service layer is added to `Services` in `backend/src/service/services.ts`, which every route group is registered with as `services`. A route only translates the request and calls the service layer, passing it `callerOf(request)`; the rules, permission checks included, live in the service layer (DD-039), which refuses a request by throwing a `ServiceError` (`backend/src/service/errors.ts`). The API:
@@ -279,5 +335,6 @@ At start, before it serves any request, the backend applies the migrations the d
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests and the browser tests (each with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [`.github/workflows/windows-package.yml`](.github/workflows/windows-package.yml), which CI runs on every pull request, builds the Windows zip on a Windows machine with `node scripts/package-windows.ts`, unpacks it into a folder whose path has a space in it, and runs `npm run test:windows` against the PostgreSQL the runner has installed (SC-123). The zip's Node.js runtime is the one `actions/setup-node` installed; WinSW is downloaded at a pinned version and checked against its checksum.
 - **Windows releases.** [`.github/workflows/release-windows.yml`](.github/workflows/release-windows.yml) publishes the zip as a GitHub Release for each version tag pushed (`git tag v0.1.0 && git push origin v0.1.0`), as `cold-seance-<tag>-windows-x64.zip` (SC-124, DD-061). It signs the zip's contents through [SignPath](https://signpath.org/), free for open-source projects, once the repository has the variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG` and the secret `SIGNPATH_API_TOKEN`. Until then it publishes the zip unsigned and says so in the release. The SignPath project's artifact configuration names what is signed: the artifact is a zip holding `cold-seance-windows-x64.zip`, in which the project's own `backup.ps1` is the file to sign.
+- [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the live GitHub tests against the test deployment, only when started by hand (SC-127); see [Live GitHub tests](#live-github-tests).
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.

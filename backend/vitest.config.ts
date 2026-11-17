@@ -47,6 +47,17 @@ export default defineConfig({
           hookTimeout: 120_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          // The live GitHub tests (SC-126): against the test deployment and a real repository, run
+          // on demand only, with npm run test:live, never by CI on a pull request.
+          name: 'live',
+          include: ['test/live/**/*.test.ts'],
+          testTimeout: 20 * 60_000,
+          hookTimeout: 5 * 60_000,
+        },
+      },
     ],
   },
 })

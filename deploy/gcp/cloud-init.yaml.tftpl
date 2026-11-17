@@ -1,0 +1,83 @@
+#cloud-config
+# The machine's start-up (SC-125, DD-062): the tool, behind Caddy, each in a container started by
+# systemd. Container-Optimized OS applies this at every boot.
+
+write_files:
+  - path: /etc/cold-seance/read-settings.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Reads the tool's settings and the GitHub App's key from the machine's metadata.
+      set -euo pipefail
+      umask 077
+      metadata=http://metadata.google.internal/computeMetadata/v1/instance/attributes
+      dir=/var/lib/cold-seance
+      mkdir -p $dir/secrets
+      curl -sSf -H 'Metadata-Flavor: Google' -o $dir/settings.env $metadata/cold-seance-settings
+      curl -sSf -H 'Metadata-Flavor: Google' -o $dir/secrets/github-app.pem $metadata/github-app-key
+      # The image runs as the node user, uid 1000, which alone may read the key.
+      chown -R 1000:1000 $dir/secrets
+      chmod 0500 $dir/secrets
+      chmod 0400 $dir/secrets/github-app.pem
+
+  - path: /etc/cold-seance/Caddyfile
+    permissions: '0644'
+    content: |
+%{ if email != "" ~}
+      {
+        email ${email}
+      }
+%{ endif ~}
+      ${host} {
+        reverse_proxy cold-seance:3000
+      }
+
+  - path: /etc/systemd/system/cold-seance.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=cold-seance
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      ExecStartPre=/bin/bash /etc/cold-seance/read-settings.sh
+      ExecStartPre=-/usr/bin/docker network create cold-seance
+      ExecStartPre=-/usr/bin/docker rm -f cold-seance
+      ExecStartPre=-/usr/bin/docker pull ${image}
+      ExecStart=/usr/bin/docker run --rm --name cold-seance --network cold-seance --env-file /var/lib/cold-seance/settings.env -v /var/lib/cold-seance/secrets:/run/secrets:ro ${image}
+      ExecStop=/usr/bin/docker stop -t 30 cold-seance
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+  - path: /etc/systemd/system/caddy.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Caddy, serving the tool over HTTPS
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      # The machine's own firewall lets in only SSH until told otherwise.
+      ExecStartPre=/bin/bash -c 'for port in 80 443; do iptables -w -C INPUT -p tcp --dport $port -j ACCEPT || iptables -w -A INPUT -p tcp --dport $port -j ACCEPT; done'
+      ExecStartPre=-/usr/bin/docker network create cold-seance
+      ExecStartPre=-/usr/bin/docker rm -f caddy
+      ExecStartPre=-/usr/bin/docker pull caddy:2.10.2-alpine
+      ExecStart=/usr/bin/docker run --rm --name caddy --network cold-seance -p 80:80 -p 443:443 -v /etc/cold-seance/Caddyfile:/etc/caddy/Caddyfile:ro -v /var/lib/caddy:/data caddy:2.10.2-alpine
+      ExecStop=/usr/bin/docker stop caddy
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - mkdir -p /var/lib/caddy
+  - systemctl daemon-reload
+  - systemctl start cold-seance.service caddy.service
