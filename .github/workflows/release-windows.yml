@@ -1,0 +1,74 @@
+name: Windows release
+
+# Publishes the Windows zip (SC-124, DD-061) as a GitHub Release for each version tag pushed. The
+# zip is built and tested by the same job CI runs (SC-123). Its contents are signed through
+# SignPath, the free code-signing service for open-source projects, once the repository has the
+# SignPath settings below; until then the zip is published unsigned, and the release says so.
+#
+# Settings, once SignPath has accepted the project: the repository variables
+# SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_SIGNING_POLICY_SLUG, and the secret
+# SIGNPATH_API_TOKEN. The SignPath project's artifact configuration says which files in the zip are
+# signed (see the README, "Windows releases").
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  package:
+    name: Windows package
+    uses: ./.github/workflows/windows-package.yml
+
+  sign:
+    name: Sign
+    needs: package
+    if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: signpath/github-action-submit-signing-request@v3
+        with:
+          connector-url: https://githubactions.connectors.signpath.io
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ needs.package.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-package-signed
+          path: signed/cold-seance-windows-x64.zip
+          retention-days: 14
+
+  release:
+    name: Publish the release
+    needs: [package, sign]
+    if: ${{ !cancelled() && needs.package.result == 'success' && needs.sign.result != 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.sign.result == 'success' && 'windows-package-signed' || 'windows-package' }}
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          SIGNED: ${{ needs.sign.result == 'success' }}
+        run: |
+          zip="cold-seance-$TAG-windows-x64.zip"
+          mv cold-seance-windows-x64.zip "$zip"
+          notes="The Windows portable zip: unpack it and see README.txt inside, or the README's \"Installing on Windows\"."
+          if [ "$SIGNED" != true ]; then
+            notes="$notes This zip is not signed yet: Windows may warn about its files."
+          fi
+          gh release create "$TAG" "$zip" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "$notes" --verify-tag

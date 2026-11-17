@@ -9,7 +9,7 @@ cold-seance is a self-hosted, open-source project planning tool for teams that w
 
 > **Status:** under active development. Not every feature described in the requirements is built yet; the [implementation plan](docs/implementation-plan.md) records what is.
 
-- **Install:** with Docker Compose, the published image `ghcr.io/csillagu/cold-seance` and PostgreSQL; see [Installing with Docker Compose](#installing-with-docker-compose).
+- **Install:** with Docker Compose, the published image `ghcr.io/csillagu/cold-seance` and PostgreSQL; see [Installing with Docker Compose](#installing-with-docker-compose). Or natively on Windows, from a portable zip, with a PostgreSQL you install; see [Installing on Windows](#installing-on-windows).
 - **Configure:** a YAML file or environment variables, with a GitHub App or a personal access token for each GitHub function; see [Configuration](#configuration) and [`backend/config.example.yaml`](backend/config.example.yaml).
 - **Contribute:** see [`CONTRIBUTING.md`](CONTRIBUTING.md). To report a vulnerability, see [`SECURITY.md`](SECURITY.md).
 - **License:** [Apache License 2.0](LICENSE).
@@ -59,19 +59,20 @@ The backend does not start if a required setting is missing, a value is not vali
 
 ### Checks
 
-| Command                           | What it runs                                                                                                         |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `npm run check`                   | Everything below except the integration tests: run it before you push                                                |
-| `npm run format` / `format:check` | Prettier                                                                                                             |
-| `npm run lint`                    | oxlint, with type-aware rules                                                                                        |
-| `npm run typecheck`               | `tsc` in both packages                                                                                               |
-| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                           |
-| `npm run test:unit`               | Vitest unit tests, both packages                                                                                     |
-| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                |
-| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                         |
-| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL               |
-| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image |
-| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                             |
+| Command                           | What it runs                                                                                                                              |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                   | Everything below except the integration tests: run it before you push                                                                     |
+| `npm run format` / `format:check` | Prettier                                                                                                                                  |
+| `npm run lint`                    | oxlint, with type-aware rules                                                                                                             |
+| `npm run typecheck`               | `tsc` in both packages                                                                                                                    |
+| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                                                |
+| `npm run test:unit`               | Vitest unit tests, both packages                                                                                                          |
+| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                                     |
+| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                                              |
+| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL                                    |
+| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                      |
+| `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE` |
+| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                  |
 
 ### Parallel branches
 
@@ -128,9 +129,88 @@ docker compose up -d
 - The tool is published on port 3000 of every interface of the machine.
 - `config.yaml` and `secrets/` are mounted read-only and must exist; the start fails rather than mount empty directories in their place. They hold secrets: make them readable by the `node` user (uid 1000) and no one else.
 - `docker compose pull && docker compose up -d` updates the tool to the latest image.
+- Docker Desktop's licence asks larger organisations (more than 250 employees or $10 million in annual revenue) for a paid subscription. Free ways to run the Compose file are Docker Engine, which is open source, on Linux, and [Podman Desktop](https://podman-desktop.io/) or [Rancher Desktop](https://rancherdesktop.io/) on Windows and macOS (DD-040). On Windows the tool can also run without Docker: see [Installing on Windows](#installing-on-windows).
 - **The volume is the data.** `docker compose down --volumes`, or removing the volume, deletes everything. Back it up with `docker compose exec -T database pg_dump -U cold_seance cold_seance > backup.sql`, and restore it into an empty volume with `docker compose exec -T database psql -U cold_seance -d cold_seance < backup.sql`. The PostgreSQL major version is fixed in `compose.yaml`; moving to a new one needs a dump and a restore, which Compose does not do.
 
 The image tests (`npm run test:image`, above) also run the Compose file from a scratch install directory, with the image under test in place of the published one: with its bundled database, and with an external one while the bundled one is stopped.
+
+### Installing on Windows
+
+The Windows portable zip (SC-120, DD-061) runs the tool natively on Windows, with no Docker, WSL or other virtualization. It holds Node.js's Windows runtime, the tool, a start script, an optional Windows service (SC-121) and a backup script (SC-122). Everything in it is open source and free. Download `cold-seance-<version>-windows-x64.zip` from the repository's [Releases](https://github.com/csillagu/cold-seance/releases); each version tag publishes one (SC-124).
+
+1. **PostgreSQL.** Install PostgreSQL with the free Windows installer from [postgresql.org](https://www.postgresql.org/download/windows/), or use one you already have, a hosted one included (FR-177). The installer also brings `pg_dump`, `pg_restore`, `psql` and pgAdmin. Create the tool's database, in pgAdmin or in psql as `postgres`:
+
+   ```sql
+   CREATE ROLE cold_seance LOGIN PASSWORD 'choose-a-password';
+   CREATE DATABASE cold_seance OWNER cold_seance;
+   ```
+
+2. **Unpack** the zip into a folder of its own, such as `C:\cold-seance`; any folder works, `C:\Program Files` included. Until the zip is signed, Windows may warn about files from the internet: open the zip's Properties and tick **Unblock** before unpacking it.
+3. **Configure.** In that folder, copy `config.example.yaml` to `config.yaml` and fill it in, as [Configuration](#configuration) describes: at least `database.url` (`postgres://cold_seance:choose-a-password@localhost:5432/cold_seance`) and the GitHub settings. Write a Windows path in single quotes, such as `privateKeyFile: 'C:\cold-seance\secrets\github-app.pem'`: in double quotes a backslash starts an escape.
+4. **Restrict** `config.yaml` and the key files, which hold secrets, to the accounts that run the tool. From a command prompt in the folder, as an administrator:
+
+   ```bat
+   icacls config.yaml /inheritance:r /grant:r "SYSTEM:R" "Administrators:F" "%USERNAME%:R"
+   icacls secrets /inheritance:r /grant:r "SYSTEM:(OI)(CI)R" "Administrators:(OI)(CI)F" "%USERNAME%:(OI)(CI)R"
+   ```
+
+   `SYSTEM` is the account the service runs as; leave out `%USERNAME%` if you only run the tool as a service.
+
+5. **Start** it with `start.cmd`. It applies the pending migrations to the database (SC-074) and serves the tool on <http://127.0.0.1:3000>. Ctrl+C stops it cleanly; the command prompt then asks whether to terminate the batch job, and either answer is fine.
+
+- The tool listens on this machine only. To let other machines reach it, set `server.host` to `0.0.0.0` and allow port 3000 in Windows Firewall: the tool is then open to the whole network the machine is on.
+- Actual start and finish dates use Windows' time zone; the `TZ` environment variable overrides it.
+- **Updating:** stop the tool and take a backup. Delete everything in the folder except `config.yaml`, your key files, the password file and the logs, then unpack the new zip's contents in its place and start the tool, which migrates the database. A service registered from the folder stays registered.
+
+#### As a Windows service
+
+Registering the tool as a Windows service, which starts at boot, is optional (SC-121). The service wrapper is [WinSW](https://github.com/winsw/winsw), shipped as `cold-seance-service.exe` and set up by `cold-seance-service.xml`. From a command prompt in the folder, as an administrator:
+
+```bat
+cold-seance-service.exe install
+cold-seance-service.exe start
+```
+
+`stop`, `restart`, `status` and `uninstall` do what they say; the Services console works too. The service runs the tool from its folder, so it reads `config.yaml` from there. It gets no environment variables but those set in `cold-seance-service.xml`, such as `<env name="TZ" value="Europe/Budapest" />`. Its output goes to `cold-seance-service.out.log` and `.err.log` in the folder. When the service is stopped, the wrapper sends the tool Ctrl+C, and the tool closes cleanly; it is stopped by force only if it has not ended within 30 seconds.
+
+The service runs as `LocalSystem`, which can do anything on the machine. A flaw in the tool reached through the network would have that reach, so keep the tool on this machine only unless you need otherwise.
+
+#### Backing up on Windows
+
+The tool does not back itself up: the backups are yours (SC-122, DD-061). A dump of the database holds all of the tool's data. It does **not** hold `config.yaml`, the GitHub App key files or the PostgreSQL password file. Copy those somewhere safe yourself, once and after each change.
+
+**Nightly backups** with `backup.ps1`:
+
+1. **A password file.** `pg_dump` takes the password from PostgreSQL's password file, so none is written in the script or the scheduled task. The task below runs as `SYSTEM`, so give it a file of its own: create `C:\cold-seance\pgpass.conf` holding one line, `localhost:5432:cold_seance:cold_seance:choose-a-password` (host, port, database, user and password), and restrict it:
+
+   ```bat
+   icacls C:\cold-seance\pgpass.conf /inheritance:r /grant:r "SYSTEM:R" "Administrators:F"
+   ```
+
+   Without `-PassFile`, `pg_dump` reads the running user's own `%APPDATA%\postgresql\pgpass.conf`.
+
+2. **Schedule it** every night at 02:00, from a command prompt as an administrator. Put the backup folder on another disk, or copy it off the machine:
+
+   ```bat
+   schtasks /Create /TN "cold-seance backup" /SC DAILY /ST 02:00 /RU SYSTEM /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\cold-seance\backup.ps1 -Folder D:\backups\cold-seance -PassFile C:\cold-seance\pgpass.conf"
+   ```
+
+   A path with spaces is quoted as `\"C:\Program Files\cold-seance\backup.ps1\"` inside `/TR`. Each run writes `cold_seance-<date>-<time>.dump` in the folder and deletes that database's dumps there older than 7 days (`-KeepDays` changes it). `-Database`, `-User`, `-Server`, `-Port` and `-PgDump` override `cold_seance`, `cold_seance`, `localhost`, `5432` and the `pg_dump` it finds on `PATH` or in `C:\Program Files\PostgreSQL`. `Get-Help .\backup.ps1 -Full` describes them.
+
+3. **Run it once now**, with `schtasks /Run /TN "cold-seance backup"`, and check that a dump appears.
+
+**Check on it.** The tool knows nothing of its backups, so a failing backup goes unnoticed unless you look. A failed run ends with a non-zero code, which Task Scheduler shows as the task's Last Run Result (anything but `0x0`), and `schtasks /Query /TN "cold-seance backup" /V /FO LIST` prints. Look at it, and at the dumps folder, from time to time.
+
+**By hand,** from PostgreSQL's `bin` folder (`C:\Program Files\PostgreSQL\<version>\bin`): `pg_dump -Fc -h localhost -U cold_seance -f cold_seance.dump cold_seance`. In pgAdmin, right-click the database and choose **Backup…**, with the Custom format, and **Restore…** to restore.
+
+**Restoring** a dump:
+
+1. Stop the tool (Ctrl+C, or `cold-seance-service.exe stop`).
+2. Create an empty database, as `postgres`: `CREATE DATABASE cold_seance_restored OWNER cold_seance;`
+3. Restore into it: `pg_restore --no-owner -h localhost -U cold_seance -d cold_seance_restored D:\backups\cold-seance\cold_seance-<date>-<time>.dump`. A plain SQL dump, made without `-Fc`, is restored with `psql -h localhost -U cold_seance -d cold_seance_restored -f <file>` instead.
+4. Point `database.url` at the restored database, or drop the old one and rename it (`DROP DATABASE cold_seance; ALTER DATABASE cold_seance_restored RENAME TO cold_seance;`), and start the tool.
+
+**Test a restore once:** restore a dump into a scratch database as above, start the tool on it, and check that your projects are there. A backup that was never restored may not restore.
 
 ### REST API
 
@@ -197,5 +277,7 @@ At start, before it serves any request, the backend applies the migrations the d
 ### CI and dependencies
 
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests and the browser tests (each with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
+- [`.github/workflows/windows-package.yml`](.github/workflows/windows-package.yml), which CI runs on every pull request, builds the Windows zip on a Windows machine with `node scripts/package-windows.ts`, unpacks it into a folder whose path has a space in it, and runs `npm run test:windows` against the PostgreSQL the runner has installed (SC-123). The zip's Node.js runtime is the one `actions/setup-node` installed; WinSW is downloaded at a pinned version and checked against its checksum.
+- **Windows releases.** [`.github/workflows/release-windows.yml`](.github/workflows/release-windows.yml) publishes the zip as a GitHub Release for each version tag pushed (`git tag v0.1.0 && git push origin v0.1.0`), as `cold-seance-<tag>-windows-x64.zip` (SC-124, DD-061). It signs the zip's contents through [SignPath](https://signpath.org/), free for open-source projects, once the repository has the variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG` and the secret `SIGNPATH_API_TOKEN`. Until then it publishes the zip unsigned and says so in the release. The SignPath project's artifact configuration names what is signed: the artifact is a zip holding `cold-seance-windows-x64.zip`, in which the project's own `backup.ps1` is the file to sign.
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.
