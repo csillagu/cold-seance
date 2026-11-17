@@ -38,7 +38,9 @@ jobs:
         shell: pwsh
         run: |
           $service = Get-Service -Name 'postgresql*'
-          Set-Service -InputObject $service -Status Running
+          # Disabled on the runner: it must get a startup type before it can start.
+          Set-Service -InputObject $service -StartupType Manual
+          Start-Service -InputObject $service
       - run: npm ci
       - run: npm run build
       # The zip's Node.js runtime is the one setup-node installed: Node.js's own Windows build.
