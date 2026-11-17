@@ -47,14 +47,14 @@ jobs:
       - run: node scripts/package-windows.ts --out package/cold-seance
       - name: Zip
         shell: pwsh
-        run: '& "$env:SystemRoot\System32\tar.exe" -a -c -f cold-seance-windows-x64.zip -C package cold-seance'
+        run: Compress-Archive -Path package/cold-seance -DestinationPath cold-seance-windows-x64.zip
       # Unpacked from the zip itself into a folder whose path has a space in it.
       - name: Unpack
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'unpacked zip'
           New-Item -ItemType Directory -Path $dir | Out-Null
-          & "$env:SystemRoot\System32\tar.exe" -x -f cold-seance-windows-x64.zip -C $dir
+          Expand-Archive -Path cold-seance-windows-x64.zip -DestinationPath $dir
           "TEST_WINDOWS_PACKAGE=$(Join-Path $dir 'cold-seance')" >> $env:GITHUB_ENV
       - run: npm run test:windows
       - id: upload

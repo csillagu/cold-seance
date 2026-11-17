@@ -99,12 +99,11 @@ for (const [from, to] of [
 console.log(`The Windows package is in ${out}`)
 
 function run(command: string, args: string[], cwd: string): void {
-  // npm is a .cmd file on Windows, which only a shell runs.
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  })
+  // npm is a .cmd file on Windows, which only a shell runs; the arguments here need no quoting.
+  const result =
+    process.platform === 'win32'
+      ? spawnSync([command, ...args].join(' '), { cwd, stdio: 'inherit', shell: true })
+      : spawnSync(command, args, { cwd, stdio: 'inherit' })
   if (result.status !== 0) fail(`${command} ${args.join(' ')} failed.`)
 }
 
