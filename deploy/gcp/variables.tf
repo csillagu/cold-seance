@@ -73,7 +73,36 @@ variable "github_app_private_key_file" {
 }
 
 variable "github_projects_token" {
-  description = "The personal access token that reads the Projects status field (projectsStatus): a classic token with the repo and read:project scopes."
+  description = "The classic personal access token, with the repo and project scopes, that the deployment reads the Projects status field with (projectsStatus) and the live suite sets it with. A fine-grained token cannot reach a Project owned by a user."
+  type        = string
+  sensitive   = true
+}
+
+variable "github_owner" {
+  description = "The GitHub account that owns the test repository and the repository whose `live` environment Terraform writes."
+  type        = string
+  default     = "csillagu"
+}
+
+variable "test_repository" {
+  description = "The name of the test repository, under github_owner, which the App is installed on and Terraform puts the webhook on."
+  type        = string
+  default     = "cold-seance-live"
+}
+
+variable "environment_repository" {
+  description = "The name of the repository, under github_owner, whose `live` environment the live test workflow runs in."
+  type        = string
+  default     = "cold-seance"
+}
+
+variable "github_project_number" {
+  description = "The number of the GitHub Project, owned by github_owner, whose status field the deployment reads."
+  type        = number
+}
+
+variable "live_github_token" {
+  description = "The fine-grained personal access token the live suite acts on the test repository with; see the README for its permissions."
   type        = string
   sensitive   = true
 }
@@ -89,7 +118,7 @@ variable "status_field" {
 }
 
 variable "recheck_interval_minutes" {
-  description = "How often the tool re-checks the linked issues. With no webhook, a change made on GitHub reaches the tool only then."
+  description = "How often the tool re-checks the linked issues. GitHub sends no webhook for a user's Project, so a change to the status field reaches the tool only then."
   type        = number
   default     = 2
 }
@@ -98,12 +127,6 @@ variable "first_admin_username" {
   description = "The first system admin, created at the first start. The live test suite signs in as them."
   type        = string
   default     = "root"
-}
-
-variable "first_admin_password" {
-  description = "The first system admin's password."
-  type        = string
-  sensitive   = true
 }
 
 variable "timezone" {

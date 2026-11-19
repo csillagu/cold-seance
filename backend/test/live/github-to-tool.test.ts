@@ -1,12 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { StatusField } from './github.ts'
+import { GitHub, StatusField } from './github.ts'
 import { LiveRun } from './run.ts'
 import { eventually, today } from './settings.ts'
+import type { Task } from './tool.ts'
 
-// The GitHub steps of the test cases on changes made on GitHub (SC-023, SC-024, SC-062), run
-// against the test deployment and the real test repository (SC-126, DD-062). The deployment has no
-// webhook, so a change reaches it at its next re-check: each test waits for it, and the tests run
-// side by side to wait together. The suite's GitHub user stands for the test cases' `tc-writer`.
+// The GitHub steps of the test cases on changes made on GitHub (SC-023, SC-024, SC-062, SC-105),
+// run against the test deployment and the real test repository (SC-126, DD-062). A change to an
+// issue reaches the deployment through the test repository's webhook; a change to the Projects
+// status field only at its next re-check, since GitHub sends no webhook for a user's Project. Each
+// test waits for the change to arrive, and the tests run side by side to wait together. The
+// suite's GitHub user stands for the test cases' `tc-writer`.
 
 let run: LiveRun
 let status: StatusField
@@ -14,7 +17,10 @@ let login: string
 
 beforeAll(async () => {
   run = await LiveRun.start()
-  status = await StatusField.find(run.github, run.settings)
+  status = await StatusField.find(
+    new GitHub(run.settings, run.settings.projectsToken),
+    run.settings,
+  )
   login = await run.github.login()
   await run.tool.call('PUT', `/accounts/${run.tool.accountId}/github`, { githubLogin: login })
 })
@@ -23,7 +29,7 @@ afterAll(async () => {
   await run?.cleanUp()
 })
 
-/** Waits for the deployment's re-check to take a change in. */
+/** Waits for a change made on GitHub to reach the deployment, by the webhook or the re-check. */
 const afterRecheck = <T>(check: () => Promise<T>) => eventually(check, run.settings.waitMs)
 
 describe.concurrent('changes made on GitHub reaching the tool, live', () => {
@@ -140,6 +146,25 @@ describe.concurrent('changes made on GitHub reaching the tool, live', () => {
     expect((await run.tool.task(t.task.id)).assignees).toEqual([run.tool.accountId])
   })
 
-  // Pending: TC-147, a new issue opened on GitHub becoming a task, reaches the tool only through a
-  // webhook (SC-105); the re-check reads linked issues only, and the deployment has no webhook.
+  it('TC-147: a new issue opened on GitHub becomes an unscheduled task (live)', async () => {
+    const apollo = await run.project('TC-147')
+
+    // Step 1: as tc-writer, open an issue in the test repository. Every project of this run
+    // pulling from it gets a task for it; all are this run's, and the issue is deleted at the end.
+    const opened = await run.openIssue('Crash on start')
+
+    // Step 2: list the tasks of Apollo: one is linked to the issue, with no planned dates.
+    const task = await afterRecheck(async () => {
+      const tasks = await run.tool.call<Task[]>('GET', `/projects/${apollo}/tasks`)
+      const linked = tasks.find(
+        (t) =>
+          t.githubIssue?.repositoryId === run.repositoryId &&
+          t.githubIssue.number === opened.number,
+      )
+      if (!linked) throw new Error(`Apollo has no task linked to #${opened.number} yet`)
+      return linked
+    })
+    // It has no planned start, planned finish or assigned people.
+    expect(task).toMatchObject({ plannedStart: null, plannedFinish: null, assignees: [] })
+  })
 })

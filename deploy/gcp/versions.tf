@@ -12,6 +12,14 @@ terraform {
       source  = "kislerdm/neon"
       version = "~> 0.18"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.6"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -23,3 +31,9 @@ provider "google" {
 
 # The Neon API key is read from the environment variable NEON_API_KEY.
 provider "neon" {}
+
+# The GitHub token Terraform sets up the test repository's webhook and the `live` environment with
+# is read from the environment variable GITHUB_TOKEN; see the README for what it needs.
+provider "github" {
+  owner = var.github_owner
+}

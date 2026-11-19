@@ -14,12 +14,25 @@ locals {
     "COLD_SEANCE_GITHUB_STATUS_FIELD_NAME=${var.status_field.name}",
     "COLD_SEANCE_GITHUB_STATUS_FIELD_STARTED=${var.status_field.started}",
     "COLD_SEANCE_GITHUB_STATUS_FIELD_ON_HOLD=${var.status_field.on_hold}",
+    "COLD_SEANCE_GITHUB_WEBHOOK_SECRET=${random_password.webhook.result}",
     "COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES=${var.recheck_interval_minutes}",
     "COLD_SEANCE_FIRST_ADMIN_USERNAME=${var.first_admin_username}",
-    "COLD_SEANCE_FIRST_ADMIN_PASSWORD=${var.first_admin_password}",
+    "COLD_SEANCE_FIRST_ADMIN_PASSWORD=${random_password.admin.result}",
     "TZ=${var.timezone}",
     "",
   ])
+}
+
+# The first system admin's password and the webhook secret, generated once and kept in the state.
+# Letters and digits only, so that they need no quoting in the settings file.
+resource "random_password" "admin" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "webhook" {
+  length  = 40
+  special = false
 }
 
 # The database: a Neon project on the free plan, with its default branch, database and role.

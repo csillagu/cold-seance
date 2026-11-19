@@ -16,15 +16,16 @@ export interface Comment {
 }
 
 /**
- * The test repository on GitHub, called with the suite's own personal access token: as the GitHub
- * user the test cases call `tc-writer` (and `tc-alice`), not as the deployment's App.
+ * The test repository on GitHub, called with the suite's own fine-grained personal access token:
+ * as the GitHub user the test cases call `tc-writer` (and `tc-alice`), not as the deployment's App.
+ * Called with the classic projects token instead, it reaches the Project (`StatusField`).
  */
 export class GitHub {
-  readonly #settings: LiveSettings
+  readonly #token: string
   readonly repository: string
 
-  constructor(settings: LiveSettings) {
-    this.#settings = settings
+  constructor(settings: LiveSettings, token = settings.githubToken) {
+    this.#token = token
     this.repository = `${settings.repository.owner}/${settings.repository.name}`
   }
 
@@ -33,7 +34,7 @@ export class GitHub {
       method,
       headers: {
         accept: 'application/vnd.github+json',
-        authorization: `Bearer ${this.#settings.githubToken}`,
+        authorization: `Bearer ${this.#token}`,
         'x-github-api-version': '2022-11-28',
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       },

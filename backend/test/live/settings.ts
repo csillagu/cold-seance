@@ -11,17 +11,24 @@ export interface LiveSettings {
   /** The test repository, which the deployment's GitHub App is installed on. */
   repository: { owner: string; name: string }
   /**
-   * The personal access token the suite acts on GitHub with, standing for the GitHub users the
-   * test cases name: a classic token with the repo, project and delete_repo scopes, or none of
-   * delete_repo if its owner administers the repository.
+   * The fine-grained personal access token the suite acts on the test repository with, standing
+   * for the GitHub users the test cases name.
    */
   githubToken: string
+  /**
+   * The classic token, with the project scope, the suite sets the Project's status field with: a
+   * fine-grained token cannot reach a Project owned by a user. It is the deployment's own.
+   */
+  projectsToken: string
   /** The GitHub Project, owned by `projectOwner`, whose status field the deployment reads. */
   project: { owner: string; number: number }
   statusField: { name: string; started: string; onHold: string }
   /** The deployment's time zone, in which it records actual starts and finishes. */
   timeZone: string
-  /** How long a test waits for the deployment's re-check to take in a change made on GitHub. */
+  /**
+   * How long a test waits for a change made on GitHub to reach the deployment: by the webhook, in
+   * seconds, or, for the Projects status field, at the deployment's next re-check.
+   */
   waitMs: number
 }
 
@@ -30,6 +37,7 @@ const REQUIRED = [
   'LIVE_ADMIN_PASSWORD',
   'LIVE_GITHUB_REPOSITORY',
   'LIVE_GITHUB_TOKEN',
+  'LIVE_GITHUB_PROJECTS_TOKEN',
   'LIVE_GITHUB_PROJECT_NUMBER',
 ] as const
 
@@ -63,6 +71,7 @@ export function liveSettings(env: NodeJS.ProcessEnv = process.env): LiveSettings
     },
     repository: { owner, name },
     githubToken: value('LIVE_GITHUB_TOKEN')!,
+    projectsToken: value('LIVE_GITHUB_PROJECTS_TOKEN')!,
     project: {
       owner: value('LIVE_GITHUB_PROJECT_OWNER') ?? owner,
       number: projectNumber,
@@ -84,7 +93,7 @@ export function today(timeZone: string): string {
 
 /**
  * Calls `check` until it stops throwing, every 10 seconds, for at most `timeoutMs`; then throws its
- * last error. A change made on GitHub reaches the deployment only at its next re-check.
+ * last error.
  */
 export async function eventually<T>(
   check: () => Promise<T>,
