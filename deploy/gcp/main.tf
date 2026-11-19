@@ -129,10 +129,17 @@ resource "google_project_service_identity" "artifactregistry" {
   depends_on = [google_project_service.this]
 }
 
+# A new service agent cannot be granted a role for a while after it is created.
+resource "time_sleep" "artifactregistry_agent" {
+  create_duration = "60s"
+  depends_on      = [google_project_service_identity.artifactregistry]
+}
+
 resource "google_secret_manager_secret_iam_member" "ghcr_token" {
-  secret_id = google_secret_manager_secret.ghcr_token.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = google_project_service_identity.artifactregistry.member
+  secret_id  = google_secret_manager_secret.ghcr_token.id
+  role       = "roles/secretmanager.secretAccessor"
+  member     = google_project_service_identity.artifactregistry.member
+  depends_on = [time_sleep.artifactregistry_agent]
 }
 
 # The service's own account, which may only read the App's key.
