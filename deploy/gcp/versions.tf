@@ -8,6 +8,11 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 8.0"
     }
+    # Only for google_project_service_identity, which creates a service's agent before its first use.
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 8.0"
+    }
     neon = {
       source  = "kislerdm/neon"
       version = "~> 0.18"
@@ -24,6 +29,11 @@ terraform {
 }
 
 provider "google" {
+  project = var.gcp_project
+  region  = var.region
+}
+
+provider "google-beta" {
   project = var.gcp_project
   region  = var.region
 }

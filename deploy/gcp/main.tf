@@ -24,8 +24,6 @@ locals {
   }
 }
 
-data "google_project" "this" {}
-
 # The first system admin's password and the webhook secret, generated once and kept in the state.
 resource "random_password" "admin" {
   length  = 32
@@ -123,11 +121,18 @@ resource "google_artifact_registry_repository" "ghcr" {
   depends_on = [google_secret_manager_secret_iam_member.ghcr_token]
 }
 
-# Artifact Registry's own service agent reads the registry token.
+# Artifact Registry's own service agent reads the registry token. Google creates the agent only
+# at the API's first use, so it is created here first.
+resource "google_project_service_identity" "artifactregistry" {
+  provider   = google-beta
+  service    = "artifactregistry.googleapis.com"
+  depends_on = [google_project_service.this]
+}
+
 resource "google_secret_manager_secret_iam_member" "ghcr_token" {
   secret_id = google_secret_manager_secret.ghcr_token.id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:service-${data.google_project.this.number}@gcp-sa-artifactregistry.iam.gserviceaccount.com"
+  member    = google_project_service_identity.artifactregistry.member
 }
 
 # The service's own account, which may only read the App's key.
