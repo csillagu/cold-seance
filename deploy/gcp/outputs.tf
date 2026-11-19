@@ -14,9 +14,9 @@ output "admin_password" {
   sensitive   = true
 }
 
-output "update" {
-  description = "Makes a new revision, which pulls the latest image."
-  value       = "gcloud run deploy ${google_cloud_run_v2_service.this.name} --image ${local.image} --region ${var.region} --project ${var.gcp_project}"
+output "image" {
+  description = "The image the service runs, by digest."
+  value       = local.image
 }
 
 output "logs" {

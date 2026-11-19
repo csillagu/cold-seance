@@ -16,9 +16,15 @@ variable "name" {
 }
 
 variable "image" {
-  description = "The application image on the GitHub Container Registry, without ghcr.io/. Cloud Run pulls it through the registry proxy."
+  description = "The application image on the GitHub Container Registry, without ghcr.io/ and without a tag."
   type        = string
-  default     = "csillagu/cold-seance:latest"
+  default     = "csillagu/cold-seance"
+}
+
+variable "image_tag" {
+  description = "The image's tag. Each plan looks up the version it points to on ghcr.io, and the service runs that version."
+  type        = string
+  default     = "latest"
 }
 
 variable "ghcr_token" {

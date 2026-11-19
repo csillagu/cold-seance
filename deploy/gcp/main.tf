@@ -1,6 +1,7 @@
 locals {
-  # The image, pulled through the registry proxy below.
-  image = "${var.region}-docker.pkg.dev/${var.gcp_project}/${google_artifact_registry_repository.ghcr.repository_id}/${var.image}"
+  # The image, by the digest its tag points to now (image.tf), pulled through the registry proxy
+  # below. The proxy keeps a tag as it first fetched it; a digest it fetches as asked.
+  image = "${var.region}-docker.pkg.dev/${var.gcp_project}/${google_artifact_registry_repository.ghcr.repository_id}/${var.image}@${local.image_digest}"
   url   = google_cloud_run_v2_service.this.uri
   # The tool's settings, as environment variables (DD-059). The App's key is a mounted file; the
   # rest are given as they are. Neon's addresses carry sslmode=require, which the tool's
@@ -216,11 +217,6 @@ resource "google_cloud_run_v2_service" "this" {
         }
       }
     }
-  }
-
-  # A revision made by `terraform output update` records the command that made it.
-  lifecycle {
-    ignore_changes = [client, client_version]
   }
 
   depends_on = [
