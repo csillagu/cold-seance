@@ -1,21 +1,6 @@
 output "url" {
   description = "The deployment's address: LIVE_URL for the live test suite."
-  value       = "https://${local.host}"
-}
-
-output "address" {
-  description = "The machine's external IP address, at which a domain's DNS record points."
-  value       = google_compute_address.this.address
-}
-
-output "ssh" {
-  description = "Opens a shell on the machine."
-  value       = "gcloud compute ssh ${google_compute_instance.this.name} --project ${var.gcp_project} --zone ${var.zone} --tunnel-through-iap"
-}
-
-output "restart" {
-  description = "Restarts the tool: it pulls the image again and reads its settings again."
-  value       = "gcloud compute ssh ${google_compute_instance.this.name} --project ${var.gcp_project} --zone ${var.zone} --tunnel-through-iap --command 'sudo systemctl restart cold-seance'"
+  value       = local.url
 }
 
 output "webhook_url" {
@@ -27,4 +12,14 @@ output "admin_password" {
   description = "The first system admin's password: terraform output -raw admin_password."
   value       = random_password.admin.result
   sensitive   = true
+}
+
+output "update" {
+  description = "Makes a new revision, which pulls the latest image."
+  value       = "gcloud run deploy ${google_cloud_run_v2_service.this.name} --image ${local.image} --region ${var.region} --project ${var.gcp_project}"
+}
+
+output "logs" {
+  description = "Shows the tool's recent logs."
+  value       = "gcloud run services logs read ${google_cloud_run_v2_service.this.name} --region ${var.region} --project ${var.gcp_project}"
 }

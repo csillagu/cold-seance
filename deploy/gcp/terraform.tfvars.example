@@ -6,12 +6,10 @@ github_app_private_key_file = "~/keys/cold-seance-test.private-key.pem"
 github_project_number       = 1
 github_projects_token       = "ghp_change-me"        # classic: repo, project
 live_github_token           = "github_pat_change-me" # fine-grained, on the test repository
+ghcr_token                  = "ghp_change-me"        # classic: read:packages only
 
 # github_owner             = "csillagu"
 # test_repository          = "cold-seance-live"
 # environment_repository   = "cold-seance"
-# zone                     = "us-east1-b"
-# domain                   = ""
-# acme_email               = ""
+# region                   = "us-east1"
 # recheck_interval_minutes = 2
-# running                  = true

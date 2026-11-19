@@ -2,10 +2,10 @@
 # (SC-125, DD-062). The token comes from GITHUB_TOKEN; see the README for what it needs.
 
 locals {
-  webhook_url = "https://${local.host}/api/github/webhooks"
+  webhook_url = "${local.url}/api/github/webhooks"
   # The live suite's settings (backend/test/live/settings.ts): variables, then secrets.
   live_variables = {
-    LIVE_URL                   = "https://${local.host}"
+    LIVE_URL                   = local.url
     LIVE_ADMIN_USERNAME        = var.first_admin_username
     LIVE_GITHUB_REPOSITORY     = "${var.github_owner}/${var.test_repository}"
     LIVE_GITHUB_PROJECT_OWNER  = var.github_owner

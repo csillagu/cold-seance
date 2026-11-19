@@ -3,45 +3,28 @@ variable "gcp_project" {
   type        = string
 }
 
-variable "zone" {
-  description = "The zone of the machine. Google Cloud's free tier covers one e2-micro machine in us-west1, us-central1 or us-east1 only."
+variable "region" {
+  description = "The Cloud Run region of the service and of its image's registry; us-east1 is close to Neon's aws-us-east-1."
   type        = string
-  default     = "us-east1-b"
-
-  validation {
-    condition     = can(regex("^us-(west1|central1|east1)-[a-z]$", var.zone))
-    error_message = "The free tier covers an e2-micro machine in a zone of us-west1, us-central1 or us-east1 only."
-  }
+  default     = "us-east1"
 }
 
 variable "name" {
-  description = "The name of the machine, the Neon project and the other resources."
+  description = "The name of the Cloud Run service, the Neon project and the other resources."
   type        = string
   default     = "cold-seance-test"
 }
 
-variable "running" {
-  description = "Whether the machine runs. Set it to false between test runs to stop it, and true to start it again."
-  type        = bool
-  default     = true
-}
-
 variable "image" {
-  description = "The application image. The machine pulls it again each time it starts the tool."
+  description = "The application image on the GitHub Container Registry, without ghcr.io/. Cloud Run pulls it through the registry proxy."
   type        = string
-  default     = "ghcr.io/csillagu/cold-seance:latest"
+  default     = "csillagu/cold-seance:latest"
 }
 
-variable "domain" {
-  description = "The host name the tool is served at, whose DNS points at the machine's address (the output address). Empty: the address under sslip.io."
+variable "ghcr_token" {
+  description = "The classic personal access token, with only the read:packages scope, that the registry proxy pulls the private image with. A fine-grained token cannot read GitHub Packages."
   type        = string
-  default     = ""
-}
-
-variable "acme_email" {
-  description = "The e-mail address Let's Encrypt may write to about the certificate. Optional."
-  type        = string
-  default     = ""
+  sensitive   = true
 }
 
 variable "neon_region" {

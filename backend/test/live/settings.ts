@@ -4,7 +4,7 @@
  * credentials; a missing one stops it before any test runs, naming it.
  */
 export interface LiveSettings {
-  /** The deployment's address, such as https://1-2-3-4.sslip.io: Terraform's `url` output. */
+  /** The deployment's address, such as https://cold-seance-test-123456789012.us-east1.run.app: Terraform's `url` output. */
   url: string
   /** The deployment's first system admin, whom the suite acts as in the tool. */
   admin: { username: string; password: string }
