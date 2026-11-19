@@ -54,9 +54,9 @@ resource "github_actions_environment_variable" "live" {
 }
 
 resource "github_actions_environment_secret" "live" {
-  for_each        = toset(keys(local.live_secrets))
-  repository      = var.environment_repository
-  environment     = github_repository_environment.live.environment
-  secret_name     = each.key
-  plaintext_value = local.live_secrets[each.key]
+  for_each    = toset(keys(local.live_secrets))
+  repository  = var.environment_repository
+  environment = github_repository_environment.live.environment
+  secret_name = each.key
+  value       = local.live_secrets[each.key]
 }
