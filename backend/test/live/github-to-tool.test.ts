@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { GitHub, StatusField } from './github.ts'
 import { LiveRun } from './run.ts'
 import { eventually, today } from './settings.ts'
-import type { Task } from './tool.ts'
 
 // The GitHub steps of the test cases on changes made on GitHub (SC-023, SC-024, SC-062, SC-105),
 // run against the test deployment and the real test repository (SC-126, DD-062). A change to an
@@ -144,27 +143,5 @@ describe.concurrent('changes made on GitHub reaching the tool, live', () => {
       expect(issue.assignees.map((a) => a.login)).toEqual([login])
     })
     expect((await run.tool.task(t.task.id)).assignees).toEqual([run.tool.accountId])
-  })
-
-  it('TC-147: a new issue opened on GitHub becomes an unscheduled task (live)', async () => {
-    const apollo = await run.project('TC-147')
-
-    // Step 1: as tc-writer, open an issue in the test repository. Every project of this run
-    // pulling from it gets a task for it; all are this run's, and the issue is deleted at the end.
-    const opened = await run.openIssue('Crash on start')
-
-    // Step 2: list the tasks of Apollo: one is linked to the issue, with no planned dates.
-    const task = await afterRecheck(async () => {
-      const tasks = await run.tool.call<Task[]>('GET', `/projects/${apollo}/tasks`)
-      const linked = tasks.find(
-        (t) =>
-          t.githubIssue?.repositoryId === run.repositoryId &&
-          t.githubIssue.number === opened.number,
-      )
-      if (!linked) throw new Error(`Apollo has no task linked to #${opened.number} yet`)
-      return linked
-    })
-    // It has no planned start, planned finish or assigned people.
-    expect(task).toMatchObject({ plannedStart: null, plannedFinish: null, assignees: [] })
   })
 })

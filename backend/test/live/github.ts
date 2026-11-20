@@ -72,6 +72,20 @@ export class GitHub {
     return this.rest<Issue>('POST', `/repos/${this.repository}/issues`, { title })
   }
 
+  /**
+   * Resolves when the repository's list of open issues, the one the seeding reads, holds `number`;
+   * throws while it does not. GitHub lists a new issue only some seconds after creating it.
+   */
+  async listed(number: number): Promise<void> {
+    const open = await this.rest<{ number: number }[]>(
+      'GET',
+      `/repos/${this.repository}/issues?state=open&per_page=100`,
+    )
+    if (!open.some((issue) => issue.number === number)) {
+      throw new Error(`GitHub does not list issue #${number} yet`)
+    }
+  }
+
   editIssue(number: number, change: Record<string, unknown>): Promise<Issue> {
     return this.rest<Issue>('PATCH', `/repos/${this.repository}/issues/${number}`, change)
   }

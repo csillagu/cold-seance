@@ -54,6 +54,9 @@ export default defineConfig({
           // on demand only, with npm run test:live, never by CI on a pull request.
           name: 'live',
           include: ['test/live/**/*.test.ts'],
+          // One file at a time: a project that pulls from the test repository takes each new
+          // issue in as its own task (FR-100), so a file's projects would take another's issues.
+          fileParallelism: false,
           testTimeout: 20 * 60_000,
           hookTimeout: 5 * 60_000,
         },
