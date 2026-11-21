@@ -113,9 +113,13 @@ describe.concurrent('changes made on GitHub reaching the tool, live', () => {
     expect(task.status).not.toBe('done')
     expect(task.actualFinish).toBeNull()
 
-    // TC-144: B's issue has one new comment, by the tool's App, naming the blocker's issue.
-    const comments = await run.github.comments(b.issue.number)
-    expect(comments).toHaveLength(1)
+    // TC-144: B's issue has one new comment, by the tool's App, naming the blocker's issue. The
+    // tool reopens the issue first and comments after, so the comment may follow a little later.
+    const comments = await afterRecheck(async () => {
+      const posted = await run.github.comments(b.issue.number)
+      expect(posted).toHaveLength(1)
+      return posted
+    })
     expect(comments[0]!.user.type).toBe('Bot')
     expect(comments[0]!.body).toContain(`#${a.issue.number}`)
     // No comment is posted on A's issue.

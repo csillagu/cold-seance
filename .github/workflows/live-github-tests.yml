@@ -12,6 +12,8 @@ on:
 permissions:
   contents: read
 
+# The same group as the CI job that runs the suite against a backend it starts (SC-129): every run
+# works in the one test repository.
 concurrency:
   group: live-github-tests
   cancel-in-progress: false

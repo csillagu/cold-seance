@@ -116,6 +116,43 @@ jobs:
             e2e/test-results/
           retention-days: 14
 
+  # The live GitHub tests (SC-128, SC-129, DD-063): against real GitHub, the test repository and
+  # a backend the suite starts in this job, on the PostgreSQL service. They take their settings
+  # from the `live` environment, which Terraform writes (SC-125); a missing one fails the job,
+  # naming it. Every run, of every pull request and of the deployment's workflow, works in the one
+  # test repository, so they wait for each other in one concurrency group.
+  live:
+    name: Live GitHub tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: live
+    concurrency:
+      group: live-github-tests
+      cancel-in-progress: false
+    services: *postgres-service
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:live:local
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          LIVE_GITHUB_APP_ID: ${{ vars.LIVE_GITHUB_APP_ID }}
+          LIVE_GITHUB_APP_PRIVATE_KEY: ${{ secrets.LIVE_GITHUB_APP_PRIVATE_KEY }}
+          LIVE_GITHUB_REPOSITORY: ${{ vars.LIVE_GITHUB_REPOSITORY }}
+          LIVE_GITHUB_TOKEN: ${{ secrets.LIVE_GITHUB_TOKEN }}
+          LIVE_GITHUB_PROJECTS_TOKEN: ${{ secrets.LIVE_GITHUB_PROJECTS_TOKEN }}
+          LIVE_GITHUB_PROJECT_OWNER: ${{ vars.LIVE_GITHUB_PROJECT_OWNER }}
+          LIVE_GITHUB_PROJECT_NUMBER: ${{ vars.LIVE_GITHUB_PROJECT_NUMBER }}
+          LIVE_STATUS_FIELD_NAME: ${{ vars.LIVE_STATUS_FIELD_NAME }}
+          LIVE_STATUS_FIELD_STARTED: ${{ vars.LIVE_STATUS_FIELD_STARTED }}
+          LIVE_STATUS_FIELD_ON_HOLD: ${{ vars.LIVE_STATUS_FIELD_ON_HOLD }}
+
   build:
     name: Build
     runs-on: ubuntu-latest

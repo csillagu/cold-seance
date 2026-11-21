@@ -3,9 +3,11 @@
 
 locals {
   webhook_url = "${local.url}/api/github/webhooks"
-  # The live suite's settings (backend/test/live/settings.ts): variables, then secrets.
+  # The live suite's settings (backend/test/live/settings.ts): variables, then secrets. The App's
+  # id and key are for the suite's runs against a backend they start themselves (SC-129, DD-063).
   live_variables = {
     LIVE_URL                   = local.url
+    LIVE_GITHUB_APP_ID         = tostring(var.github_app_id)
     LIVE_ADMIN_USERNAME        = var.first_admin_username
     LIVE_GITHUB_REPOSITORY     = "${var.github_owner}/${var.test_repository}"
     LIVE_GITHUB_PROJECT_OWNER  = var.github_owner
@@ -18,9 +20,10 @@ locals {
     LIVE_WAIT_MINUTES = tostring(3 * var.recheck_interval_minutes)
   }
   live_secrets = {
-    LIVE_ADMIN_PASSWORD        = random_password.admin.result
-    LIVE_GITHUB_TOKEN          = var.live_github_token
-    LIVE_GITHUB_PROJECTS_TOKEN = var.github_projects_token
+    LIVE_ADMIN_PASSWORD         = random_password.admin.result
+    LIVE_GITHUB_TOKEN           = var.live_github_token
+    LIVE_GITHUB_PROJECTS_TOKEN  = var.github_projects_token
+    LIVE_GITHUB_APP_PRIVATE_KEY = file(pathexpand(var.github_app_private_key_file))
   }
 }
 
