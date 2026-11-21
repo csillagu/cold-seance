@@ -59,20 +59,21 @@ The backend does not start if a required setting is missing, a value is not vali
 
 ### Checks
 
-| Command                           | What it runs                                                                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run check`                   | Everything below except the integration tests: run it before you push                                                                     |
-| `npm run format` / `format:check` | Prettier                                                                                                                                  |
-| `npm run lint`                    | oxlint, with type-aware rules                                                                                                             |
-| `npm run typecheck`               | `tsc` in both packages                                                                                                                    |
-| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                                                |
-| `npm run test:unit`               | Vitest unit tests, both packages                                                                                                          |
-| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                                     |
-| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                                              |
-| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL                                    |
-| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                      |
-| `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE` |
-| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                  |
+| Command                           | What it runs                                                                                                                                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                   | Everything below except the integration tests: run it before you push                                                                                     |
+| `npm run format` / `format:check` | Prettier                                                                                                                                                  |
+| `npm run lint`                    | oxlint, with type-aware rules                                                                                                                             |
+| `npm run typecheck`               | `tsc` in both packages                                                                                                                                    |
+| `npm run db:check`                | Fails if the database schema has a change that no migration holds (SC-073)                                                                                |
+| `npm run test:unit`               | Vitest unit tests, both packages                                                                                                                          |
+| `npm run test:coverage`           | The unit tests with coverage: a summary in the terminal, an HTML report in each package's `coverage/`                                                     |
+| `npm run test:integration`        | Backend integration tests against PostgreSQL                                                                                                              |
+| `npm run test:e2e`                | Browser tests: builds the frontend, then runs Playwright against the backend serving it, on PostgreSQL                                                    |
+| `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                                      |
+| `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE`                 |
+| `npm run test:live`               | The live GitHub tests (SC-126), against the test deployment and a real repository; needs the `LIVE_` variables of [Live GitHub tests](#live-github-tests) |
+| `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                                  |
 
 ### Parallel branches
 
@@ -212,6 +213,82 @@ The tool does not back itself up: the backups are yours (SC-122, DD-061). A dump
 
 **Test a restore once:** restore a dump into a scratch database as above, start the tool on it, and check that your projects are there. A backup that was never restored may not restore.
 
+### Test deployment on Google Cloud
+
+The project's own test deployment (SC-125, DD-062), which the live GitHub tests below run against, is described by Terraform scripts in [`deploy/gcp/`](deploy/gcp/). It is a test bed for the project, not a way to install the tool: it runs the published image on Google Cloud Run, scaled to zero, with its database on Neon's free plan, so it costs next to nothing between test runs. Terraform also puts a webhook on the test repository and writes the live tests' settings into this repository's `live` environment. Nothing is deployed from CI; apply the scripts from your own machine.
+
+**Before the first apply**, on GitHub:
+
+1. Create the test repository, `csillagu/cold-seance-live` unless you set `test_repository`. Use it for these tests only: the suite creates and deletes issues and milestones in it.
+2. Register a GitHub App by hand (DD-058) with the repository permissions **Issues: read and write** and **Metadata: read**, and with its webhook turned off: the deployment takes its webhook deliveries from the test repository's webhook, which Terraform sets up. Install the App on the test repository only, and generate a private key.
+3. Create a GitHub Project owned by your user, with a single-select field `Status` whose options include `In Progress` and `On Hold`: GitHub's default `Status` field has `Todo`, `In Progress` and `Done` only, so add `On Hold` to it. Note its number, from its address.
+4. Create the tokens. A fine-grained token cannot reach a Project owned by a user or read GitHub Packages, so the tokens for those are classic:
+   - **The Projects token** (`github_projects_token`): classic, with the `repo` and `project` scopes. The deployment reads the status field with it (`projectsStatus`), and the live tests set it.
+   - **The live tests' token** (`live_github_token`): fine-grained, on the test repository only, with **Issues: read and write**, **Metadata: read** and **Administration: read and write**. Only a repository admin can delete an issue, and GitHub's documentation does not say which fine-grained permission that takes, so give Administration on the dedicated test repository.
+   - **The registry token** (`ghcr_token`): classic, with only the `read:packages` scope. The image is private, Cloud Run pulls it through an Artifact Registry proxy of `ghcr.io`, and a fine-grained token cannot read GitHub Packages.
+   - **Terraform's own token**, in the environment variable `GITHUB_TOKEN`: fine-grained, on `cold-seance` and the test repository, with **Administration**, **Environments**, **Secrets**, **Variables** and **Webhooks**, all read and write. Or `gh auth token`, if `gh` is signed in as the owner.
+
+Then, with [Terraform](https://developer.hashicorp.com/terraform/install) 1.9 or later, the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install) signed in (`gcloud auth application-default login`), a Google Cloud project with billing enabled (the free tier still needs a billing account) and a [Neon API key](https://neon.com/docs/manage/api-keys):
+
+```sh
+cd deploy/gcp
+cp terraform.tfvars.example terraform.tfvars   # fill it in; it is ignored by git
+export NEON_API_KEY=...
+export GITHUB_TOKEN=...                        # or: export GITHUB_TOKEN=$(gh auth token)
+terraform init
+terraform apply
+terraform output url                           # the deployment's address
+terraform output -raw admin_password           # the first system admin's, generated by Terraform
+```
+
+The deployment's address is the one Cloud Run gives the service, `https://<name>-<project number>.<region>.run.app`, with Cloud Run's own certificate; it stays the same for as long as the service exists.
+
+What Terraform makes:
+
+- **The Cloud Run service**, scaled to zero and to one instance. Its CPU stays allocated while an instance is up, not only during a request, so that the re-check runs and webhook deliveries are handled after they are answered. An instance starts at the first call and stops some minutes after the last, so it runs through a test run and not between runs. The first call after a pause waits for the tool to start.
+- **The registry proxy**, an Artifact Registry repository of `ghcr.io`, which signs in with the registry token and keeps a copy of the image for a month.
+- **Two Secret Manager secrets**: the App's private key, mounted into the service as a file, and the registry token. The other settings are the service's environment variables.
+
+- **The first system admin's password and the webhook secret**, generated once and kept in Terraform's state.
+- **The test repository's webhook**, pointed at `terraform output webhook_url`, with the events `issues`, `sub_issues` and `issue_dependencies` and the generated secret, which the deployment is given as `github.webhookSecret`. GitHub sends no webhook for a Project owned by a user, so a change to the status field still comes in through the re-check, every 2 minutes here (`recheck_interval_minutes`).
+- **The `live` environment** of `cold-seance`, with every setting of the [live GitHub tests](#live-github-tests): the address, the admin's name, the test repository, the Project, the status field, the time zone and the wait as its variables, and the admin's password and the two tokens as its secrets.
+
+Running it:
+
+- **Updating to the latest image**: run `terraform apply`. Each plan looks up the version `:latest` points to on `ghcr.io` (`image_tag`) and runs the service on that version, by its digest, so a newly published image makes a new revision; `terraform output image` shows which one runs. The proxy is asked for the digest because it keeps serving a tag as it first fetched it. A change to the variables also makes a new revision.
+- **Between test runs** nothing runs, and Neon's database sleeps too. A webhook delivery then starts an instance, but GitHub gives up on a delivery after 10 seconds, so one may be lost while the tool starts; a change to the status field made between runs is seen at the next run's re-check.
+- **Logs**: `terraform output logs` prints the command that shows them; they are also in the Google Cloud console, under the service.
+- **Secrets**: the service's environment variables can be read by the Google Cloud project's users. Terraform's state, `terraform.tfstate`, holds every secret in plain text: keep it on your machine, or in a private bucket, and never commit it.
+- **Cost**: Cloud Run is billed only while an instance is up, within a monthly free tier; Artifact Registry and Secret Manager have free allowances that the copy of the image and the two secrets fit in. A budget alert on the project (Billing, Budgets & alerts) tells you if that stops being true.
+- **Removing it**: `terraform destroy` deletes the service, the registry proxy and the secrets, the Neon project with all its data, the test repository's webhook and the `live` environment.
+
+### Live GitHub tests
+
+`npm run test:live` runs the GitHub steps of the test cases against the test deployment and the real test repository (SC-126, DD-062), where the integration tests use a fake of GitHub. The tests are in `backend/test/live/`, each named with its test case's id. Each run works in projects of its own, named after it, on the deployment, and when it ends it removes the test repository from them and deletes the issues and milestones it made on GitHub. The projects stay, since the tool cannot delete a project. No other project on the deployment may pull from the test repository: it would take each issue a test opens as its own task (FR-100), and the seeding test would find the issue taken. For the same reason the test files run one at a time. A change made to an issue on GitHub reaches the deployment through the webhook, in seconds; a change to the Projects status field only at its next re-check, which those tests wait for: a run takes several minutes.
+
+Terraform writes every one of these settings into the `live` environment. To run the suite from your machine, take them from there or from `terraform output`:
+
+| Variable                                                                           | What it is                                                                                                                                      |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIVE_URL`                                                                         | The deployment's address (`terraform output url`)                                                                                               |
+| `LIVE_ADMIN_USERNAME`                                                              | Its first system admin (`root` unless set), whom the tests act as in the tool. The tests link this account to `LIVE_GITHUB_TOKEN`'s GitHub user |
+| `LIVE_ADMIN_PASSWORD`                                                              | Their password (`terraform output -raw admin_password`)                                                                                         |
+| `LIVE_GITHUB_REPOSITORY`                                                           | The test repository, `owner/name`                                                                                                               |
+| `LIVE_GITHUB_TOKEN`                                                                | The live tests' fine-grained token, standing for the GitHub users the test cases name                                                           |
+| `LIVE_GITHUB_PROJECTS_TOKEN`                                                       | The classic Projects token, which the tests set the status field with                                                                           |
+| `LIVE_GITHUB_PROJECT_NUMBER`                                                       | The number of the GitHub Project with the status field                                                                                          |
+| `LIVE_GITHUB_PROJECT_OWNER`                                                        | Its owner, the repository's owner unless set                                                                                                    |
+| `LIVE_STATUS_FIELD_NAME`, `LIVE_STATUS_FIELD_STARTED`, `LIVE_STATUS_FIELD_ON_HOLD` | The status field and its options, if not `Status`, `In Progress` and `On Hold`: the same as the deployment's `status_field`                     |
+| `LIVE_TIMEZONE`                                                                    | The deployment's time zone (`timezone`), `UTC` unless set                                                                                       |
+| `LIVE_WAIT_MINUTES`                                                                | How long a test waits for a change made on GitHub to reach the deployment, 6 unless set: three times the deployment's re-check interval         |
+
+```sh
+LIVE_URL=https://cold-seance-test-123456789012.us-east1.run.app LIVE_ADMIN_PASSWORD=... LIVE_GITHUB_REPOSITORY=csillagu/cold-seance-live \
+  LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live
+```
+
+The workflow [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the same suite on GitHub Actions, started by hand from the Actions tab only (SC-127). It takes its settings from the `live` environment that Terraform writes. Give the environment required reviewers if the tokens should be used only on a person's approval.
+
 ### REST API
 
 The REST API (SC-026) is served under `/api`, in `backend/src/api/`. Each part of the service layer gets a route group, added to `routeGroups` in `backend/src/api/api.ts`, and each module of the service layer is added to `Services` in `backend/src/service/services.ts`, which every route group is registered with as `services`. A route only translates the request and calls the service layer, passing it `callerOf(request)`; the rules, permission checks included, live in the service layer (DD-039), which refuses a request by throwing a `ServiceError` (`backend/src/service/errors.ts`). The API:
@@ -279,5 +356,6 @@ At start, before it serves any request, the backend applies the migrations the d
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs format, lint, typecheck and `db:check`, the unit tests, the integration tests and the browser tests (each with a PostgreSQL 18 service), the build, and the Docker image's build and tests on every pull request and on `main`. On `main`, once every job has passed, it publishes the image to the GitHub Container Registry as `ghcr.io/csillagu/cold-seance`, for linux/amd64 and linux/arm64, tagged `latest` and `sha-<commit>`; there are no version tags (DD-040). The unit-test job adds a coverage table to the run's summary and keeps the HTML reports as the `coverage-report` artifact for 14 days. Coverage counts the unit tests only and has no minimum yet.
 - [`.github/workflows/windows-package.yml`](.github/workflows/windows-package.yml), which CI runs on every pull request, builds the Windows zip on a Windows machine with `node scripts/package-windows.ts`, unpacks it into a folder whose path has a space in it, and runs `npm run test:windows` against the PostgreSQL the runner has installed (SC-123). The zip's Node.js runtime is the one `actions/setup-node` installed; WinSW is downloaded at a pinned version and checked against its checksum.
 - **Windows releases.** [`.github/workflows/release-windows.yml`](.github/workflows/release-windows.yml) publishes the zip as a GitHub Release for each version tag pushed (`git tag v0.1.0 && git push origin v0.1.0`), as `cold-seance-<tag>-windows-x64.zip` (SC-124, DD-061). It signs the zip's contents through [SignPath](https://signpath.org/), free for open-source projects, once the repository has the variables `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG` and `SIGNPATH_SIGNING_POLICY_SLUG` and the secret `SIGNPATH_API_TOKEN`. Until then it publishes the zip unsigned and says so in the release. The SignPath project's artifact configuration names what is signed: the artifact is a zip holding `cold-seance-windows-x64.zip`, in which the project's own `backup.ps1` is the file to sign.
+- [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the live GitHub tests against the test deployment, only when started by hand (SC-127); see [Live GitHub tests](#live-github-tests).
 - [Dependabot](.github/dependabot.yml) proposes npm, GitHub Actions and Docker base image updates weekly, once a release is a week old. Packages that must move together are grouped; other minor and patch updates come as one PR.
 - npm runs no install scripts that `allowScripts` in `package.json` has not approved. esbuild's is denied, because esbuild works without it.

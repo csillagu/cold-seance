@@ -23,6 +23,7 @@
     "test:e2e": "npm run build --workspace frontend && npm run test:e2e --workspace e2e",
     "test:image": "npm run test:image --workspace backend",
     "test:windows": "npm run test:windows --workspace backend",
+    "test:live": "npm run test:live --workspace backend",
     "build": "npm run build --workspaces --if-present",
     "db:check": "npm run db:check --workspace backend",
     "db:rebase": "npm run db:rebase --workspace backend",

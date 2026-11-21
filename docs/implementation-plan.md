@@ -270,3 +270,5 @@ All 114 SCs appear in exactly one block above, apart from B5.2, which names the 
 | SC-122 | implemented | #235 | https://github.com/csillagu/cold-seance/pull/237 |
 | SC-123 | implemented | #235 | https://github.com/csillagu/cold-seance/pull/237 |
 | SC-124 | implemented | #235 | https://github.com/csillagu/cold-seance/pull/237 |
+| SC-125 | implemented | #225 | https://github.com/csillagu/cold-seance/pull/238 |
+| SC-126 | implemented | #225 | https://github.com/csillagu/cold-seance/pull/238 |
