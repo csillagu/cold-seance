@@ -479,9 +479,12 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
     }
   }
 
-  /** The README's task, removed whether or not it is there. */
-  const removeTask = () =>
-    spawnSync('schtasks', ['/Delete', '/TN', task, '/F'], { timeout: 60_000 })
+  /** A task that runs the backup as SYSTEM and keeps its output, to explain a failed run. */
+  const diagnosisTask = `${task} diagnosis`
+
+  /** A task, the README's unless named, removed whether or not it is there. */
+  const removeTask = (name = task) =>
+    spawnSync('schtasks', ['/Delete', '/TN', name, '/F'], { timeout: 60_000 })
 
   beforeAll(async () => {
     const server = new URL(testServerUrl())
@@ -498,6 +501,7 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   afterAll(async () => {
     if (pkg === undefined) return
     removeTask()
+    removeTask(diagnosisTask)
     rmSync(passFile(), { force: true })
     if (createdDatabase) await onServer(`DROP DATABASE ${database} WITH (FORCE)`)
     if (createdRole) await onServer(`DROP ROLE ${database}`)
@@ -540,12 +544,16 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   const running = '267009'
 
   /**
-   * Runs the task with the README's command, waits for it to end, and returns its Last Result
-   * as `schtasks /Query … /V /FO LIST` prints it, the README's signal of a failed backup.
+   * Runs the task, the README's with the README's commands unless named, waits for it to end, and
+   * returns its Last Result as `schtasks /Query … /V /FO LIST` prints it, the README's signal of a
+   * failed backup.
    */
-  async function runTask(): Promise<string> {
-    expect(atPrompt(readmeCommand('schtasks /Run'), pkg)).toMatchObject({ status: 0 })
-    const query = readmeCommand('schtasks /Query')
+  async function runTask(name = task): Promise<string> {
+    const [run, query] =
+      name === task
+        ? [readmeCommand('schtasks /Run'), readmeCommand('schtasks /Query')]
+        : [`schtasks /Run /TN "${name}"`, `schtasks /Query /TN "${name}" /V /FO LIST`]
+    expect(atPrompt(run, pkg)).toMatchObject({ status: 0 })
     const deadline = Date.now() + 120_000
     let listed = ''
     while (Date.now() < deadline) {
@@ -572,13 +580,47 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
     return folder
   }
 
+  /**
+   * What the backup into `folder` prints when run as SYSTEM, as the README's task runs it: a
+   * scheduled task's output is kept nowhere, so a second task runs the same backup through a
+   * script that writes it to a file.
+   */
+  async function outputAsSystem(folder: string): Promise<string> {
+    const dir = mkdtempSync(join(dirname(pkg), 'diagnosis-'))
+    scratch.push(dir)
+    const script = join(dir, 'diagnose.ps1')
+    const log = join(dir, 'output.txt')
+    const literal = (text: string) => `'${text.replaceAll("'", "''")}'`
+    writeFileSync(
+      script,
+      [
+        `& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${literal(join(pkg, 'backup.ps1'))} -Folder ${literal(folder)} -PassFile ${literal(passFile())} 2>&1 | Out-File -Encoding utf8 -LiteralPath ${literal(log)}`,
+        `"exit code $LASTEXITCODE, as $(whoami)" | Out-File -Append -Encoding utf8 -LiteralPath ${literal(log)}`,
+      ].join('\r\n'),
+    )
+    const create = `schtasks /Create /TN "${diagnosisTask}" /SC ONCE /ST 00:00 /RU SYSTEM /F /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\"${script}\\""`
+    try {
+      expect(atPrompt(create, pkg)).toMatchObject({ status: 0 })
+      const result = await runTask(diagnosisTask)
+      const output = existsSync(log) ? readFileSync(log, 'utf8') : '(no output)'
+      return `${output}\n(the diagnosis task's Last Result: ${result})`
+    } finally {
+      removeTask(diagnosisTask)
+    }
+  }
+
   it("dumps the database into a dated file when the README's task runs, which then shows a Last Result of 0", async () => {
     expect(dirname(pkg)).toContain(' ')
     writePassFile()
     const folder = dumpsFolder()
     try {
       schedule(folder)
-      expect(await runTask()).toBe('0')
+      const result = await runTask()
+      if (result !== '0') {
+        throw new Error(
+          `The task's Last Result is ${result}; the backup, run as SYSTEM, printed:\n${await outputAsSystem(folder)}`,
+        )
+      }
       expect(readdirSync(folder)).toEqual([
         expect.stringMatching(new RegExp(`^${database}-\\d{4}-\\d{2}-\\d{2}-\\d{6}\\.dump$`)),
       ])
