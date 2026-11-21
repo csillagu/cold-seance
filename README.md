@@ -73,6 +73,7 @@ The backend does not start if a required setting is missing, a value is not vali
 | `npm run test:image`              | Tests of the Docker image (SC-028) and the Compose file (SC-029), against PostgreSQL; needs Docker and a built image                                      |
 | `npm run test:windows`            | Tests of the Windows zip (SC-120 to SC-122), on Windows only, against PostgreSQL; needs the zip unpacked, named by `TEST_WINDOWS_PACKAGE`                 |
 | `npm run test:live`               | The live GitHub tests (SC-126), against the test deployment and a real repository; needs the `LIVE_` variables of [Live GitHub tests](#live-github-tests) |
+| `npm run test:live:local`         | The same live GitHub tests (SC-128) against a backend the run starts itself, on PostgreSQL; see [Live GitHub tests](#live-github-tests)                   |
 | `npm run build`                   | Backend to `backend/dist/`, frontend to `frontend/dist/`                                                                                                  |
 
 ### Parallel branches
@@ -287,7 +288,27 @@ LIVE_URL=https://cold-seance-test-123456789012.us-east1.run.app LIVE_ADMIN_PASSW
   LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live
 ```
 
-The workflow [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the same suite on GitHub Actions, started by hand from the Actions tab only (SC-127). It takes its settings from the `live` environment that Terraform writes. Give the environment required reviewers if the tokens should be used only on a person's approval.
+The workflow [`.github/workflows/live-github-tests.yml`](.github/workflows/live-github-tests.yml) runs the same suite on GitHub Actions, started by hand from the Actions tab only (SC-127). It takes its settings from the `live` environment that Terraform writes.
+
+#### Against a server the run starts
+
+`npm run test:live:local` runs the same tests against real GitHub and the same test repository, with no deployment (SC-128, DD-063): the run starts the tool's backend itself, on a fresh database on the PostgreSQL server of `TEST_DATABASE_URL`, signed in to GitHub with the deployment's App (issues) and its classic Projects token (the status field), and drops the database when it ends. No webhook reaches that backend, so a change made on GitHub reaches it at its re-check, which runs every minute; a test waits three minutes for one. TC-147, a new issue opened on GitHub becoming a task, is left out: only a webhook brings a new issue in (#245). It is a separate command, not a fallback: `npm run test:live` always runs against the deployment, `npm run test:live:local` always against the server it starts, and each stops, naming them, if a setting it needs is missing.
+
+It needs PostgreSQL as the integration tests do, the variables above from `LIVE_GITHUB_REPOSITORY` to `LIVE_STATUS_FIELD_ON_HOLD`, and the App's own, which Terraform also writes into the `live` environment:
+
+| Variable                      | What it is                                                               |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `TEST_DATABASE_URL`           | A PostgreSQL server the run may create a database on, as for integration |
+| `LIVE_GITHUB_APP_ID`          | The deployment's GitHub App's id (`github_app_id`)                       |
+| `LIVE_GITHUB_APP_PRIVATE_KEY` | The contents of its private key file (`github_app_private_key_file`)     |
+
+```sh
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres LIVE_GITHUB_APP_ID=123456 \
+  LIVE_GITHUB_APP_PRIVATE_KEY="$(cat github-app.pem)" LIVE_GITHUB_REPOSITORY=csillagu/cold-seance-live \
+  LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live:local
+```
+
+CI runs it on every pull request and manual dispatch, as the `live` job of [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (SC-129), with its settings from the `live` environment. The job has no approval gate: it uses the environment's secrets on every run. GitHub gives them to no pull request from a fork and to no Dependabot pull request, so the job fails on those, naming the missing settings. Every run of the suite works in the one test repository, so the `live` job and the deployment's workflow share one concurrency group and run one at a time. GitHub keeps only one run waiting in a group: a third that arrives cancels the one waiting, which then has to be run again.
 
 ### REST API
 

@@ -1,10 +1,11 @@
 import { randomBytes } from 'node:crypto'
+import { inject } from 'vitest'
 import { GitHub, type Issue } from './github.ts'
-import { eventually, liveSettings, type LiveSettings } from './settings.ts'
+import { deploymentSettings, eventually, localSettings, type LiveSettings } from './settings.ts'
 import { Tool, type Task } from './tool.ts'
 
 /**
- * One file's run of the live suite (SC-126, DD-062). The deployment is not fresh, so each run
+ * One file's run of the live suite (SC-126, SC-128, DD-062, DD-063). The deployment is not fresh, so each run
  * works in projects of its own, named after it, and remembers what it made on GitHub. `cleanUp`
  * first removes the test repository from the run's projects, so that the tool leaves their issues
  * alone, then deletes those issues and the run's milestones on GitHub. The projects stay: the tool
@@ -30,11 +31,16 @@ export class LiveRun {
   }
 
   /**
-   * Signs in to the deployment and registers the test repository there, if it is not yet. The
-   * first system admin registers it, so they are its admin.
+   * Signs in to the tool the command named, the deployment or the server the run started, and
+   * registers the test repository there, if it is not yet. The first system admin registers it,
+   * so they are its admin.
    */
   static async start(): Promise<LiveRun> {
-    const settings = liveSettings()
+    const target = inject('liveTarget')
+    let settings: LiveSettings
+    if (target === 'deployment') settings = deploymentSettings()
+    else if (target === 'local') settings = localSettings(inject('liveServer'))
+    else throw new Error('Run the live suite with npm run test:live or npm run test:live:local')
     const tool = await Tool.signIn(settings)
     const github = new GitHub(settings)
     const { owner, name } = settings.repository
