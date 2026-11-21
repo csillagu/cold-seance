@@ -201,7 +201,7 @@ The tool does not back itself up: the backups are yours (SC-122, DD-061). A dump
 
 3. **Run it once now**, with `schtasks /Run /TN "cold-seance backup"`, and check that a dump appears.
 
-**Check on it.** The tool knows nothing of its backups, so a failing backup goes unnoticed unless you look. A failed run ends with a non-zero code, which Task Scheduler shows as the task's Last Run Result (anything but `0x0`), and `schtasks /Query /TN "cold-seance backup" /V /FO LIST` prints. Look at it, and at the dumps folder, from time to time.
+**Check on it.** The tool knows nothing of its backups, so a failing backup goes unnoticed unless you look. A failed run ends with a non-zero code, which Task Scheduler shows as the task's Last Run Result (anything but `0x0`), and `schtasks /Query /TN "cold-seance backup" /V /FO LIST` prints as its Last Result (anything but `0`). Look at it, and at the dumps folder, from time to time.
 
 **By hand,** from PostgreSQL's `bin` folder (`C:\Program Files\PostgreSQL\<version>\bin`): `pg_dump -Fc -h localhost -U cold_seance -f cold_seance.dump cold_seance`. In pgAdmin, right-click the database and choose **Backup…**, with the Custom format, and **Restore…** to restore.
 
