@@ -24,13 +24,27 @@ it('TC-151: seeding imports an open issue as an unscheduled task (live)', async 
   await eventually(() => run.github.listed(opened.number), 60_000, 3_000)
   const apollo = await run.project('TC-151')
 
-  // Step 1: seed Apollo from the test repository.
-  const seeded = await run.tool.call<{
-    imported: { taskId: string; repositoryId: string; issueNumber: number }[]
-    skipped: { repositoryId: string; issueNumber: number; reason: string }[]
-  }>('POST', `/projects/${apollo}/seeding`, { repositoryIds: [run.repositoryId] })
-  // Every issue it brought in is now linked to a task of this run's: deleted at the clean-up.
-  for (const imported of seeded.imported) run.track(imported.issueNumber)
+  // Step 1: seed Apollo from the test repository. The tool reads the list with its App, whose
+  // view of the list can lag the suite's token's by some seconds, so the seeding is repeated until
+  // the list it read holds the opened issue; a repeat skips what an earlier one brought in.
+  const seeded = await eventually(
+    async () => {
+      const result = await run.tool.call<{
+        imported: { taskId: string; repositoryId: string; issueNumber: number }[]
+        skipped: { repositoryId: string; issueNumber: number; reason: string }[]
+      }>('POST', `/projects/${apollo}/seeding`, { repositoryIds: [run.repositoryId] })
+      // Every issue it brought in is now linked to a task of this run's: deleted at the clean-up.
+      for (const imported of result.imported) run.track(imported.issueNumber)
+      if (![...result.imported, ...result.skipped].some((i) => i.issueNumber === opened.number)) {
+        throw new Error(
+          `The seeding read no issue #${opened.number} yet (imported ${result.imported.length}, skipped ${result.skipped.length})`,
+        )
+      }
+      return result
+    },
+    60_000,
+    5_000,
+  )
 
   // Step 2: read the task linked to the opened issue: unscheduled, and neither done, cancelled
   // nor in progress.
