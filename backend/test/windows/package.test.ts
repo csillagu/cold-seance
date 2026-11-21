@@ -188,11 +188,14 @@ function accessOf(path: string): {
   inherits: boolean
   entries: { account: string; inherited: boolean }[]
 } {
-  const sid = '[System.Security.Principal.SecurityIdentifier]'
+  // .NET's own ACL reading, not Get-Acl: Windows PowerShell started from PowerShell 7, as on the
+  // CI runner, inherits PowerShell 7's module path and cannot load Get-Acl's module.
   const script = [
-    '$acl = Get-Acl -LiteralPath $env:ACL_PATH',
+    "$ErrorActionPreference = 'Stop'",
+    '$path = $env:ACL_PATH',
+    '$acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [System.IO.File]::GetAccessControl($path) }',
     "'protected|' + $acl.AreAccessRulesProtected",
-    `foreach ($rule in $acl.Access) { $rule.IdentityReference.Translate(${sid}).Value + '|' + $rule.IsInherited }`,
+    "foreach ($rule in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) { $rule.IdentityReference.Value + '|' + $rule.IsInherited }",
   ].join('; ')
   const result = spawnSync(
     'powershell.exe',
@@ -202,11 +205,13 @@ function accessOf(path: string): {
       env: { ...process.env, ACL_PATH: path },
     },
   )
-  if (result.status !== 0) throw new Error(`Get-Acl failed on ${path}:\n${result.stderr}`)
   const lines = result.stdout.trim().split(/\r?\n/)
   const [first, ...rest] = lines.map((line) => line.split('|'))
+  if (result.status !== 0 || first?.[0] !== 'protected') {
+    throw new Error(`The access control list of ${path} could not be read:\n${result.stderr}`)
+  }
   return {
-    inherits: first![1] !== 'True',
+    inherits: first[1] !== 'True',
     entries: rest.map(([account, inherited]) => ({
       account: account!,
       inherited: inherited === 'True',
