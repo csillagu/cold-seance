@@ -141,7 +141,16 @@ Test a restore once, on a scratch machine or in a separate folder, before you ne
 
 ## Updating
 
-There is one image tag to follow, `latest`, built from the main branch.
+Each release of the tool is published as an image, with the same version as the Windows zip of that release. The image's tags:
+
+| Tag | What it is |
+| --- | --- |
+| `latest` | The latest release. `compose.yaml` runs this one. |
+| A version, such as `v0.1.0` | That release. A release candidate, such as `v0.1.0-rc.1`, has a tag of its own but never becomes `latest`. |
+| `main` | The latest build of the main branch, published from time to time between releases. Not a release: use it to try what is coming. |
+| `sha-<full commit hash>` | The build of that commit. Every image carries one. |
+
+The releases are listed on the repository's [Releases](https://github.com/csillagu/cold-seance/releases) page, with what each one changes.
 
 1. **Take a backup** (see above). Migrations are not reversible: the only way back to an older version is to restore the backup taken before the update.
 2. **Pull and restart:**
@@ -153,7 +162,7 @@ There is one image tag to follow, `latest`, built from the main branch.
 
    The tool applies the new migrations when it starts. If a migration fails, nothing of it is applied. The tool logs why and stays down until the problem is fixed.
 
-To stay on a known version, replace `latest` in `compose.yaml` with a commit tag, `sha-<full commit hash>`, such as `ghcr.io/csillagu/cold-seance:sha-ce9c4ccc02db7c3f073f8c1420b252825b589c4c`. Each image published from the main branch carries one.
+`latest` moves when a release is published, so the steps above update to the latest release. To stay on a release, replace `latest` in `compose.yaml` with its version, such as `ghcr.io/csillagu/cold-seance:v0.1.0`. To move to a later release, change the version and follow the steps above. Going back to an earlier version needs the backup taken before the update, since migrations are not reversible.
 
 **PostgreSQL updates.** `compose.yaml` pins the PostgreSQL image. To pick up a new minor release, fetch the latest `compose.yaml` again and run `docker compose up -d`. A new major version (18 to 19, say) cannot read the old volume. Back up, delete the volume, change the version and restore, as in [Restore](#backing-up-and-restoring).
 
