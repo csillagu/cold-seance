@@ -1,0 +1,94 @@
+name: Image release
+
+# Publishes the application image for each version tag pushed (SC-130, DD-040), as the Windows
+# release (release-windows.yml) publishes the zip for the same tag, from the same commit. The image
+# is built and tested as CI's `image` job does, then published tagged with the version, as the Git
+# tag writes it (`v0.1.0`), and its commit. A final release, `v<major>.<minor>.<patch>` with no
+# suffix, also moves `latest`, which the Compose install runs (SC-029), unless a final release of a
+# higher version was tagged before it. A release candidate, such as `v0.1.0-rc.1`, leaves `latest`
+# where it is.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  # The same steps as CI's `image` job.
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        # A throwaway server for this job alone: no password, so none is written here.
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://postgres@localhost:5432/postgres
+      TEST_IMAGE: cold-seance:test
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: docker build -t "$TEST_IMAGE" .
+      - run: npm run test:image
+
+  latest:
+    name: Whether it moves latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      latest: ${{ steps.check.outputs.latest }}
+    steps:
+      # The whole history, for the repository's other version tags.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          final='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          latest=false
+          if [[ "$TAG" =~ $final ]]; then
+            highest=$(git tag --list 'v*' | grep -E "$final" | sort -V | tail -n 1)
+            if [ "$highest" = "$TAG" ]; then
+              latest=true
+            else
+              echo "::notice::$TAG is a final release, but $highest is higher, so latest stays on $highest."
+            fi
+          else
+            echo "::notice::$TAG is not a final release (v<major>.<minor>.<patch>), so latest stays where it is."
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish the image
+    needs: [image, latest]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      tags: |
+        type=ref,event=tag
+        type=raw,value=latest,enable=${{ needs.latest.outputs.latest }}

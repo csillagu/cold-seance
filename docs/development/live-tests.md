@@ -44,7 +44,7 @@ What Terraform makes:
 
 Running it:
 
-- **Updating to the latest image**: run `terraform apply`. Each plan looks up the version `:latest` points to on `ghcr.io` (`image_tag`) and runs the service on that version, by its digest, so a newly published image makes a new revision; `terraform output image` shows which one runs. The proxy is asked for the digest because it keeps serving a tag as it first fetched it. A change to the variables also makes a new revision.
+- **Updating to the latest image**: run `terraform apply`. Each plan looks up the version the image's tag points to on `ghcr.io` and runs the service on that version, by its digest, so a newly published image makes a new revision. The tag is `image_tag`: `latest`, the latest release, unless it is set, such as to `main` for the latest build of `main` (see [Packaging and CI](packaging-and-ci.md#ci-and-dependencies)); `terraform output image` shows which one runs. The proxy is asked for the digest because it keeps serving a tag as it first fetched it. A change to the variables also makes a new revision.
 - **Between test runs** nothing runs, and Neon's database sleeps too. A webhook delivery then starts an instance, but GitHub gives up on a delivery after 10 seconds, so one may be lost while the tool starts; a change to the status field made between runs is seen at the next run's re-check.
 - **Logs**: `terraform output logs` prints the command that shows them; they are also in the Google Cloud console, under the service.
 - **Secrets**: the service's environment variables can be read by the Google Cloud project's users. Terraform's state, `terraform.tfstate`, holds every secret in plain text: keep it on your machine, or in a private bucket, and never commit it.
