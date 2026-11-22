@@ -45,7 +45,8 @@ jobs:
           Set-Service -InputObject $service -StartupType Manual
           Start-Service -InputObject $service
       # The runner sets PGPASSWORD and PGUSER machine-wide, which a scheduled task running as SYSTEM
-      # inherits; PGPASSWORD would beat the README's password file. A user's machine has neither.
+      # inherits; PGPASSWORD would beat the Windows guide's password file. A user's machine has
+      # neither.
       - name: Remove the runner's PostgreSQL credentials
         shell: pwsh
         run: |
