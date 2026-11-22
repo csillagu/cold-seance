@@ -87,7 +87,7 @@ class Reader {
     if (this.missing.length === 0) return
     const command = target === 'local' ? 'npm run test:live:local' : 'npm run test:live'
     throw new Error(
-      `${command} needs ${this.missing.join(', ')} (see "Live GitHub tests" in the README)`,
+      `${command} needs ${this.missing.join(', ')} (see "Live GitHub tests" in docs/development/live-tests.md)`,
     )
   }
 }

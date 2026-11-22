@@ -4,8 +4,8 @@ name: Live GitHub tests
 # repository. It needs the deployment running and live credentials, so it runs only when started
 # by hand from the Actions tab, never on a pull request or a push. Its settings are the secrets and
 # variables of the `live` environment, which the deployment's Terraform writes (see "Live GitHub
-# tests" in the README); the suite stops,
-# naming each one, if one it needs is missing.
+# tests" in docs/development/live-tests.md); the suite stops, naming each one, if one it needs is
+# missing.
 on:
   workflow_dispatch:
 

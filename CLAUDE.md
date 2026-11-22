@@ -31,7 +31,7 @@ The skills load from the next session. To run the engine in the current one, clo
 
 ## Code
 
-The code is an npm workspace (`backend/`, `frontend/`); the README's Development section has the commands. Use Node.js 26. Before committing code, `npm run check` must pass, and `npm run test:integration` too when the backend changed (it needs `TEST_DATABASE_URL`, see the README). Add dependencies with `npm install -w <package>` so `package-lock.json` stays the one lockfile.
+The code is an npm workspace (`backend/`, `frontend/`); the [development reference](docs/development/README.md) has the commands. Use Node.js 26. Before committing code, `npm run check` must pass, and `npm run test:integration` too when the backend changed (it needs `TEST_DATABASE_URL`, see the development reference). Add dependencies with `npm install -w <package>` so `package-lock.json` stays the one lockfile.
 
 ## GitHub workflow
 

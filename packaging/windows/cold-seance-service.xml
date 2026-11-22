@@ -2,7 +2,8 @@
   The Windows service of cold-seance (SC-121, DD-061), for WinSW, the wrapper next to this file
   (cold-seance-service.exe). Registering the service is optional: from an administrator's command
   prompt in this folder, `cold-seance-service.exe install` registers it to start at boot, and
-  `cold-seance-service.exe uninstall` removes it. See the README, "Installing on Windows".
+  `cold-seance-service.exe uninstall` removes it. See "Run it as a Windows service" in
+  docs\user-guide\install-windows.md.
 
   The service runs the backend on the Node.js runtime in this folder (%BASE%), from this folder,
   so it reads config.yaml from here. When the service is stopped, WinSW sends the backend Ctrl+C,

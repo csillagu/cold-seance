@@ -50,6 +50,8 @@ for (const path of [
   'frontend/dist',
   'LICENSE',
   'README.md',
+  // The user guide, which the README links to, so that its instructions are in the folder too.
+  'docs/user-guide',
 ]) {
   cpSync(join(repo, path), join(out, path), { recursive: true })
 }

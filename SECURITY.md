@@ -18,4 +18,4 @@ There are no release versions yet. Fixes go to `main`, and the image built from 
 
 ## Deployment
 
-cold-seance holds GitHub credentials (App keys or personal access tokens), the webhook secrets and its database password. The [README](README.md#configuration) describes how to configure the tool without building these into an image or committing them; keep `config.yaml` and the key files readable by the tool's user only.
+cold-seance holds GitHub credentials (App keys or personal access tokens), the webhook secrets and its database password. The [configuration guide](docs/user-guide/configuration.md) describes how to configure the tool without building these into an image or committing them; keep `config.yaml` and the key files readable by the tool's user only.

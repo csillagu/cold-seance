@@ -1,5 +1,5 @@
 # Copy to terraform.tfvars and fill in. terraform.tfvars holds secrets and is ignored by git.
-# Also set NEON_API_KEY and GITHUB_TOKEN in the environment (see the README).
+# Also set NEON_API_KEY and GITHUB_TOKEN in the environment (see docs/development/live-tests.md).
 gcp_project                 = "my-gcp-project"
 github_app_id               = 123456
 github_app_private_key_file = "~/keys/cold-seance-test.private-key.pem"
