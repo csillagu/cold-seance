@@ -1,5 +1,5 @@
 # GitHub: the test repository's webhook and the `live` environment the live test workflow runs in
-# (SC-125, DD-062). The token comes from GITHUB_TOKEN; see the README for what it needs.
+# (SC-125, DD-062). The token comes from GITHUB_TOKEN; see docs/development/live-tests.md for what it needs.
 
 locals {
   webhook_url = "${local.url}/api/github/webhooks"

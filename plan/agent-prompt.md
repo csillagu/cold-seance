@@ -12,7 +12,7 @@ You are one of several agents working on this repository at the same time. Each 
 
 ## 1. Read first
 
-Read `CLAUDE.md`, the README and [`plan/work-graph.md`](work-graph.md). `CLAUDE.md` binds you throughout: the branch rules, the checks before a commit, the reqlite rules, and never merging.
+Read `CLAUDE.md`, the [development reference](../docs/development/README.md) and [`plan/work-graph.md`](work-graph.md). `CLAUDE.md` binds you throughout: the branch rules, the checks before a commit, the reqlite rules, and never merging.
 
 ## 2. Find the issues you may take
 
@@ -54,7 +54,7 @@ The issue body lists what to build and what to test:
 
 Keep your change apart from the others' work, as `CLAUDE.md`'s "Keeping parallel branches apart" sets out: new tables in a schema module of their own, new lines in shared lists in their alphabetical place, new code in new files. Bring `main` in early and often: run `npm run db:rebase` when you start and whenever `main` has moved. It fetches `origin/main`, rebases onto it, and generates your migration again after `main`'s. Never merge migration files by hand.
 
-Before each commit, run `npm run check`, and `npm run test:integration` too if the backend changed (see the README). If you changed anything in `graph/`, follow `CLAUDE.md`'s reqlite rules: run `reqlite check --changed`, then the quality review.
+Before each commit, run `npm run check`, and `npm run test:integration` too if the backend changed (see the development reference). If you changed anything in `graph/`, follow `CLAUDE.md`'s reqlite rules: run `reqlite check --changed`, then the quality review.
 
 ## 7. Record every decision in the pull request
 

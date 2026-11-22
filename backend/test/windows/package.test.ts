@@ -19,14 +19,14 @@ import { createTestDatabase, testServerUrl, type TestDatabase } from '../helpers
 
 // The Windows portable zip (SC-120, DD-061), unpacked, run natively on Windows against a PostgreSQL
 // installed on the same machine: started by hand with its start script, registered and stopped as a
-// Windows service (SC-121) reading a configuration restricted as the README says, and backed up and
-// restored with its backup script (SC-122), by hand and as the README's scheduled task running as
+// Windows service (SC-121) reading a configuration restricted as the guide says, and backed up and
+// restored with its backup script (SC-122), by hand and as the guide's scheduled task running as
 // SYSTEM. CI runs these on a Windows machine (SC-123) as an administrator, with TEST_WINDOWS_PACKAGE
-// naming the folder the zip was unpacked into, a path with a space in it. The README's commands are
-// read from the README and run as a user types them at a command prompt, so that the README is what
-// is tested. TC-259 (FR-177), the part the zip supports: unpacked and configured with the address
-// of an empty database X, the zip starts, migrates X and serves the frontend and the API. Still
-// pending, as for the image: creating project `Persisted` as the first system admin (SC-053,
+// naming the folder the zip was unpacked into, a path with a space in it. The commands of the
+// Windows installation guide, docs/user-guide/install-windows.md, are read from it and run as a user
+// types them at a command prompt, so that the guide is what is tested. TC-259 (FR-177), the part
+// the zip supports: unpacked and configured with the address of an empty database X, the zip
+// starts, migrates X and serves the frontend and the API. Still pending, as for the image: creating project `Persisted` as the first system admin (SC-053,
 // SC-017) and listing it from a second install.
 
 /** Where the tool listens unless configured otherwise: this machine only, port 3000 (DD-061). */
@@ -140,27 +140,31 @@ async function expectServesTheTool(): Promise<void> {
   expect((await fetch(`${base}/api/openapi.json`)).status).toBe(401)
 }
 
-const readme = readFileSync(fileURLToPath(new URL('../../../README.md', import.meta.url)), 'utf8')
+// The Windows installation guide, whose commands the tests run.
+const guide = readFileSync(
+  fileURLToPath(new URL('../../../docs/user-guide/install-windows.md', import.meta.url)),
+  'utf8',
+)
 
 /**
- * The one command in the README that starts with `start`: a line of a `bat` block, or an inline
- * code span. The tests run the README's commands as written, so a command that does not work
- * fails here, and is fixed in the README, which is what users follow.
+ * The one command in the guide that starts with `start`: a line of a `bat` block, or an inline
+ * code span. The tests run the guide's commands as written, so a command that does not work
+ * fails here, and is fixed in the guide, which is what users follow.
  */
-function readmeCommand(start: string): string {
-  const blocks = [...readme.matchAll(/```bat\r?\n([\s\S]*?)```/g)].flatMap((match) =>
+function guideCommand(start: string): string {
+  const blocks = [...guide.matchAll(/```bat\r?\n([\s\S]*?)```/g)].flatMap((match) =>
     match[1]!.split(/\r?\n/),
   )
-  const spans = [...readme.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]!)
+  const spans = [...guide.matchAll(/`([^`\r\n]+)`/g)].map((match) => match[1]!)
   const found = new Set([...blocks, ...spans].map((line) => line.trim()))
   const commands = [...found].filter((line) => line.startsWith(start))
   if (commands.length !== 1) {
-    throw new Error(`The README has ${commands.length} commands starting with ${start}`)
+    throw new Error(`The guide has ${commands.length} commands starting with ${start}`)
   }
   return commands[0]!
 }
 
-/** `command` with each README path replaced by the test's own; each must be there. */
+/** `command` with each guide's path replaced by the test's own; each must be there. */
 function inPlaceOf(command: string, replacements: Record<string, string>): string {
   for (const [path, replacement] of Object.entries(replacements)) {
     if (!command.includes(path)) throw new Error(`${path} is not in the command: ${command}`)
@@ -219,12 +223,12 @@ function accessOf(path: string): {
   }
 }
 
-/** The well-known accounts the README's commands name: SYSTEM, Administrators and Users. */
+/** The well-known accounts the guide's commands name: SYSTEM, Administrators and Users. */
 const system = 'S-1-5-18'
 const administrators = 'S-1-5-32-544'
 const users = 'S-1-5-32-545'
 
-/** The account running the tests, which `%USERNAME%` names in the README's commands. */
+/** The account running the tests, which `%USERNAME%` names in the guide's commands. */
 function me(): string {
   const result = spawnSync(
     'powershell.exe',
@@ -266,7 +270,7 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
 })
 
 describe('the Windows zip (SC-120)', () => {
-  it('runs on a Node.js that takes the time zone from TZ, as the README says', () => {
+  it('runs on a Node.js that takes the time zone from TZ, as the guide says', () => {
     const result = spawnSync(
       join(pkg, 'node.exe'),
       ['-p', 'new Date(Date.UTC(2026, 6, 1)).getTimezoneOffset()'],
@@ -302,10 +306,10 @@ describe('the Windows service (SC-121)', () => {
     rmSync(secrets(), { recursive: true, force: true })
   })
 
-  it('serves the tool once registered and started, reading a config.yaml and key file restricted as the README says, and closes the backend cleanly on a service stop', async () => {
+  it('serves the tool once registered and started, reading a config.yaml and key file restricted as the guide says, and closes the backend cleanly on a service stop', async () => {
     // The service reads config.yaml from the zip's folder: it gets nothing from this environment.
     // One function is given a GitHub App, so that the service must also read its key file, which
-    // the configuration names by a Windows path in single quotes, as the README says.
+    // the configuration names by a Windows path in single quotes, as the guide says.
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
     mkdirSync(secrets())
     writeFileSync(keyFile(), privateKey.export({ type: 'pkcs1', format: 'pem' }))
@@ -326,10 +330,10 @@ describe('the Windows service (SC-121)', () => {
       ].join('\n'),
     )
 
-    // The README's step 4, Restrict: no inherited entries, and only the service's account,
+    // The guide's step 3, Restrict: no inherited entries, and only the service's account,
     // the administrators and the user who ran the commands have access; the Users group has none.
     for (const start of ['icacls config.yaml', 'icacls secrets']) {
-      expect(atPrompt(readmeCommand(start), pkg)).toMatchObject({ status: 0 })
+      expect(atPrompt(guideCommand(start), pkg)).toMatchObject({ status: 0 })
     }
     const accounts = [system, administrators, me()]
     expectAccessOnlyFor(config(), accounts, false)
@@ -362,7 +366,7 @@ describe('the Windows backup script (SC-122)', () => {
   const user = decodeURIComponent(server.username)
   const day = 24 * 60 * 60 * 1000
 
-  /** Runs backup.ps1 as the scheduled task in the README does, with a password file. */
+  /** Runs backup.ps1 as the scheduled task in the guide does, with a password file. */
   function backup(folder: string, passFile: string, port = server.port || '5432') {
     return spawnSync(
       'powershell.exe',
@@ -459,8 +463,8 @@ describe('the Windows backup script (SC-122)', () => {
   })
 })
 
-describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-122)', () => {
-  // The README's scheduled task backs up its step 1 database, cold_seance, owned by the role
+describe('the nightly backup, as the guide schedules it to run as SYSTEM (SC-122)', () => {
+  // The guide's scheduled task backs up its step 1 database, cold_seance, owned by the role
   // cold_seance, on localhost:5432; the test sets both up as that step does, and takes them down.
   const database = 'cold_seance'
   const password = randomBytes(12).toString('hex')
@@ -482,14 +486,14 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   /** A task that runs the backup as SYSTEM and keeps its output, to explain a failed run. */
   const diagnosisTask = `${task} diagnosis`
 
-  /** A task, the README's unless named, removed whether or not it is there. */
+  /** A task, the guide's unless named, removed whether or not it is there. */
   const removeTask = (name = task) =>
     spawnSync('schtasks', ['/Delete', '/TN', name, '/F'], { timeout: 60_000 })
 
   beforeAll(async () => {
     const server = new URL(testServerUrl())
     if (server.hostname !== 'localhost' || (server.port || '5432') !== '5432') {
-      throw new Error("The scheduled backup runs the README's command, on localhost:5432.")
+      throw new Error("The scheduled backup runs the guide's command, on localhost:5432.")
     }
     // A machine's own cold_seance is never touched: the test stops instead.
     await onServer(`CREATE ROLE ${database} LOGIN PASSWORD '${password}'`)
@@ -508,12 +512,12 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   })
 
   /**
-   * The README's password file, `C:\cold-seance\pgpass.conf` in the folder, restricted with the
-   * README's command to SYSTEM and the administrators.
+   * The guide's password file, `C:\cold-seance\pgpass.conf` in the folder, restricted with the
+   * guide's command to SYSTEM and the administrators.
    */
   function writePassFile(): void {
     writeFileSync(passFile(), `localhost:5432:${database}:${database}:${password}\n`)
-    const restrict = inPlaceOf(readmeCommand('icacls C:\\cold-seance\\pgpass.conf'), {
+    const restrict = inPlaceOf(guideCommand('icacls C:\\cold-seance\\pgpass.conf'), {
       'C:\\cold-seance\\pgpass.conf': `"${passFile()}"`,
     })
     expect(atPrompt(restrict, pkg)).toMatchObject({ status: 0 })
@@ -521,13 +525,13 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   }
 
   /**
-   * Registers the README's task, with the README's command, backing up into `folder`. The zip's
+   * Registers the guide's task, with the guide's command, backing up into `folder`. The zip's
    * folder has a space in its path, as does `folder`, so each path is quoted as `\"…\"`, as the
-   * README says. `extra` is added to the task's command line.
+   * guide says. `extra` is added to the task's command line.
    */
   function schedule(folder: string, extra = ''): void {
     const quoted = (path: string) => `\\"${path}\\"`
-    let create = inPlaceOf(readmeCommand('schtasks /Create'), {
+    let create = inPlaceOf(guideCommand('schtasks /Create'), {
       'C:\\cold-seance\\backup.ps1': quoted(join(pkg, 'backup.ps1')),
       'D:\\backups\\cold-seance': quoted(folder),
       'C:\\cold-seance\\pgpass.conf': quoted(passFile()),
@@ -544,14 +548,14 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   const running = '267009'
 
   /**
-   * Runs the task, the README's with the README's commands unless named, waits for it to end, and
-   * returns its Last Result as `schtasks /Query … /V /FO LIST` prints it, the README's signal of a
+   * Runs the task, the guide's with the guide's commands unless named, waits for it to end, and
+   * returns its Last Result as `schtasks /Query … /V /FO LIST` prints it, the guide's signal of a
    * failed backup.
    */
   async function runTask(name = task): Promise<string> {
     const [run, query] =
       name === task
-        ? [readmeCommand('schtasks /Run'), readmeCommand('schtasks /Query')]
+        ? [guideCommand('schtasks /Run'), guideCommand('schtasks /Query')]
         : [`schtasks /Run /TN "${name}"`, `schtasks /Query /TN "${name}" /V /FO LIST`]
     expect(atPrompt(run, pkg)).toMatchObject({ status: 0 })
     const deadline = Date.now() + 120_000
@@ -581,7 +585,7 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
   }
 
   /**
-   * What the backup into `folder` prints when run as SYSTEM, as the README's task runs it: a
+   * What the backup into `folder` prints when run as SYSTEM, as the guide's task runs it: a
    * scheduled task's output is kept nowhere, so a second task runs the same backup through a
    * script that writes it to a file.
    */
@@ -609,7 +613,7 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
     }
   }
 
-  it("dumps the database into a dated file when the README's task runs, which then shows a Last Result of 0", async () => {
+  it("dumps the database into a dated file when the guide's task runs, which then shows a Last Result of 0", async () => {
     expect(dirname(pkg)).toContain(' ')
     writePassFile()
     const folder = dumpsFolder()

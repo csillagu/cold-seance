@@ -1,5 +1,5 @@
 # The project's test deployment on Google Cloud Run and Neon (SC-125, DD-062). The owner applies it from
-# their own machine; see "Test deployment on Google Cloud" in the README.
+# their own machine; see "Test deployment on Google Cloud" in docs/development/live-tests.md.
 terraform {
   required_version = ">= 1.9"
 
@@ -50,7 +50,7 @@ provider "google-beta" {
 provider "neon" {}
 
 # The GitHub token Terraform sets up the test repository's webhook and the `live` environment with
-# is read from the environment variable GITHUB_TOKEN; see the README for what it needs.
+# is read from the environment variable GITHUB_TOKEN; see docs/development/live-tests.md for what it needs.
 provider "github" {
   owner = var.github_owner
 }

@@ -25,12 +25,12 @@ body:
     id: version
     attributes:
       label: Version
-      description: The image tag (`sha-<commit>`) or the commit you run.
+      description: The release you run (such as `v0.1.0`) for the Windows zip, or the image tag (`sha-<commit>`) for Docker.
   - type: textarea
     id: deployment
     attributes:
       label: Deployment
-      description: How the tool runs (Docker Compose, the image alone, from source), the database, and whether GitHub Apps or tokens are used. Leave out secrets.
+      description: How the tool runs (Docker Compose, the image alone, the Windows zip, a Windows package built yourself, from source), the database, and whether GitHub Apps or tokens are used. Leave out secrets.
   - type: textarea
     id: logs
     attributes:

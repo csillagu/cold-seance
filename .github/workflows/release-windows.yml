@@ -8,7 +8,7 @@ name: Windows release
 # Settings, once SignPath has accepted the project: the repository variables
 # SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG and SIGNPATH_SIGNING_POLICY_SLUG, and the secret
 # SIGNPATH_API_TOKEN. The SignPath project's artifact configuration says which files in the zip are
-# signed (see the README, "Windows releases").
+# signed (see docs/development/packaging-and-ci.md, "Windows releases").
 on:
   push:
     tags: ['v*']
@@ -67,8 +67,9 @@ jobs:
         run: |
           zip="cold-seance-$TAG-windows-x64.zip"
           mv cold-seance-windows-x64.zip "$zip"
-          notes="The Windows portable zip: unpack it and see README.txt inside, or the README's \"Installing on Windows\"."
+          guide="https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/user-guide/install-windows.md"
+          notes="The Windows portable zip. To install it, follow $guide (also in the zip, as docs/user-guide/install-windows.md)."
           if [ "$SIGNED" != true ]; then
-            notes="$notes This zip is not signed yet: Windows may warn about its files."
+            notes="$notes This zip is not signed yet, so Windows may warn about its files: tick Unblock in the zip's Properties before unpacking it, or build the package yourself, as the guide describes."
           fi
           gh release create "$TAG" "$zip" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "$notes" --verify-tag

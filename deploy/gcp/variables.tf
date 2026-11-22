@@ -91,7 +91,7 @@ variable "github_project_number" {
 }
 
 variable "live_github_token" {
-  description = "The fine-grained personal access token the live suite acts on the test repository with; see the README for its permissions."
+  description = "The fine-grained personal access token the live suite acts on the test repository with; see docs/development/live-tests.md for its permissions."
   type        = string
   sensitive   = true
 }
