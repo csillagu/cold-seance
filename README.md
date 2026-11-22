@@ -8,8 +8,6 @@ cold-seance is a self-hosted, open-source project planning tool for teams that w
 - **Keep GitHub in line.** Each task can have a linked issue. The tool keeps the issue's assignees, sub-issues, blocked-by relations and milestone the same as the task. It reads starts, holds and closes back from GitHub, and undoes changes on GitHub that would break the plan.
 - **AI proposes, people approve.** An AI assistant connects through the MCP server or the REST API, reads the plan and proposes changes. A person reviews each proposal as a live preview in the browser, edits it if needed, and approves or rejects it.
 
-> **Status:** pre-release. The features the guides describe are built, but no versioned release has been published yet, and things may still change.
-
 ## Installing
 
 cold-seance is one application backed by a PostgreSQL database. Pick the way to run it that suits your machine:

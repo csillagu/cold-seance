@@ -20,7 +20,7 @@ Further down: [restoring](#restoring), [updating](#updating), [uninstalling](#un
 
 ## Option A: download the zip
 
-Each release publishes `cold-seance-<version>-windows-x64.zip` on the repository's [Releases](https://github.com/csillagu/cold-seance/releases) page. Until the first release is published, use [option B](#option-b-build-the-package-yourself).
+Download `cold-seance-<version>-windows-x64.zip` of the latest release from the repository's [Releases](https://github.com/csillagu/cold-seance/releases) page. Each release publishes one.
 
 ### The zip is not signed yet
 

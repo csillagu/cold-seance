@@ -8,13 +8,16 @@ Report them privately through GitHub: on the repository's **Security** tab, choo
 
 - what the vulnerability is and what an attacker could do with it;
 - the steps to reproduce it, or a proof of concept;
-- the version affected: the image tag (`sha-<commit>`) or the commit.
+- the version affected: the release (such as `v0.1.0`) for the Windows zip, or the image tag (`sha-<commit>`) for Docker.
 
 The report stays private between you and the maintainers until a fix is published. We then publish a GitHub security advisory and credit you, unless you prefer not to be named.
 
 ## Supported versions
 
-There are no release versions yet. Fixes go to `main`, and the image built from it is published as `ghcr.io/csillagu/cold-seance:latest` and `:sha-<commit>`. Only the latest image is supported: update to it (`docker compose pull && docker compose up -d`) to get a fix.
+Only the latest version is supported, and a fix is published as a new version:
+
+- **Windows:** the latest release on the [Releases](https://github.com/csillagu/cold-seance/releases) page. Update as the [Windows installation guide](docs/user-guide/install-windows.md#updating) describes.
+- **Docker:** the image `ghcr.io/csillagu/cold-seance:latest`. Update with `docker compose pull && docker compose up -d`.
 
 ## Deployment
 
