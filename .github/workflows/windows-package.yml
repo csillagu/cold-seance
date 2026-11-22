@@ -24,6 +24,9 @@ jobs:
     env:
       # The runner's PostgreSQL, whose superuser password is `root`.
       TEST_DATABASE_URL: postgres://postgres:root@localhost:5432/postgres
+      # The runner sets PGPASSWORD=root for every process, and libpq takes it before a password
+      # file, so the backup script's -PassFile would go untested. Empty counts as not set.
+      PGPASSWORD: ''
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,6 +44,13 @@ jobs:
           # Disabled on the runner: it must get a startup type before it can start.
           Set-Service -InputObject $service -StartupType Manual
           Start-Service -InputObject $service
+      # The runner sets PGPASSWORD and PGUSER machine-wide, which a scheduled task running as SYSTEM
+      # inherits; PGPASSWORD would beat the README's password file. A user's machine has neither.
+      - name: Remove the runner's PostgreSQL credentials
+        shell: pwsh
+        run: |
+          [Environment]::SetEnvironmentVariable('PGPASSWORD', $null, 'Machine')
+          [Environment]::SetEnvironmentVariable('PGUSER', $null, 'Machine')
       - run: npm ci
       - run: npm run build
       # The zip's Node.js runtime is the one setup-node installed: Node.js's own Windows build.

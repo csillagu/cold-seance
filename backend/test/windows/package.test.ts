@@ -595,7 +595,7 @@ describe('the nightly backup, as the README schedules it to run as SYSTEM (SC-12
       script,
       [
         `& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ${literal(join(pkg, 'backup.ps1'))} -Folder ${literal(folder)} -PassFile ${literal(passFile())} 2>&1 | Out-File -Encoding utf8 -LiteralPath ${literal(log)}`,
-        `"exit code $LASTEXITCODE, as $(whoami)" | Out-File -Append -Encoding utf8 -LiteralPath ${literal(log)}`,
+        `"exit code $LASTEXITCODE, as $(whoami), with PGPASSWORD $(if ($env:PGPASSWORD) { 'set' } else { 'not set' })" | Out-File -Append -Encoding utf8 -LiteralPath ${literal(log)}`,
       ].join('\r\n'),
     )
     const create = `schtasks /Create /TN "${diagnosisTask}" /SC ONCE /ST 00:00 /RU SYSTEM /F /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\"${script}\\""`
