@@ -5,16 +5,17 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { docker, fromContainer, testImage } from '../helpers/docker.ts'
+import { firstAdminConfig, signIn } from '../helpers/install-api.ts'
 
 // SC-028: the application image, run as Docker runs it. TC-259 (FR-177), the part the image
 // supports: an install of the image, configured with the address of an external database `X` and
-// with no database of its own, starts, migrates `X` and serves the frontend and the API; stopped
-// and replaced by a second install on the same address, the second uses the same `X`.
-// The test server's database stands in for the hosted one, reached from the containers as another
-// host, and a second container on the same Docker host stands in for the install on another
-// machine. The Compose install's part, with its own database stopped, is in compose.test.ts (SC-029).
-// Still pending: creating project `Persisted` as the first system admin (SC-053, SC-017) and listing
-// it from the second install.
+// with no database of its own, starts, migrates `X` and serves the frontend and the API, and its
+// first system admin creates project `Persisted` there (SC-053, SC-017); stopped and replaced by a
+// second install on the same address, the second uses the same `X` and lists `Persisted` to the
+// same admin. The test server's database stands in for the hosted one, reached from the containers
+// as another host, and a second container on the same Docker host stands in for the install on
+// another machine. The Compose install's part, with its own database stopped, is in
+// compose.test.ts (SC-029).
 
 /** Where the container keeps the configuration fixture's files. */
 const configMount = '/config'
@@ -126,9 +127,10 @@ async function xAcceptsConnections(allow: boolean): Promise<void> {
 }
 
 describe('TC-259: the tool stores its data in the PostgreSQL database given in its configuration', () => {
-  it('TC-259: two installs of the image, one after the other, use the external database X given in their configuration', async () => {
-    // I1: X's address in its configuration file, mounted where the image reads it by default.
-    fx.write('config.yaml', `database:\n  url: ${fromContainer(x.url)}\n`)
+  it('TC-259: two installs of the image, one after the other, use the external database X given in their configuration: the second lists project Persisted, which the first created', async () => {
+    // I1: X's address in its configuration file, mounted where the image reads it by default, with
+    // the first system admin, whom I1 creates at its start.
+    fx.write('config.yaml', `database:\n  url: ${fromContainer(x.url)}\n${firstAdminConfig}`)
     const i1 = run('--volume', `${fx.dir}/config.yaml:/app/config.yaml:ro`)
     await serving(i1)
 
@@ -141,12 +143,15 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     expect(await page.text()).toContain('<div id="root"></div>')
     expect((await fetch(`${i1.base}/api/openapi.json`)).status).toBe(401)
 
+    // As the first system admin, create project `Persisted` on I1.
+    await (await signIn(i1.base)).createProject('Persisted')
+
     // Stopped as Docker stops it, I1 closes cleanly.
     docker('stop', i1.id)
     expect(docker('inspect', '--format', '{{.State.ExitCode}}', i1.id)).toBe('0')
 
-    // I2: the same address, given by the environment this time. That it uses X, and nothing
-    // else, shows first by its refusing to come up while X takes no connections, naming X...
+    // I2: the same address, given by the environment this time, and no first system admin: the one
+    // it signs in with must come from X. That it uses X, and nothing else, shows first by its refusing to come up while X takes no connections, naming X...
     const i2Env = ['-e', `COLD_SEANCE_DATABASE_URL=${fromContainer(x.url)}`]
     await xAcceptsConnections(false)
     try {
@@ -181,6 +186,9 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     expect((await fetch(`${i2.base}/projects`)).status).toBe(200)
     expect(await migrationRecordOfX()).toEqual(record)
     expect(logs(i2.id)).not.toContain('could not be applied')
+
+    // I2 lists `Persisted` to the same system admin.
+    expect(await (await signIn(i2.base)).projectNames()).toContain('Persisted')
   })
 })
 

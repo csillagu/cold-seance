@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createTestDatabase, testServerUrl, type TestDatabase } from '../helpers/database.ts'
+import { firstAdminEnv, signIn } from '../helpers/install-api.ts'
 
 // The Windows portable zip (SC-120, DD-061), unpacked, run natively on Windows against a PostgreSQL
 // installed on the same machine: started by hand with its start script, registered and stopped as a
@@ -26,8 +27,10 @@ import { createTestDatabase, testServerUrl, type TestDatabase } from '../helpers
 // Windows installation guide, docs/user-guide/install-windows.md, are read from it and run as a user
 // types them at a command prompt, so that the guide is what is tested. TC-259 (FR-177), the part
 // the zip supports: unpacked and configured with the address of an empty database X, the zip
-// starts, migrates X and serves the frontend and the API. Still pending, as for the image: creating project `Persisted` as the first system admin (SC-053,
-// SC-017) and listing it from a second install.
+// starts, migrates X and serves the frontend and the API, and its first system admin creates
+// project `Persisted` there (SC-053, SC-017); started again on the same X, it lists `Persisted` to
+// the same admin. Two starts on the same database stand in for the second install on another
+// machine.
 
 /** Where the tool listens unless configured otherwise: this machine only, port 3000 (DD-061). */
 const base = 'http://127.0.0.1:3000'
@@ -74,12 +77,12 @@ interface Started {
   output: () => string
 }
 
-/** Starts the tool with its start script, from another folder, on `databaseUrl`. */
-function startByHand(databaseUrl: string): Started {
+/** Starts the tool with its start script, from another folder, on `databaseUrl`, with `env` added. */
+function startByHand(databaseUrl: string, env: Record<string, string> = {}): Started {
   let output = ''
   const child = spawn('cmd.exe', ['/d', '/c', join(pkg, 'start.cmd')], {
     cwd: tmpdir(),
-    env: { ...process.env, ...githubEnv, COLD_SEANCE_DATABASE_URL: databaseUrl },
+    env: { ...process.env, ...githubEnv, ...env, COLD_SEANCE_DATABASE_URL: databaseUrl },
     windowsHide: true,
   })
   child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()))
@@ -90,6 +93,16 @@ function startByHand(databaseUrl: string): Started {
 /** Ends a tool started by hand: cmd.exe and the Node.js process it started. */
 function stopByHand(started: Started): void {
   spawnSync('taskkill', ['/pid', String(started.process.pid), '/t', '/f'])
+}
+
+/** Ends a tool started by hand, and waits until nothing answers on `base` any more. */
+async function stoppedByHand(started: Started): Promise<void> {
+  stopByHand(started)
+  const deadline = Date.now() + 30_000
+  while (await answers()) {
+    if (Date.now() > deadline) throw new Error(`The tool still answers after being stopped`)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
 }
 
 /** Waits until the tool answers on `base`, failing with `log()` if `running()` turns false first. */
@@ -255,16 +268,29 @@ function expectAccessOnlyFor(path: string, accounts: string[], inherited: boolea
 }
 
 describe('TC-259: the tool stores its data in the PostgreSQL database given in its configuration', () => {
-  it('TC-259: the unpacked zip, started by hand from another folder, migrates the empty database X given in its configuration and serves the tool on 127.0.0.1:3000 (SC-120)', async () => {
+  it('TC-259: the unpacked zip, started by hand from another folder, migrates the empty database X given in its configuration and serves the tool on 127.0.0.1:3000 (SC-120); started again on X, it lists project Persisted, which its first system admin created', async () => {
     // The folder's path has a space in it, as C:\Program Files does.
     expect(pkg).toContain(' ')
-    const started = startByHand(x.url)
+    // The first start, with the first system admin, whom it creates at its start.
+    const first = startByHand(x.url, firstAdminEnv)
     try {
-      await serving(() => started.process.exitCode === null, started.output)
+      await serving(() => first.process.exitCode === null, first.output)
       expect(await migrationRecord(x.url)).toBeDefined()
       await expectServesTheTool()
+      // As the first system admin, create project `Persisted`.
+      await (await signIn(base)).createProject('Persisted')
     } finally {
-      stopByHand(started)
+      await stoppedByHand(first)
+    }
+
+    // The second start, on the same X, with no first system admin: the one it signs in with must
+    // come from X. It lists `Persisted` to them.
+    const second = startByHand(x.url)
+    try {
+      await serving(() => second.process.exitCode === null, second.output)
+      expect(await (await signIn(base)).projectNames()).toContain('Persisted')
+    } finally {
+      stopByHand(second)
     }
   })
 })

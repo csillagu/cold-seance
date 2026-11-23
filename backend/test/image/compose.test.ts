@@ -9,15 +9,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createConfigFixture, type ConfigFixture } from '../helpers/config.ts'
 import { createTestDatabase, type TestDatabase } from '../helpers/database.ts'
 import { docker, fromContainer, testImage } from '../helpers/docker.ts'
+import { firstAdminConfig, signIn } from '../helpers/install-api.ts'
 
 // SC-029: the installation Compose file, run as an installer runs it, from a directory of its own
 // holding compose.yaml, config.yaml and secrets/. TC-259 (FR-177), the part the Compose
 // install supports: an install configured with the address of an external database `X` comes up
-// on `X` with the database it was installed with stopped, and a second install on the same address
-// uses the same `X`. The test server's database stands in for the hosted one, and a second Compose
-// project on the same Docker host for the install on another machine. Still pending: creating
-// project `Persisted` as the first system admin (SC-053, SC-017) and listing it from the second
-// install.
+// on `X` with the database it was installed with stopped, and its first system admin creates
+// project `Persisted` there (SC-053, SC-017); a second install on the same address uses the same
+// `X` and lists `Persisted` to the same admin. The test server's database stands in for the hosted
+// one, and a second Compose project on the same Docker host for the install on another machine.
 
 const composeFile = fileURLToPath(new URL('../../../compose.yaml', import.meta.url))
 
@@ -62,19 +62,19 @@ const bundled = 'postgres://cold_seance:cold_seance@database:5432/cold_seance'
  * config.yaml with `databaseUrl` and the GitHub Apps, and the Apps' key files in secrets/.
  * A Compose override, test scaffolding only, runs the image under test instead of the published
  * one and publishes it on a free port of this machine, so installs run side by side; `override`
- * adds to it.
+ * adds to it. `config` adds to config.yaml.
  */
-function install(databaseUrl: string, override = ''): Install {
+function install(databaseUrl: string, override = '', config = ''): Install {
   const dir = mkdtempSync(join(tmpdir(), 'cold-seance-install-'))
   try {
-    return installIn(dir, databaseUrl, override)
+    return installIn(dir, databaseUrl, override, config)
   } catch (error) {
     rmSync(dir, { recursive: true, force: true })
     throw error
   }
 }
 
-function installIn(dir: string, databaseUrl: string, override: string): Install {
+function installIn(dir: string, databaseUrl: string, override: string, config: string): Install {
   copyFileSync(composeFile, join(dir, 'compose.yaml'))
   mkdirSync(join(dir, 'secrets'))
   const apps = Object.entries(fx.keyFiles)
@@ -85,7 +85,7 @@ function installIn(dir: string, databaseUrl: string, override: string): Install 
     .join('')
   writeFileSync(
     join(dir, 'config.yaml'),
-    `database:\n  url: ${databaseUrl}\ngithub:\n  apps:\n${apps}`,
+    `database:\n  url: ${databaseUrl}\ngithub:\n  apps:\n${apps}${config}`,
   )
   // The image runs as the unprivileged `node` user, which must be able to read the mounted files.
   for (const path of ['', 'secrets']) chmodSync(join(dir, path), 0o755)
@@ -192,9 +192,10 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
   // A hosted database has an address of its own and needs nothing of the kind.
   const reachHost = '    extra_hosts:\n      - host.docker.internal:host-gateway\n'
 
-  it('TC-259: two Compose installs, one after the other, use the external database X with the bundled one stopped', async () => {
-    // I1: installed with its bundled database, and configured with X's address.
-    const i1 = install(fromContainer(x.url), reachHost)
+  it('TC-259: two Compose installs, one after the other, use the external database X with the bundled one stopped: the second lists project Persisted, which the first created', async () => {
+    // I1: installed with its bundled database, and configured with X's address and the first
+    // system admin, whom I1 creates at its start.
+    const i1 = install(fromContainer(x.url), reachHost, firstAdminConfig)
     i1.compose('up', '--detach', '--wait', '--no-build')
     expect(i1.running('database')).toBe(true)
     // The bundled database was not used: I1 migrated X, and the bundled one has no record.
@@ -213,10 +214,12 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     expect(page.status).toBe(200)
     expect(await page.text()).toContain('<div id="root"></div>')
     expect((await fetch(`${base1}/api/openapi.json`)).status).toBe(401)
+    // As the first system admin, create project `Persisted` on I1.
+    await (await signIn(base1)).createProject('Persisted')
     i1.compose('down', '--timeout', '10')
 
     // I2: a second install with no bundled database at all, started as compose.yaml says for an
-    // external database.
+    // external database, and no first system admin: the one it signs in with must come from X.
     const i2 = install(fromContainer(x.url), reachHost)
     i2.compose('up', '--detach', '--wait', '--no-build', '--no-deps', 'app')
     expect(i2.running('database')).toBe(false)
@@ -225,6 +228,8 @@ describe('TC-259: the tool stores its data in the PostgreSQL database given in i
     // I2 came up on X as I1 left it.
     expect(await migrationRecordOfX()).toEqual(record)
     expect(i2.compose('logs', 'app')).not.toContain('could not be applied')
+    // I2 lists `Persisted` to the same system admin.
+    expect(await (await signIn(base2)).projectNames()).toContain('Persisted')
   })
 })
 
