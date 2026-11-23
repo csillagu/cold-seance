@@ -38,7 +38,7 @@ Even after releases are signed, SmartScreen builds trust in a new publisher from
 
 ### Unpack
 
-Unpack the zip into a folder of its own, such as `C:\cold-seance`. Any folder works, `C:\Program Files\cold-seance` included. Then go on with [step 1](#1-install-postgresql).
+The zip holds one folder, `cold-seance`. Unpack the zip into `C:\`, which gives `C:\cold-seance`: in Explorer, right-click the zip, choose **Extract All…** and change the destination to `C:\`. The destination it proposes is a folder named after the zip, which would put the tool in `cold-seance-<version>-windows-x64\cold-seance`. Any place works, `C:\Program Files` included, which gives `C:\Program Files\cold-seance`. This guide's commands use `C:\cold-seance`. Then go on with [step 1](#1-install-postgresql).
 
 ## Option B: build the package yourself
 
@@ -109,6 +109,8 @@ icacls secrets /inheritance:r /grant:r "SYSTEM:(OI)(CI)R" "Administrators:(OI)(C
 
 `SYSTEM` is the account the Windows service runs as. If you only run the tool as a service, leave out `"%USERNAME%:R"` and `"%USERNAME%:(OI)(CI)R"`.
 
+From now on only an administrator can change `config.yaml` and the key files. To edit `config.yaml`, open it in an editor run as an administrator, such as Notepad started with *Run as administrator*.
+
 ## 4. Start the tool
 
 Run `start.cmd` in the tool's folder. It applies any pending database migrations and serves the tool on <http://127.0.0.1:3000>. If a setting is missing or wrong, it names each problem and exits. See [Troubleshooting](troubleshooting.md#the-tool-does-not-start).
@@ -133,7 +135,7 @@ cold-seance-service.exe start
 
 - The service runs the tool from its folder and reads `config.yaml` from there.
 - It gets **no environment variables** except those set in `cold-seance-service.xml`, such as `<env name="TZ" value="Europe/Budapest" />`. Restart the service after changing the file.
-- Its output goes to `cold-seance-service.out.log` and `cold-seance-service.err.log` in the folder.
+- Its output goes to `cold-seance-service.out.log` and `cold-seance-service.err.log` in the folder, and the wrapper's own messages, such as when it started and stopped the tool, to `cold-seance-service.wrapper.log`.
 - When the service stops, the tool closes cleanly. It is stopped by force only if it has not ended within 30 seconds.
 - The service runs as `LocalSystem`, which can do anything on the machine. A flaw in the tool that someone reached through the network would have the same reach. Keep the tool reachable from this machine only unless you need otherwise, and then only through a reverse proxy.
 
@@ -155,7 +157,7 @@ The tool does not back itself up: backups are your job. A dump of the database h
    icacls C:\cold-seance\pgpass.conf /inheritance:r /grant:r "SYSTEM:R" "Administrators:F"
    ```
 
-2. **Schedule it** for 02:00 every night. In a command prompt run as an administrator, enter this as one line. Put the backup folder on another disk, or copy it off the machine:
+2. **Schedule it** for 02:00 every night. In a command prompt run as an administrator, enter this as one line. Put the backup folder on another disk, or copy it off the machine. Keep it private: the dumps hold all of the tool's data, and a folder made at the root of a drive can be read by every user of the machine.
 
    ```bat
    schtasks /Create /TN "cold-seance backup" /SC DAILY /ST 02:00 /RU SYSTEM /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\cold-seance\backup.ps1 -Folder D:\backups\cold-seance -PassFile C:\cold-seance\pgpass.conf"
@@ -177,7 +179,9 @@ Each run writes `cold_seance-<date>-<time>.dump` and deletes that database's dum
 | `-PgDump` | the `pg_dump` on `PATH`, or the newest one in `C:\Program Files\PostgreSQL` |
 | `-PassFile` | the running user's `%APPDATA%\postgresql\pgpass.conf` |
 
-`Get-Help .\backup.ps1 -Full` describes them all. To run the script by hand, start it as the scheduled task does: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\backup.ps1 -Folder D:\backups\cold-seance`.
+In the tool's folder, `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Help .\backup.ps1 -Full"` describes them all. Windows' default execution policy refuses to read even the help of a script, so a plain `Get-Help .\backup.ps1` fails.
+
+To run the script by hand, start it as the scheduled task does, from a command prompt run as an administrator in the tool's folder, so that it can read `pgpass.conf`: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\backup.ps1 -Folder D:\backups\cold-seance -PassFile C:\cold-seance\pgpass.conf`. Without `-PassFile`, the script uses your own `%APPDATA%\postgresql\pgpass.conf`, and if you have none, `pg_dump` fails with *no password supplied*.
 
 **Check on it.** The tool knows nothing of its backups, so a failing backup goes unnoticed unless you look. A failed run ends with a non-zero code. Task Scheduler shows that code as the task's *Last Run Result* (anything but `0x0`), and `schtasks /Query /TN "cold-seance backup" /V /FO LIST` prints it as its *Last Result* (anything but `0`). Check it, and the dumps folder, from time to time.
 
@@ -193,6 +197,8 @@ In pgAdmin, right-click the database, choose **Backup…** and the *Custom* form
 
 ## Restoring
 
+The PostgreSQL installer does not put its tools on `PATH`. Run `psql` and `pg_restore` from PostgreSQL's `bin` folder (`C:\Program Files\PostgreSQL\<version>\bin`), or give their full path.
+
 1. Stop the tool (Ctrl+C, or `cold-seance-service.exe stop`).
 2. Create an empty database, as `postgres`: `CREATE DATABASE cold_seance_restored OWNER cold_seance;`
 3. Restore the dump into it:
@@ -203,7 +209,7 @@ In pgAdmin, right-click the database, choose **Backup…** and the *Custom* form
 
    A plain SQL dump, made without `-Fc`, is restored with `psql -h localhost -U cold_seance -d cold_seance_restored -f <file>` instead. In pgAdmin, right-click the new database and choose **Restore…**.
 
-4. Either point `database.url` at `cold_seance_restored`, or, as `postgres`, swap the databases: `DROP DATABASE cold_seance;` then `ALTER DATABASE cold_seance_restored RENAME TO cold_seance;`.
+4. Either point `database.url` at `cold_seance_restored`, in an editor run as an administrator, or, as `postgres`, swap the databases: `DROP DATABASE cold_seance;` then `ALTER DATABASE cold_seance_restored RENAME TO cold_seance;`.
 5. Start the tool.
 
 **Test a restore once:** restore a dump into a scratch database as above, start the tool on it, and check that your projects are there. A backup that has never been restored may not restore.
