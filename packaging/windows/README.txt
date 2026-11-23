@@ -7,7 +7,8 @@ This folder is the whole tool. It needs a PostgreSQL database, which you install
      GitHub settings).
   2. Run start.cmd. The tool is on http://127.0.0.1:3000. Ctrl+C stops it.
   3. Optionally, register it as a Windows service: cold-seance-service.exe install
-  4. Back up the database: backup.ps1 (see its help: Get-Help .\backup.ps1 -Full).
+  4. Back up the database: backup.ps1 (see its help:
+     powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Help .\backup.ps1 -Full").
 
 The full instructions, including how to restrict who can read config.yaml and the key files, how
 to back up and restore, and how to update, are in the user guide in this folder:
