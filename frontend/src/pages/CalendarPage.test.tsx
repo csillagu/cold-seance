@@ -69,9 +69,9 @@ describe('the personal working calendar screen (SC-089)', () => {
       .getAllByRole('row')
       .slice(1)
     expect(rows.map((row) => row.textContent)).toEqual([
-      'Mon 2027-01-04Remove',
-      'Mon 2027-03-01Remove',
-      'Tue 2027-03-02Remove',
+      'Mon 4 Jan 2027Remove',
+      'Mon 1 Mar 2027Remove',
+      'Tue 2 Mar 2027Remove',
     ])
     expect(requests).toContainEqual({
       method: 'PATCH',

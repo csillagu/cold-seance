@@ -100,8 +100,8 @@ describe('the capacity and absences screen (SC-088)', () => {
       .getAllByRole('row')
       .slice(1)
     expect(rows.map((row) => row.textContent)).toEqual([
-      'Mon 2027-01-04Tue 2027-01-05Remove',
-      'Mon 2027-03-08Fri 2027-03-12Remove',
+      'Mon 4 Jan 2027Tue 5 Jan 2027Remove',
+      'Mon 8 Mar 2027Fri 12 Mar 2027Remove',
     ])
     expect(requests).toContainEqual({
       method: 'POST',

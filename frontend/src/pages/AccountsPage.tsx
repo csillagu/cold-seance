@@ -27,13 +27,16 @@ function byUsername(accounts: Account[]): Account[] {
  * link (SC-077), capacity and absences (SC-088) and working calendar (SC-089), which a system admin
  * may change for anyone (FR-150). There is no other way to create an account (DD-027). Someone who is not a system
  * admin is not led here, and if they open it, is told that only system admins administer accounts
- * and offered nothing: the REST API refuses them the list.
+ * and offered nothing: the REST API refuses them the list. Each account's role is named, "User" or
+ * "System admin", and the list can be narrowed by part of a username (#256).
  */
 export function AccountsPage() {
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  /** Narrows the accounts listed by part of the username (#256). */
+  const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
   const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | undefined>()
 
@@ -180,6 +183,14 @@ export function AccountsPage() {
         </p>
       )}
 
+      <input
+        type="search"
+        className="account__search"
+        aria-label="Search the accounts"
+        placeholder="Search the accounts"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
       <div className="account__scroll">
         <table className="account__table" aria-label="Accounts">
           <thead>
@@ -191,52 +202,59 @@ export function AccountsPage() {
             </tr>
           </thead>
           <tbody>
-            {loaded.accounts.map((account) => (
-              <tr key={account.id}>
-                <th scope="row" className="account__name">
-                  {account.username}
-                </th>
-                <td>
-                  {account.systemAdmin ? (
-                    <span className="account__tag">System admin</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="account__button account__button--quiet"
-                      disabled={busy}
-                      aria-label={`Make ${account.username} a system admin`}
-                      onClick={() => void makeSystemAdmin(account)}
-                    >
-                      Make system admin
-                    </button>
-                  )}
-                </td>
-                <td>
-                  <Link
-                    to={`/accounts/${account.id}/github`}
-                    aria-label={`GitHub account of ${account.username}`}
-                  >
-                    GitHub account
-                  </Link>
-                </td>
-                <td>
-                  <span className="account__links">
+            {loaded.accounts
+              .filter((account) =>
+                account.username.toLowerCase().includes(search.trim().toLowerCase()),
+              )
+              .map((account) => (
+                <tr key={account.id}>
+                  <th scope="row" className="account__name">
+                    {account.username}
+                  </th>
+                  <td>
+                    {account.systemAdmin ? (
+                      <span className="account__tag">System admin</span>
+                    ) : (
+                      <span className="account__role">
+                        User
+                        <button
+                          type="button"
+                          className="account__button account__button--quiet"
+                          disabled={busy}
+                          aria-label={`Make ${account.username} a system admin`}
+                          onClick={() => void makeSystemAdmin(account)}
+                        >
+                          Make system admin
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     <Link
-                      to={`/accounts/${account.id}/capacity`}
-                      aria-label={`Capacity and absences of ${account.username}`}
+                      to={`/accounts/${account.id}/github`}
+                      aria-label={`GitHub account of ${account.username}`}
                     >
-                      Capacity and absences
+                      GitHub account
                     </Link>
-                    <Link
-                      to={`/accounts/${account.id}/calendar`}
-                      aria-label={`Working calendar of ${account.username}`}
-                    >
-                      Working calendar
-                    </Link>
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <span className="account__links">
+                      <Link
+                        to={`/accounts/${account.id}/capacity`}
+                        aria-label={`Capacity and absences of ${account.username}`}
+                      >
+                        Capacity and absences
+                      </Link>
+                      <Link
+                        to={`/accounts/${account.id}/calendar`}
+                        aria-label={`Working calendar of ${account.username}`}
+                      >
+                        Working calendar
+                      </Link>
+                    </span>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>

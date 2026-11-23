@@ -15,7 +15,7 @@ Anyone with a role in the project can open every view. What you can change in a 
 
 ## Kanban
 
-The day-to-day view of where work stands. There is one column per status: **Not started**, **In progress**, **On hold**, **Done** and **Cancelled**. Unscheduled tasks are at the bottom of each column. Each card shows the task and the people assigned to it, and turns red when the task has a [red flag](planning.md#red-flags).
+The day-to-day view of where work stands. There is one column per status: **Not started**, **In progress**, **On hold**, **Done** and **Cancelled**. Proposed tasks waiting for review are at the top of each column, unscheduled tasks at the bottom. The column headings stay in sight as you scroll the board. Each card shows the task and the people assigned to it, and turns red when the task has a [red flag](planning.md#red-flags).
 
 - **Drag a card** to another column to change its status. The same rules apply as anywhere else: a blocked task cannot start, a parent with open subtasks cannot finish. A refused move is shown on the card.
 - **Click a title** to edit the task.
@@ -25,6 +25,8 @@ After each change the Kanban is read again, since a change can move other tasks 
 ## Gantt
 
 The schedule: a table of tasks on the left, a timeline on the right.
+
+The timeline opens on today; **Today**, above it, brings it back there, beside the legend that names each colour and mark.
 
 - **Bars** are tasks on their planned dates, **diamonds** are milestones, and **arrows** are blocked-by relations. A dependency on another project's milestone is drawn as such.
 - **Red** marks a fixed-date milestone pushed past its date, a cross-project dependency that turned red, and a task whose assigned people cannot do it in its time.
@@ -49,7 +51,7 @@ The Gantt shows the plan as it was when you opened it. Reload the page to see ch
 
 ## Person load
 
-Each member of the project, day by day, with their **whole load across all projects** against their capacity. The span is four weeks from this week's Monday. Change it with the dates above the view.
+Each member of the project, day by day, with their **whole load across all projects** against their capacity. The span is four weeks from this week's Monday. Change it with the dates above the view: the view follows as soon as both dates are set. Saturdays and Sundays are shaded.
 
 - A day above the person's capacity is **red**: they are overloaded. The tool never moves tasks to fix it. Reassign, reschedule or change the AI share to resolve it.
 - You see the exact tasks behind a load for the projects you can read. The load from projects you cannot read shows only as a percentage, such as "other projects: 60%".

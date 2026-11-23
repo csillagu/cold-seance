@@ -91,6 +91,26 @@
   background: var(--sec);
 }
 
+.person-menu__sign-out {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-menu__sign-out:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.person-menu__error {
+  margin: 4px 10px;
+  font-size: 13px;
+  color: var(--red-text);
+}
+
 .person-menu__divider {
   margin: 4px 0;
   border: 0;

@@ -9,7 +9,7 @@ import {
   newTaskFields,
   type Repository,
 } from '../tasks/task-details.ts'
-import { useProject } from './project-context.ts'
+import { canEditPlan, useProject } from './project-context.ts'
 import '../tasks/task-editors.css'
 import '../tasks/task-details.css'
 import './pages.css'
@@ -26,7 +26,8 @@ function refusal(error: unknown): string {
  * from (FR-141). A duration of 0 makes it a milestone, fixed to its planned start or floating
  * (FR-212). Once created, the task's page opens, where who can do it and who will do it are
  * set. The REST API decides by the viewer's role whether they may create it, and the page says so
- * in the API's words.
+ * in the API's words. Someone whose role, as the project's page gives it, does not let them create
+ * a task (FR-108) is told so instead of being shown the form (#256).
  */
 export function NewTaskPage() {
   const project = useProject()
@@ -86,6 +87,9 @@ export function NewTaskPage() {
     void navigate(page)
   }
 
+  if (!canEditPlan(project.role)) {
+    return <p className="page__note">Your role in {project.name} does not let you create tasks.</p>
+  }
   return (
     <form
       className="task-page__card"

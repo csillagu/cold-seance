@@ -175,9 +175,6 @@ export function CapacityPage() {
   return (
     <section>
       <h1 className="page__title">{title}</h1>
-      <p className="page__note" data-testid="capacity">
-        Capacity: {loaded.capacity}% of full time.
-      </p>
 
       <form
         className="account__card account__form"
@@ -187,6 +184,10 @@ export function CapacityPage() {
         <h2 className="account__card-title" id="set-capacity">
           Capacity
         </h2>
+        {/* The saved capacity, in the card that changes it rather than above the page (#256). */}
+        <p className="page__note account__current" data-testid="capacity">
+          Capacity: {loaded.capacity}% of full time.
+        </p>
         <div className="account__fields">
           <div className="account__field">
             <label htmlFor="capacity">Capacity (% of full time)</label>
@@ -274,8 +275,8 @@ export function CapacityPage() {
             <tbody>
               {loaded.absences.map((absence) => (
                 <tr key={absence.id}>
-                  <td className="account__mono">{dayWithWeekday(absence.from)}</td>
-                  <td className="account__mono">{dayWithWeekday(absence.to)}</td>
+                  <td>{dayWithWeekday(absence.from)}</td>
+                  <td>{dayWithWeekday(absence.to)}</td>
                   <td className="account__end">
                     <button
                       type="button"

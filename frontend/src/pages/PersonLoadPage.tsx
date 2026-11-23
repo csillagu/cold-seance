@@ -165,16 +165,33 @@ function SpanForm({ span, onShow }: { span: Span; onShow: (span: Span) => void }
     setProblem(found)
     if (found === null) onShow({ from, to })
   }
+  /** Shows the span as soon as a changed date makes it a whole, valid one (#256). */
+  const change = (next: Span) => {
+    setFrom(next.from)
+    setTo(next.to)
+    if (next.from === '' || next.to === '') return
+    const found = spanProblem(next)
+    setProblem(found)
+    if (found === null && (next.from !== span.from || next.to !== span.to)) onShow(next)
+  }
 
   return (
     <form className="load__span" aria-label="Days shown" onSubmit={submit}>
       <label className="load__field">
         From
-        <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+        <input
+          type="date"
+          value={from}
+          onChange={(event) => change({ from: event.target.value, to })}
+        />
       </label>
       <label className="load__field">
         To
-        <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+        <input
+          type="date"
+          value={to}
+          onChange={(event) => change({ from, to: event.target.value })}
+        />
       </label>
       <button type="submit" className="load__show">
         Show

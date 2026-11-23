@@ -13,7 +13,9 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(200px, 1fr));
   gap: 12px;
-  overflow-x: auto;
+  /* The board scrolls inside the window, so that each column's heading stays in sight (#256). */
+  max-height: calc(100vh - 200px);
+  overflow: auto;
   font-size: 13px;
 }
 
@@ -43,9 +45,15 @@
 }
 
 .kanban__heading {
-  margin: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -10px -10px 0;
+  padding: 10px 14px 6px;
+  box-sizing: content-box;
+  background: var(--sec);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
   height: 28px;
-  padding: 0 4px;
   display: flex;
   align-items: center;
   gap: 8px;

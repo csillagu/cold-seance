@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -142,6 +143,17 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
   /** What was last said to screen readers of a task scheduled by drawing (#228). */
   const [announced, setAnnounced] = useState('')
   const arrival = useRef<Arrival | null>(null)
+  /** The chart's scroll area, which opens on today and is brought back to it by "Today" (#256). */
+  const scroller = useRef<HTMLDivElement>(null)
+  const opened = useRef(false)
+  const firstDay = days[0]?.date
+  useEffect(() => {
+    if (opened.current || firstDay === undefined) return
+    const index = daysBetween(firstDay, today)
+    if (index < 0 || index >= days.length) return
+    opened.current = true
+    if (scroller.current) scroller.current.scrollLeft = todayScroll(index)
+  }, [firstDay, today, days.length])
 
   // A task scheduled by drawing on its lane, once read again among the scheduled rows: its row is
   // moved from where it was to its new place with a short transition, and its dates announced.
@@ -265,7 +277,25 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
 
   return (
     <div className="gantt">
-      <div className="gantt__scroll">
+      <div className="gantt__toolbar">
+        <button
+          type="button"
+          className="gantt__today-button"
+          disabled={!showToday}
+          title={showToday ? undefined : 'Today is outside the timeline'}
+          onClick={() => {
+            if (scroller.current) scroller.current.scrollLeft = todayScroll(todayIndex)
+          }}
+        >
+          Today
+        </button>
+        <Legend
+          baseline={baseline}
+          crossProject={dependencies.some((dependency) => dependency.crossProject)}
+          pending={pending}
+        />
+      </div>
+      <div className="gantt__scroll" ref={scroller}>
         <div role="table" aria-label={name} className="gantt__table">
           <div role="rowgroup" className="gantt__head">
             <div role="row" className="gantt__row gantt__row--head">
@@ -415,16 +445,16 @@ export function Gantt({ name, model, people, today, editing, onOpen }: GanttProp
       <p role="status" className="gantt__announce">
         {announced}
       </p>
-      <Legend
-        baseline={baseline}
-        crossProject={dependencies.some((dependency) => dependency.crossProject)}
-        pending={pending}
-      />
     </div>
   )
 }
 
 const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+/** Where the timeline is scrolled to show the day at `index` with two days before it. */
+function todayScroll(index: number): number {
+  return Math.max(0, (index - 2) * DAY_WIDTH)
+}
 
 function weekdayOf(date: string): number {
   return (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7
@@ -1186,6 +1216,10 @@ function Legend({
       <li>
         <span className="gantt__key gantt__key--red" />
         Violation (overload, pushed milestone, cross-project)
+      </li>
+      <li>
+        <span className="gantt__key-parent" />
+        Parent task, over its subtasks
       </li>
       <li>
         <span className="gantt__key-diamond" />

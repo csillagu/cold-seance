@@ -284,6 +284,13 @@
   width: 120px;
 }
 
+/* A long baseline name wraps onto a second line rather than being cut short. */
+.variance__table .variance__date-head--baseline {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
 .variance__date {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -326,8 +333,13 @@
   color: var(--variance-ok-text);
 }
 
+/* The task names take a fixed share and the timeline the rest, so that it is wide enough to
+   read (#256). */
+.variance__table .variance__task-head {
+  width: 300px;
+}
+
 .variance__table .variance__timeline {
-  width: 280px;
   position: relative;
 }
 
@@ -339,6 +351,7 @@
 .variance__week {
   position: absolute;
   top: 13px;
+  white-space: nowrap;
 }
 
 .variance__track {

@@ -68,3 +68,15 @@
 .task-details__confirm {
   margin: 0;
 }
+
+/* The derived planned finish, shown beside the start and duration it comes from (#256). */
+.task-details__finish {
+  margin: 0;
+}
+
+.task-details__finish-value {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  font-weight: 600;
+}

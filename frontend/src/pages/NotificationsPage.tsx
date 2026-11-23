@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import {
   type ApiNotification,
+  LABEL_TONES,
   type Names,
   projectsNamed,
   taskOfLink,
@@ -153,7 +154,11 @@ export function NotificationsPage() {
           {views.map((view) => (
             <li key={view.id} className="notifications__item">
               <div className="notifications__meta">
-                <span className="notifications__label">{view.label}</span>
+                <span
+                  className={`notifications__label notifications__label--${LABEL_TONES[view.label] ?? 'neutral'}`}
+                >
+                  {view.label}
+                </span>
                 <time dateTime={view.createdAt}>{formatWhen(view.createdAt)}</time>
               </div>
               <p className="notifications__text">

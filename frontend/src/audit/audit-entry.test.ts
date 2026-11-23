@@ -4,6 +4,7 @@ import {
   describeActor,
   describeChannels,
   describeDetails,
+  describeSubject,
   formatValue,
 } from './audit-entry.ts'
 
@@ -22,6 +23,38 @@ describe('an audit log entry in words (SC-094)', () => {
   it('reads the action as words', () => {
     expect(describeAction('task.updated')).toBe('Task updated')
     expect(describeAction('project-member.role-set')).toBe('Project member role set')
+    expect(describeAction('api-token.created')).toBe('API token created')
+  })
+
+  it('leaves out a field whose value stayed the same (#256)', () => {
+    expect(
+      describeDetails({
+        changes: { title: 'Final', floatingDate: null },
+        previous: { title: 'Draft', floatingDate: null },
+      }),
+    ).toEqual(['title: Draft → Final'])
+  })
+
+  it('names ids where it knows them and shortens the rest (#256)', () => {
+    const apollo = '5fdaba12-0000-4000-8000-000000000001'
+    const other = 'b5c50597-0000-4000-8000-000000000002'
+    const task = 'faef0483-0000-4000-8000-000000000003'
+    const names = new Map([[apollo, 'Apollo']])
+    expect(
+      describeDetails(
+        {
+          projects: [apollo, other],
+          blockerId: task,
+          cause: { action: 'task.updated', taskId: task },
+        },
+        names,
+      ),
+    ).toEqual([
+      'projects: Apollo, #b5c50597',
+      'blocker: #faef0483',
+      'cause: task updated, task #faef0483',
+    ])
+    expect(describeSubject({ type: 'project', id: apollo }, names)).toBe('project: Apollo')
   })
 
   it('reads a change of fields as each field’s old and new value', () => {
@@ -46,7 +79,7 @@ describe('an audit log entry in words (SC-094)', () => {
     expect(formatValue(3)).toBe('3')
     expect(formatValue(false)).toBe('false')
     expect(formatValue([])).toBe('none')
-    expect(formatValue({ a: 1 })).toBe('{"a":1}')
+    expect(formatValue({ a: 1 })).toBe('a 1')
   })
 })
 

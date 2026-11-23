@@ -72,7 +72,7 @@ describe('the company calendar screen (SC-090)', () => {
     expect(await screen.findByTestId('weekend')).toHaveTextContent(
       'The weekend is Saturday and Sunday, for everyone.',
     )
-    expect(holidayRows()).toEqual(['Mon 2027-01-04'])
+    expect(holidayRows()).toEqual(['Mon 4 Jan 2027'])
   })
 
   it('offers no change to anyone but a system admin (FR-041)', async () => {
@@ -96,7 +96,7 @@ describe('the company calendar screen (SC-090)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Company holiday on 2027-03-03 added.',
     )
-    expect(holidayRows()).toEqual(['Mon 2027-01-04Remove', 'Wed 2027-03-03Remove'])
+    expect(holidayRows()).toEqual(['Mon 4 Jan 2027Remove', 'Wed 3 Mar 2027Remove'])
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Remove the company holiday on 2027-01-04' }),
@@ -104,7 +104,7 @@ describe('the company calendar screen (SC-090)', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Company holiday on 2027-01-04 removed.',
     )
-    expect(holidayRows()).toEqual(['Wed 2027-03-03Remove'])
+    expect(holidayRows()).toEqual(['Wed 3 Mar 2027Remove'])
     expect(requests.filter((r) => r.method === 'PATCH')).toEqual([
       { method: 'PATCH', path: '/api/calendar', body: { addHolidays: ['2027-03-03'] } },
       { method: 'PATCH', path: '/api/calendar', body: { removeHolidays: ['2027-01-04'] } },

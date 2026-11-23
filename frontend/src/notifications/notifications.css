@@ -65,8 +65,34 @@
 }
 
 .notifications__label {
+  padding: 1px 6px;
+  border-radius: var(--radius-tag);
   font-weight: 600;
+}
+
+.notifications__label--accent {
+  background: var(--accent-bg);
   color: var(--accent-text);
+}
+
+.notifications__label--red {
+  background: var(--red-bg);
+  color: var(--red-text);
+}
+
+.notifications__label--amber {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: color-mix(in srgb, var(--amber) 70%, var(--text));
+}
+
+.notifications__label--blue {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: color-mix(in srgb, var(--blue) 70%, var(--text));
+}
+
+.notifications__label--neutral {
+  background: var(--sec);
+  color: var(--muted);
 }
 
 .notifications__text {

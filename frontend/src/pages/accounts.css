@@ -148,10 +148,6 @@
   border-bottom: none;
 }
 
-.account__table a {
-  color: var(--accent-text);
-}
-
 .account__name {
   font-weight: 600;
 }
@@ -212,4 +208,26 @@
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px 12px;
+}
+
+/* An account's role in words, with the action that changes it beside it (#256). */
+.account__role {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.account__search {
+  display: block;
+  margin-top: 16px;
+  width: 100%;
+  max-width: 320px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
 }

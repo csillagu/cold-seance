@@ -35,3 +35,36 @@
 .members__note {
   max-width: 720px;
 }
+
+/* The members table beside the form that adds one, on a wide screen (#256). */
+@media (min-width: 1100px) {
+  .members {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    grid-template-areas:
+      'table form'
+      'note form'
+      'outcome form';
+    align-items: start;
+    column-gap: 24px;
+  }
+
+  .members > .account__form {
+    grid-area: form;
+    max-width: none;
+  }
+
+  .members > .account__scroll {
+    grid-area: table;
+    max-width: none;
+  }
+
+  .members > .members__note {
+    grid-area: note;
+  }
+
+  .members > .account__done,
+  .members > .account__failed {
+    grid-area: outcome;
+  }
+}

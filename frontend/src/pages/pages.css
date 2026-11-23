@@ -29,6 +29,8 @@
 .page__views {
   margin-top: 12px;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   border-bottom: 1px solid var(--border);
 }
@@ -41,6 +43,57 @@
   color: var(--muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
+}
+
+.page__view-link--setting {
+  font-size: 13px;
+}
+
+/* The gap between the views and the settings among the tabs. */
+.page__views-gap {
+  width: 1px;
+  height: 20px;
+  margin: 0 8px;
+  background: var(--border);
+}
+
+/* The number of proposals waiting for review beside the Proposals tab. */
+.page__view-count {
+  margin-left: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* "New task": an action, not a tab. */
+.page__view-action {
+  margin-left: auto;
+  height: 32px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-button);
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page__view-action:hover {
+  background: var(--accent-strong);
+}
+
+.page__view-action[aria-current='page'] {
+  box-shadow: 0 0 0 3px var(--glow);
 }
 
 .page__view-link[aria-current='page'] {

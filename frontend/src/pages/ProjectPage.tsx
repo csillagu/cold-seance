@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useParams } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { NavLink, Outlet, useMatch, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import { SubscriptionControl } from '../notifications/SubscriptionControl.tsx'
+import type { ApiProposal } from '../proposals/proposal.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
-import type { ProjectContext } from './project-context.ts'
+import { canEditPlan, type ProjectContext } from './project-context.ts'
+import { isRole, type Role } from './roles.ts'
 import './pages.css'
 
 /**
@@ -15,7 +17,7 @@ export const NOT_VISIBLE = 'This project is not visible to you'
 
 type Project =
   | { state: 'loading' }
-  | { state: 'loaded'; id: string; name: string }
+  | { state: 'loaded'; id: string; name: string; role: Role | undefined }
   | { state: 'not-visible'; message: string }
   | { state: 'failed' }
 
@@ -29,21 +31,62 @@ type Project =
  * that creates a task in it (SC-098) at `/projects/<id>/tasks/new`. Beside its name is the control
  * that subscribes the person to it, and unsubscribes them (SC-093).
  * Someone the project is not visible to is told so explicitly, and shown nothing of it (FR-017).
+ *
+ * The tabs are in two groups, the project's views first and its settings after them, with "New
+ * task" apart at the end, shown only to those whose role lets them create a task (FR-108) and not
+ * on the Gantt, which has its own; the
+ * Proposals tab counts the proposals waiting for review (#256). The pages below read the person's
+ * role in the project from the context, to leave out the controls their role does not allow.
  */
 export function ProjectPage() {
   const { projectId = '' } = useParams()
   const toSignIn = useSignInRedirect()
+  // The Gantt has a "New task" of its own, which creates the task in place: the tabs' one is left
+  // out there, so that the page does not offer it twice (#256).
+  const onGantt = useMatch('/projects/:projectId/gantt') !== null
+  // The project is read again only when the address names another one, not at every move
+  // between its tabs or change of a view's query, which would blank the whole page each time
+  // (#256); the sign-in redirect is taken as it is when it is needed.
+  const toSignInNow = useRef(toSignIn)
+  useEffect(() => {
+    toSignInNow.current = toSignIn
+  }, [toSignIn])
   const [project, setProject] = useState<Project>({ state: 'loading' })
+  const [waiting, setWaiting] = useState<number | undefined>()
+
+  useEffect(() => {
+    const abort = new AbortController()
+    setWaiting(undefined)
+    api<ApiProposal[]>(`/projects/${encodeURIComponent(projectId)}/proposals`, {
+      signal: abort.signal,
+    }).then(
+      (proposals) =>
+        setWaiting(
+          Array.isArray(proposals)
+            ? proposals.filter((proposal) => proposal.status === 'waiting').length
+            : undefined,
+        ),
+      // Without the count the tab is shown without it; the Proposals page says what failed.
+      () => {},
+    )
+    return () => abort.abort()
+  }, [projectId])
 
   useEffect(() => {
     const abort = new AbortController()
     setProject({ state: 'loading' })
-    api<{ id: string; name: string }>(`/projects/${encodeURIComponent(projectId)}`, {
+    api<{ id: string; name: string; role?: string }>(`/projects/${encodeURIComponent(projectId)}`, {
       signal: abort.signal,
     }).then(
-      (found) => setProject({ state: 'loaded', ...found }),
+      (found) =>
+        setProject({
+          state: 'loaded',
+          id: found.id,
+          name: found.name,
+          role: found.role !== undefined && isRole(found.role) ? found.role : undefined,
+        }),
       (error: unknown) => {
-        if (abort.signal.aborted || toSignIn(error)) return
+        if (abort.signal.aborted || toSignInNow.current(error)) return
         if (error instanceof ApiError && error.status === 403 && error.error === 'Not Visible') {
           setProject({ state: 'not-visible', message: error.message })
         } else if (error instanceof ApiError && error.status === 400) {
@@ -54,7 +97,7 @@ export function ProjectPage() {
       },
     )
     return () => abort.abort()
-  }, [projectId, toSignIn])
+  }, [projectId])
 
   switch (project.state) {
     case 'loading':
@@ -74,7 +117,8 @@ export function ProjectPage() {
     case 'loaded':
       break
   }
-  const context: ProjectContext = { id: project.id, name: project.name }
+  const context: ProjectContext = { id: project.id, name: project.name, role: project.role }
+  const canEdit = canEditPlan(project.role)
   return (
     <section>
       <div className="page__head">
@@ -100,24 +144,37 @@ export function ProjectPage() {
         <NavLink to="views" className="page__view-link">
           Saved views
         </NavLink>
-        <NavLink to="proposals" className="page__view-link">
+        <NavLink
+          to="proposals"
+          className="page__view-link"
+          // The count is said in the link's description, so that its name stays "Proposals".
+          title={waiting ? `${waiting} waiting for review` : undefined}
+        >
           Proposals
+          {waiting !== undefined && waiting > 0 && (
+            <span className="page__view-count" aria-hidden="true">
+              {waiting}
+            </span>
+          )}
         </NavLink>
-        <NavLink to="members" className="page__view-link">
+        <span className="page__views-gap" aria-hidden="true" />
+        <NavLink to="members" className="page__view-link page__view-link--setting">
           Members
         </NavLink>
-        <NavLink to="repositories" className="page__view-link">
+        <NavLink to="repositories" className="page__view-link page__view-link--setting">
           Repositories
         </NavLink>
-        <NavLink to="seeding" className="page__view-link">
+        <NavLink to="seeding" className="page__view-link page__view-link--setting">
           Seeding
         </NavLink>
-        <NavLink to="audit-log" className="page__view-link">
+        <NavLink to="audit-log" className="page__view-link page__view-link--setting">
           Audit log
         </NavLink>
-        <NavLink to="tasks/new" className="page__view-link">
-          New task
-        </NavLink>
+        {canEdit && !onGantt && (
+          <NavLink to="tasks/new" className="page__view-action">
+            New task
+          </NavLink>
+        )}
       </nav>
       <Outlet context={context} />
     </section>

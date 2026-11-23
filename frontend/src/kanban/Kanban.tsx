@@ -126,6 +126,20 @@ function Column({
           {count}
         </span>
       </h2>
+      {column.proposed.length > 0 ? (
+        <>
+          <div role="separator" aria-label="Proposed" className="kanban__separator">
+            Proposed, pending review
+          </div>
+          <ul className="kanban__cards" aria-label={`${column.name}, proposed`}>
+            {column.proposed.map((card) => (
+              <li key={`${card.proposalId}:${card.task.id}`}>
+                <ProposedCardView card={card} people={people} />
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
       <ul className="kanban__cards" aria-label={`${column.name}, scheduled`}>
         {column.scheduled.map((card) => (
           <li key={card.task.id}>{children(card)}</li>
@@ -139,20 +153,6 @@ function Column({
           <ul className="kanban__cards" aria-label={`${column.name}, unscheduled`}>
             {column.unscheduled.map((card) => (
               <li key={card.task.id}>{children(card)}</li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {column.proposed.length > 0 ? (
-        <>
-          <div role="separator" aria-label="Proposed" className="kanban__separator">
-            Proposed, pending review
-          </div>
-          <ul className="kanban__cards" aria-label={`${column.name}, proposed`}>
-            {column.proposed.map((card) => (
-              <li key={`${card.proposalId}:${card.task.id}`}>
-                <ProposedCardView card={card} people={people} />
-              </li>
             ))}
           </ul>
         </>

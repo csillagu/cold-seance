@@ -72,6 +72,22 @@ afterEach(() => {
 })
 
 describe('the project members and roles screen (SC-080)', () => {
+  it('shows someone who is not the project’s admin the roles, with no control to change them (#256)', async () => {
+    fakeApollo({
+      [`GET /api/projects/${APOLLO}`]: {
+        status: 200,
+        body: { id: APOLLO, name: 'Apollo', role: 'read-only' },
+      },
+    })
+    renderMembers()
+    const table = await screen.findByRole('table', { name: 'Members of Apollo' })
+    expect(within(table).getByRole('cell', { name: 'Admin' })).toBeInTheDocument()
+    expect(within(table).queryByRole('combobox')).toBeNull()
+    expect(within(table).queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('form', { name: 'Add a member' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'New task' })).toBeNull()
+  })
+
   it("is a tab of the project's page and lists the members with their roles", async () => {
     fakeApollo().setMembers([alice, bob])
     renderMembers()

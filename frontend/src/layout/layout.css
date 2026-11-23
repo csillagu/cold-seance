@@ -1,14 +1,18 @@
 /* The frontend's layout (SC-113): the header and app bar as design/frontend/Main.dc.html draws them,
    and the navigation beside the content. */
 .layout {
+  --header-height: 52px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 .layout__header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   flex: none;
-  height: 52px;
+  height: var(--header-height);
   box-sizing: border-box;
   padding: 0 24px;
   display: flex;
@@ -47,6 +51,11 @@
 }
 
 .layout__nav {
+  position: sticky;
+  top: var(--header-height);
+  align-self: flex-start;
+  height: calc(100vh - var(--header-height));
+  overflow-y: auto;
   flex: none;
   width: 240px;
   box-sizing: border-box;
@@ -69,7 +78,10 @@
 }
 
 .layout__nav-list {
-  margin: 0;
+  flex: none;
+  max-height: 40vh;
+  overflow-y: auto;
+  margin: 0 0 4px;
   padding: 0;
   list-style: none;
   display: flex;
@@ -78,8 +90,9 @@
 }
 
 .layout__link {
-  display: flex;
-  align-items: center;
+  flex: none;
+  display: block;
+  line-height: 32px;
   height: 32px;
   padding: 0 10px;
   border-radius: var(--radius-button);
@@ -95,7 +108,8 @@
   color: var(--text);
 }
 
-.layout__link[aria-current='page'] {
+.layout__link[aria-current='page'],
+.layout__link--current {
   background: var(--accent-bg);
   color: var(--accent-text);
   font-weight: 600;
@@ -121,6 +135,8 @@
   }
 
   .layout__nav {
+    position: static;
+    height: auto;
     width: auto;
     border-right: 0;
     border-bottom: 1px solid var(--border);

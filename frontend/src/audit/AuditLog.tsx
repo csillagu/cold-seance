@@ -9,6 +9,7 @@ import {
   describeActor,
   describeChannels,
   describeDetails,
+  describeSubject,
 } from './audit-entry.ts'
 import './audit.css'
 
@@ -25,7 +26,8 @@ type Log =
  * The audit log (SC-094): its entries, newest first, each with who made the change, when, through
  * which channel and what it changed (FR-116). Given a project, it shows that project's part of the
  * log; without one, the whole log, with the project of each entry, named from `projectNames` where
- * it is among them. Who may read which is the service layer's to decide (FR-138, DD-039): someone
+ * it is among them. Ids in an entry's details are named from `projectNames` too, where they are
+ * among them, and shortened otherwise. Who may read which is the service layer's to decide (FR-138, DD-039): someone
  * it refuses is shown its refusal, and nothing of the log. Older entries are read a page at a time.
  */
 export function AuditLog({
@@ -128,7 +130,7 @@ export function AuditLog({
                 {whole && <td>{projectOf(entry.projectId, projectNames)}</td>}
                 <td>
                   <span className="audit__action">{describeAction(entry.action)}</span>
-                  <Details details={entry.details} />
+                  <Details entry={entry} names={projectNames} />
                 </td>
               </tr>
             ))}
@@ -177,9 +179,16 @@ function projectOf(
   return projectNames?.get(projectId) ?? projectId
 }
 
-function Details({ details }: { details: Record<string, unknown> }) {
-  const lines = describeDetails(details)
-  if (lines.length === 0) return null
+function Details({
+  entry,
+  names,
+}: {
+  entry: AuditEntry
+  names: ReadonlyMap<string, string> | undefined
+}) {
+  const described = describeDetails(entry.details, names)
+  // An entry with no details says at least what it was about (#256).
+  const lines = described.length > 0 ? described : [describeSubject(entry.subject, names)]
   return (
     <ul className="audit__details">
       {lines.map((line, index) => (

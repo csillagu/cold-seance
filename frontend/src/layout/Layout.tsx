@@ -4,6 +4,7 @@ import { api } from '../api.ts'
 import { ProjectsChangedContext } from '../projects-changed.ts'
 import { type SignedInAccount, SignedInContext } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
+import { CurrentProjectContext } from './current-project.ts'
 import { PersonMenu } from './PersonMenu.tsx'
 import { ProjectSearch } from './ProjectSearch.tsx'
 import './layout.css'
@@ -42,6 +43,12 @@ type Projects =
  * `useSignedIn()`.
  *
  * Someone who is not signed in is sent to the sign-in page, and comes back here once signed in.
+ *
+ * The header stays at the top of the window, and the navigation beside the content scrolls on its
+ * own; the list of projects has a scroll area of its own too, so that the rest of the navigation
+ * stays in reach however many projects there are (#256). A project's link carries its whole name
+ * as its title, for a name cut short, and is marked current on its project's pages and on the page
+ * of one of its tasks (`useCurrentProject()`).
  */
 export function Layout() {
   const toSignIn = useSignInRedirect()
@@ -50,6 +57,7 @@ export function Layout() {
   // Counts the changes the pages report to the projects, so that each lists them afresh.
   const [projectsVersion, setProjectsVersion] = useState(0)
   const projectsChanged = useCallback(() => setProjectsVersion((version) => version + 1), [])
+  const [currentProject, setCurrentProject] = useState<string | undefined>()
 
   useEffect(() => {
     const abort = new AbortController()
@@ -79,89 +87,91 @@ export function Layout() {
   return (
     <SignedInContext value={signedIn}>
       <ProjectsChangedContext value={projectsChanged}>
-        <div className="layout">
-          <header className="layout__header">
-            <Link to="/" className="layout__brand">
-              <span className="layout__mark" aria-hidden="true" />
-              cold-seance
-            </Link>
-            <ProjectSearch />
-            <div className="layout__header-end">
-              {signedIn !== undefined && <PersonMenu account={signedIn} />}
+        <CurrentProjectContext value={setCurrentProject}>
+          <div className="layout">
+            <header className="layout__header">
+              <Link to="/" className="layout__brand">
+                <span className="layout__mark" aria-hidden="true" />
+                cold-seance
+              </Link>
+              <ProjectSearch />
+              <div className="layout__header-end">
+                {signedIn !== undefined && <PersonMenu account={signedIn} />}
+              </div>
+            </header>
+            <div className="layout__body">
+              <nav className="layout__nav" aria-label="Navigation">
+                <NavLink to="/" end className="layout__link">
+                  Start
+                </NavLink>
+                <h2 className="layout__nav-heading" id="nav-projects">
+                  Projects
+                </h2>
+                <ProjectLinks projects={projects} current={currentProject} />
+                <NavLink to="/projects/new" className="layout__link">
+                  New project
+                </NavLink>
+                <NavLink to="/views" className="layout__link">
+                  Saved views
+                </NavLink>
+                <NavLink to="/groups" className="layout__link">
+                  Groups
+                </NavLink>
+                <h2 className="layout__nav-heading">GitHub</h2>
+                <NavLink to="/repositories" className="layout__link">
+                  Repositories
+                </NavLink>
+                <NavLink to="/repository-requests" className="layout__link">
+                  Repository requests
+                </NavLink>
+                {signedIn !== undefined && (
+                  <>
+                    <h2 className="layout__nav-heading">Your account</h2>
+                    <NavLink to="/notifications" className="layout__link">
+                      Notifications
+                    </NavLink>
+                    <NavLink to="/settings/github" className="layout__link">
+                      GitHub account
+                    </NavLink>
+                    <NavLink to="/settings/capacity" className="layout__link">
+                      Capacity and absences
+                    </NavLink>
+                    <NavLink to="/settings/calendar" className="layout__link">
+                      Working calendar
+                    </NavLink>
+                    <NavLink to="/tokens" className="layout__link">
+                      API tokens
+                    </NavLink>
+                    <h2 className="layout__nav-heading">Company</h2>
+                    <NavLink to="/company-calendar" className="layout__link">
+                      Company calendar
+                    </NavLink>
+                  </>
+                )}
+                {signedIn?.systemAdmin === true && (
+                  <>
+                    <h2 className="layout__nav-heading">Administration</h2>
+                    <NavLink to="/accounts" className="layout__link">
+                      Accounts
+                    </NavLink>
+                    <NavLink to="/audit-log" className="layout__link">
+                      Audit log
+                    </NavLink>
+                  </>
+                )}
+              </nav>
+              <main className="layout__content">
+                <Outlet />
+              </main>
             </div>
-          </header>
-          <div className="layout__body">
-            <nav className="layout__nav" aria-label="Navigation">
-              <NavLink to="/" end className="layout__link">
-                Start
-              </NavLink>
-              <h2 className="layout__nav-heading" id="nav-projects">
-                Projects
-              </h2>
-              <ProjectLinks projects={projects} />
-              <NavLink to="/projects/new" className="layout__link">
-                New project
-              </NavLink>
-              <NavLink to="/views" className="layout__link">
-                Saved views
-              </NavLink>
-              <NavLink to="/groups" className="layout__link">
-                Groups
-              </NavLink>
-              <h2 className="layout__nav-heading">GitHub</h2>
-              <NavLink to="/repositories" className="layout__link">
-                Repositories
-              </NavLink>
-              <NavLink to="/repository-requests" className="layout__link">
-                Repository requests
-              </NavLink>
-              {signedIn !== undefined && (
-                <>
-                  <h2 className="layout__nav-heading">Your account</h2>
-                  <NavLink to="/notifications" className="layout__link">
-                    Notifications
-                  </NavLink>
-                  <NavLink to="/settings/github" className="layout__link">
-                    GitHub account
-                  </NavLink>
-                  <NavLink to="/settings/capacity" className="layout__link">
-                    Capacity and absences
-                  </NavLink>
-                  <NavLink to="/settings/calendar" className="layout__link">
-                    Working calendar
-                  </NavLink>
-                  <NavLink to="/tokens" className="layout__link">
-                    API tokens
-                  </NavLink>
-                  <h2 className="layout__nav-heading">Company</h2>
-                  <NavLink to="/company-calendar" className="layout__link">
-                    Company calendar
-                  </NavLink>
-                </>
-              )}
-              {signedIn?.systemAdmin === true && (
-                <>
-                  <h2 className="layout__nav-heading">Administration</h2>
-                  <NavLink to="/accounts" className="layout__link">
-                    Accounts
-                  </NavLink>
-                  <NavLink to="/audit-log" className="layout__link">
-                    Audit log
-                  </NavLink>
-                </>
-              )}
-            </nav>
-            <main className="layout__content">
-              <Outlet />
-            </main>
           </div>
-        </div>
+        </CurrentProjectContext>
       </ProjectsChangedContext>
     </SignedInContext>
   )
 }
 
-function ProjectLinks({ projects }: { projects: Projects }) {
+function ProjectLinks({ projects, current }: { projects: Projects; current: string | undefined }) {
   switch (projects.state) {
     case 'loading':
       return <p className="layout__nav-note">Loading…</p>
@@ -177,7 +187,15 @@ function ProjectLinks({ projects }: { projects: Projects }) {
     <ul className="layout__nav-list" aria-labelledby="nav-projects">
       {projects.projects.map((project) => (
         <li key={project.id}>
-          <NavLink to={`/projects/${project.id}`} className="layout__link">
+          <NavLink
+            to={`/projects/${project.id}`}
+            title={project.name}
+            className={({ isActive }) =>
+              isActive || project.id === current
+                ? 'layout__link layout__link--current'
+                : 'layout__link'
+            }
+          >
             {project.name}
           </NavLink>
         </li>
