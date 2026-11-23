@@ -123,3 +123,21 @@ variable "timezone" {
   type        = string
   default     = "UTC"
 }
+
+variable "demo_neon_api_key" {
+  description = "The Neon API key the demo seeding workflow deletes the live tests' projects with, written into the `demo` environment. For now the same key as NEON_API_KEY, which Terraform itself uses."
+  type        = string
+  sensitive   = true
+}
+
+variable "demo_approver" {
+  description = "The GitHub user who approves each run of the demo seeding workflow, as the `demo` environment's required reviewer."
+  type        = string
+  default     = "csillagu"
+}
+
+variable "demo_require_approval" {
+  description = "Whether each run of the demo seeding workflow waits for demo_approver's approval. GitHub's free plan refuses a required reviewer on a private repository, so set it once cold-seance is public (#242)."
+  type        = bool
+  default     = false
+}

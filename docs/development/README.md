@@ -9,7 +9,7 @@ Item ids such as SC-073 or DD-040 name items of the requirements graph in [`grap
 | This page | The workspace, running it locally, checks, tests, parallel branches, the database schema |
 | [Architecture](architecture.md) | The REST API, the MCP server and the GitHub components inside the backend |
 | [Packaging and CI](packaging-and-ci.md) | The Docker image, the Windows package, CI, releases and code signing, dependencies |
-| [Live tests and the test deployment](live-tests.md) | The Google Cloud test deployment and the live GitHub test suites |
+| [Live tests and the test deployment](live-tests.md) | The Google Cloud test deployment, its demo projects and the live GitHub test suites |
 
 ## The workspace
 

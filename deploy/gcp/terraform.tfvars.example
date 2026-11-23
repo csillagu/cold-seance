@@ -7,9 +7,11 @@ github_project_number       = 1
 github_projects_token       = "ghp_change-me"        # classic: repo, project
 live_github_token           = "github_pat_change-me" # fine-grained, on the test repository
 ghcr_token                  = "ghp_change-me"        # classic: read:packages only
+demo_neon_api_key           = "napi_change-me"       # for the demo seeding workflow; for now the same as NEON_API_KEY
 
 # github_owner             = "csillagu"
 # test_repository          = "cold-seance-live"
 # environment_repository   = "cold-seance"
 # region                   = "us-east1"
 # recheck_interval_minutes = 2
+# demo_approver            = "csillagu"

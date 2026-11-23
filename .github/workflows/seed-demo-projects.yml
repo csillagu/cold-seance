@@ -1,0 +1,60 @@
+name: Seed demo projects
+
+# Resets the test deployment's projects to the demo set (#257, SC-131, DD-064): deletes the
+# projects the live GitHub tests made, straight in the deployment's Neon database, then creates
+# whichever of the 64 demo projects are missing, over the REST API. The 30 demo accounts must
+# already exist; the seed script checks this and creates none.
+#
+# Started by hand only. Its settings are the secrets and variables of the `demo` environment,
+# which the deployment's Terraform writes (see "Demo projects" in docs/development/live-tests.md);
+# that environment has the owner as its required reviewer, so every run waits for their approval.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The live GitHub tests' group: deleting their projects while a run of them works in those
+# projects would break that run.
+concurrency:
+  group: live-github-tests
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Seed demo projects
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: demo
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      NEON_DATABASE: ${{ vars.NEON_DATABASE }}
+      NEON_ROLE: ${{ vars.NEON_ROLE }}
+      SEED_URL: ${{ vars.SEED_URL }}
+      SEED_ADMIN_USERNAME: ${{ vars.SEED_ADMIN_USERNAME }}
+      SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check the settings
+        run: |
+          missing=()
+          for name in NEON_API_KEY NEON_PROJECT_ID NEON_DATABASE NEON_ROLE SEED_URL SEED_ADMIN_USERNAME SEED_ADMIN_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing from the demo environment: ${missing[*]}"
+            exit 1
+          fi
+      - name: Delete the live tests' projects
+        run: |
+          uri=$(curl -fsS -H "Authorization: Bearer $NEON_API_KEY" -H "Accept: application/json" \
+            "https://console.neon.tech/api/v2/projects/$NEON_PROJECT_ID/connection_uri?database_name=$NEON_DATABASE&role_name=$NEON_ROLE&pooled=false" \
+            | jq -r .uri)
+          echo "::add-mask::$uri"
+          echo "::add-mask::$(python3 -c 'import sys, urllib.parse; print(urllib.parse.urlsplit(sys.argv[1]).password)' "$uri")"
+          psql "$uri" -v ON_ERROR_STOP=1 -f deploy/demo/delete-live-test-projects.sql
+      - name: Create the missing demo projects
+        run: python3 deploy/demo/seed-demo-projects.py
