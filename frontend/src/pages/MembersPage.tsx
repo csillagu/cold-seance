@@ -4,7 +4,7 @@ import { useProjectsChanged } from '../projects-changed.ts'
 import { useSignedIn } from '../signed-in.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { messageOf } from './accounts.ts'
-import { useProject } from './project-context.ts'
+import { canAdminister, useProject } from './project-context.ts'
 import { isRole, type Role, ROLE_WORDS, ROLES } from './roles.ts'
 import './accounts.css'
 import './members.css'
@@ -28,11 +28,13 @@ type Loaded =
  * (FR-105). The project's admin adds people by username, changes their roles and removes them
  * (FR-109); the REST API refuses anyone else, and refuses to remove or demote the project's last
  * admin (FR-110), and the screen shows each refusal in the API's own words. The controls are shown
- * to everyone who can read the members, as someone may be the project's admin through a group
- * (FR-111) without being listed here as one.
+ * only to someone whose role in the project, directly or through a group (FR-111), is admin, as
+ * the project's page gives it; to anyone else the roles are shown as words (#256). The members
+ * table and the form that adds one sit side by side on a wide screen.
  */
 export function MembersPage() {
   const project = useProject()
+  const manage = canAdminister(project.role)
   const signedIn = useSignedIn()
   const toSignIn = useSignInRedirect()
   const projectsChanged = useProjectsChanged()
@@ -116,8 +118,8 @@ export function MembersPage() {
   if (loaded.state === 'loading') return <p className="page__note">Loading…</p>
 
   return (
-    <section>
-      {loaded.state === 'loaded' && (
+    <section className="members">
+      {manage && loaded.state === 'loaded' && (
         <form
           className="account__card account__form"
           aria-labelledby="add-member"
@@ -182,9 +184,11 @@ export function MembersPage() {
                 <tr>
                   <th scope="col">Username</th>
                   <th scope="col">Role</th>
-                  <th scope="col" className="account__end">
-                    <span className="account__hidden">Remove</span>
-                  </th>
+                  {manage && (
+                    <th scope="col" className="account__end">
+                      <span className="account__hidden">Remove</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -197,33 +201,40 @@ export function MembersPage() {
                       )}
                     </th>
                     <td>
-                      <select
-                        className="members__select"
-                        aria-label={`Role of ${member.username}`}
-                        value={member.role}
-                        disabled={busy}
-                        onChange={(event) => {
-                          if (isRole(event.target.value)) void setRoleOf(member, event.target.value)
-                        }}
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_WORDS[r]}
-                          </option>
-                        ))}
-                      </select>
+                      {manage ? (
+                        <select
+                          className="members__select"
+                          aria-label={`Role of ${member.username}`}
+                          value={member.role}
+                          disabled={busy}
+                          onChange={(event) => {
+                            if (isRole(event.target.value))
+                              void setRoleOf(member, event.target.value)
+                          }}
+                        >
+                          {ROLES.map((r) => (
+                            <option key={r} value={r}>
+                              {ROLE_WORDS[r]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        ROLE_WORDS[member.role]
+                      )}
                     </td>
-                    <td className="account__end">
-                      <button
-                        type="button"
-                        className="account__button account__button--danger"
-                        disabled={busy}
-                        aria-label={`Remove ${member.username}`}
-                        onClick={() => void remove(member)}
-                      >
-                        Remove
-                      </button>
-                    </td>
+                    {manage && (
+                      <td className="account__end">
+                        <button
+                          type="button"
+                          className="account__button account__button--danger"
+                          disabled={busy}
+                          aria-label={`Remove ${member.username}`}
+                          onClick={() => void remove(member)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

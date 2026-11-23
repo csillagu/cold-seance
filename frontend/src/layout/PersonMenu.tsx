@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
+import { api } from '../api.ts'
 import { avatarColour } from '../gantt/avatar.ts'
+import { SIGN_IN_PATH } from '../sign-in-redirect.ts'
 import type { SignedInAccount } from '../signed-in.ts'
 import './person-menu.css'
 
@@ -9,7 +11,9 @@ import './person-menu.css'
  * Clicking it brings up settings, calendar and API tokens (SRC-221): settings opens the GitHub
  * account link (SC-077) and the capacity and absences screen (SC-088) (SRC-226), calendar the
  * personal working calendar (SC-089) (SRC-227), and API tokens the personal access token page
- * (SC-078).
+ * (SC-078). The entries are named as the navigation names them, all four under one heading
+ * (#256). Below them, "Sign out" ends the session (`DELETE /api/session`) and goes to the sign-in
+ * page.
  *
  * The entries close again on Escape, on a click outside them, and when the browser goes to another
  * page.
@@ -24,6 +28,21 @@ export function PersonMenu({ account }: { account: SignedInAccount }) {
   const setOpen = (next: boolean) => setOpenOn(next ? location.pathname : undefined)
   const root = useRef<HTMLDivElement>(null)
   const entriesId = useId()
+  const navigate = useNavigate()
+  const [signingOut, setSigningOut] = useState(false)
+  const [signOutFailed, setSignOutFailed] = useState(false)
+
+  const signOut = async () => {
+    setSigningOut(true)
+    setSignOutFailed(false)
+    try {
+      await api('/session', { method: 'DELETE' })
+      void navigate(SIGN_IN_PATH, { replace: true })
+    } catch {
+      setSignOutFailed(true)
+      setSigningOut(false)
+    }
+  }
 
   useEffect(() => {
     if (!open) return undefined
@@ -75,14 +94,31 @@ export function PersonMenu({ account }: { account: SignedInAccount }) {
                 Capacity and absences
               </Link>
             </li>
+            <li>
+              <Link to="/settings/calendar" className="person-menu__link">
+                Working calendar
+              </Link>
+            </li>
+            <li>
+              <Link to="/tokens" className="person-menu__link">
+                API tokens
+              </Link>
+            </li>
           </ul>
           <hr className="person-menu__divider" />
-          <Link to="/settings/calendar" className="person-menu__link">
-            Calendar
-          </Link>
-          <Link to="/tokens" className="person-menu__link">
-            API tokens
-          </Link>
+          <button
+            type="button"
+            className="person-menu__link person-menu__sign-out"
+            disabled={signingOut}
+            onClick={() => void signOut()}
+          >
+            Sign out
+          </button>
+          {signOutFailed && (
+            <p role="alert" className="person-menu__error">
+              Signing out failed. Try again.
+            </p>
+          )}
         </nav>
       )}
     </div>

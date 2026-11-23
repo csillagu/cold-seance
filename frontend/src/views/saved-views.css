@@ -56,17 +56,47 @@
   font-weight: 600;
 }
 
+/* The projects in even columns, in a box that scrolls past a dozen rows (#256). */
 .views__choices {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 8px 16px;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .views__choice {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 14px;
+}
+
+.views__choice-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.views__choices-bar {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.views__choices-search {
+  height: 32px;
+  min-width: 220px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-button);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
 }
 
 .views__place {
@@ -145,4 +175,14 @@
 
 .views__body {
   margin-top: 16px;
+}
+
+/* The heading row of each place views are kept in, in the list of saved views (#256). */
+.views__place-row th {
+  background: var(--sec);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }

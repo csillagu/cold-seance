@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { api } from '../api.ts'
+import { formatDay } from '../gantt/gantt-model.ts'
 import { type SignedInAccount, useSignedIn } from '../signed-in.ts'
 
 /** Whose availability a screen shows: the signed-in person's own, or someone else's. */
@@ -70,11 +71,12 @@ export function weekendInWords(weekendDays: readonly string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`
 }
 
-/** A day, `YYYY-MM-DD`, with its day of the week: "Mon 2027-03-08". */
+/** A day, `YYYY-MM-DD`, with its day of the week: "Mon 8 Mar 2027". */
 export function dayWithWeekday(date: string): string {
   const [year, month, day] = date.split('-').map(Number)
   const weekday = new Date(
     Date.UTC(year ?? Number.NaN, (month ?? Number.NaN) - 1, day ?? Number.NaN),
   ).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' })
-  return `${weekday} ${date}`
+  // The same form as the dates of the other screens, `24 Dec 2026` (#256).
+  return `${weekday} ${formatDay(date, true)}`
 }

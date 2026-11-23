@@ -117,7 +117,7 @@ test('TC-053: one global calendar holds the company holidays and the weekend (br
       'The weekend is Saturday and Sunday, for everyone.',
     )
     // Negative: there is no second calendar: the one holiday is the one root added.
-    await expect(holidayRows(page)).toHaveText(['Wed 2027-03-03'])
+    await expect(holidayRows(page)).toHaveText(['Wed 3 Mar 2027'])
   }
 })
 
@@ -133,7 +133,7 @@ test('TC-054: a system admin adds a company holiday (browser)', async ({ browser
   // Step 1: as root, add the holiday and read the global calendar, afresh.
   await addCompanyHoliday(page, '2027-03-03')
   await page.reload()
-  await expect(holidayRows(page)).toHaveText([/Wed 2027-03-03/])
+  await expect(holidayRows(page)).toHaveText([/Wed 3 Mar 2027/])
   expect(await companyHolidaysOf(deployment)).toEqual(['2027-03-03'])
 
   // Step 2: as root, remove it and read the global calendar, afresh.

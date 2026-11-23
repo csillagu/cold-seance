@@ -31,7 +31,7 @@ The tool has no screen yet for changing a password. Choose the passwords with th
 
 Anyone with an account can create a project, with **New project** in the navigation, and becomes its admin. Project names are unique across the installation.
 
-The project's tabs lead to its views, its saved views, its proposals, **Members**, **Repositories**, **Seeding**, its **Audit log** and **New task**.
+The project's tabs lead to its views, its saved views and its proposals, then to its settings: **Members**, **Repositories**, **Seeding** and its **Audit log**. The **Proposals** tab counts the proposals waiting for review. **New task**, at the end of the tabs, is shown only to read-write members and admins; members, roles and repositories can be changed only by the project's admins, and nobody else is shown the controls.
 
 A project you have no role in is invisible to you: the tool tells you so, and shows nothing of it.
 
@@ -85,4 +85,4 @@ Nobody's tasks are moved because of an absence or a change of capacity. The affe
 
 Under **Your account → GitHub account**, enter your GitHub username. With the link, the tool makes you an assignee of your tasks' issues on GitHub, and recognises issues assigned to you when it seeds a project. Without it, you can still be assigned to tasks, and your tasks' issues are created without a GitHub assignee.
 
-The person menu at the top right leads to the same settings, and to your [API tokens](rest-api.md#tokens).
+The person menu at the top right leads to the same settings, to your [API tokens](rest-api.md#tokens), and has **Sign out**.

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App.tsx'
@@ -158,14 +158,28 @@ describe('the signed-in person menu (SC-115)', () => {
       'href',
       '/settings/capacity',
     )
-    expect(within(entries).getByRole('link', { name: 'Calendar' })).toHaveAttribute(
+    expect(within(settings).getByRole('link', { name: 'Working calendar' })).toHaveAttribute(
       'href',
       '/settings/calendar',
     )
-    expect(within(entries).getByRole('link', { name: 'API tokens' })).toHaveAttribute(
+    expect(within(settings).getByRole('link', { name: 'API tokens' })).toHaveAttribute(
       'href',
       '/tokens',
     )
+  })
+
+  it('signs out: ends the session and goes to the sign-in page (#256)', async () => {
+    const requests = fakeApi((method, path) =>
+      method === 'DELETE' && path === '/api/session' ? { status: 204 } : signedIn(method, path),
+    )
+    renderAt('/')
+    fireEvent.click(await personButton())
+    const entries = screen.getByRole('navigation', { name: 'Your account' })
+    fireEvent.click(within(entries).getByRole('button', { name: 'Sign out' }))
+    await waitFor(() =>
+      expect(requests).toContainEqual({ method: 'DELETE', path: '/api/session', body: undefined }),
+    )
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/sign-in'))
   })
 
   it('opens an entry and closes', async () => {

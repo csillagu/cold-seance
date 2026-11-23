@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { AuditLog } from '../audit/AuditLog.tsx'
 import { useProject } from './project-context.ts'
 
@@ -8,10 +9,12 @@ import { useProject } from './project-context.ts'
  */
 export function ProjectAuditLogPage() {
   const project = useProject()
+  // Ids of the project in its entries read as its name.
+  const names = useMemo(() => new Map([[project.id, project.name]]), [project.id, project.name])
   return (
     <section aria-label={`Audit log of ${project.name}`}>
       <p className="page__note">Every change made in {project.name}, newest first.</p>
-      <AuditLog projectId={project.id} />
+      <AuditLog projectId={project.id} projectNames={names} />
     </section>
   )
 }

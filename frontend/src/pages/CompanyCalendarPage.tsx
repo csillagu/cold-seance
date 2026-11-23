@@ -227,7 +227,7 @@ export function CompanyCalendarPage() {
             <tbody>
               {calendar.holidays.map((holiday) => (
                 <tr key={holiday}>
-                  <td className="account__mono">{dayWithWeekday(holiday)}</td>
+                  <td>{dayWithWeekday(holiday)}</td>
                   {admin && (
                     <td className="account__end">
                       <button

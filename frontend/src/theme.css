@@ -69,3 +69,21 @@ body {
 a {
   color: inherit;
 }
+
+/* A link in the pages looks the same on every page (#256): the accent's text colour, underlined
+   lightly, fully on hover. Links styled as tabs, buttons or navigation carry classes of their
+   own and are left as they are. */
+.layout__content a:not([class]),
+.app-link,
+.repositories__link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+
+.layout__content a:not([class]):hover,
+.app-link:hover,
+.repositories__link:hover {
+  text-decoration-color: currentColor;
+}

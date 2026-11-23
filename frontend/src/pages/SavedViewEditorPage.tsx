@@ -65,6 +65,8 @@ export function SavedViewEditorPage() {
   const [projectId, setProjectId] = useState(startProject ?? '')
   const [groupId, setGroupId] = useState('')
   const [covered, setCovered] = useState<ReadonlySet<string>>(new Set())
+  /** The text that narrows the projects offered, by part of their name (#256). */
+  const [projectFilter, setProjectFilter] = useState('')
   const [conditions, setConditions] = useState<DraftCondition[]>([])
   /** The projects of the chosen group, once read. */
   const [groupProjects, setGroupProjects] = useState<Named[] | null>(null)
@@ -311,18 +313,21 @@ export function SavedViewEditorPage() {
                   : 'You cannot read any project.'}
               </p>
             ) : (
-              <div className="views__choices">
-                {candidates.map((project) => (
-                  <label key={project.id} className="views__choice">
-                    <input
-                      type="checkbox"
-                      checked={covered.has(project.id)}
-                      onChange={(event) => toggle(project.id, event.target.checked)}
-                    />
-                    {project.name}
-                  </label>
-                ))}
-              </div>
+              <ProjectChoices
+                candidates={candidates}
+                covered={covered}
+                filter={projectFilter}
+                onFilter={setProjectFilter}
+                onToggle={toggle}
+                onAll={(ids, on) => {
+                  const next = new Set(covered)
+                  for (const id of ids) {
+                    if (on) next.add(id)
+                    else next.delete(id)
+                  }
+                  setCovered(next)
+                }}
+              />
             )}
           </fieldset>
         )}
@@ -353,4 +358,82 @@ export function SavedViewEditorPage() {
 
 function byName(a: Choice, b: Choice): number {
   return a.name.localeCompare(b.name)
+}
+
+/**
+ * The projects a view can cover, as checkboxes: a search narrows them by part of their name, and
+ * the projects shown can be chosen or cleared at once, so that a long list stays usable (#256).
+ * The ones chosen are counted, and a chosen one stays chosen while the search hides it.
+ */
+function ProjectChoices({
+  candidates,
+  covered,
+  filter,
+  onFilter,
+  onToggle,
+  onAll,
+}: {
+  candidates: readonly Named[]
+  covered: ReadonlySet<string>
+  filter: string
+  onFilter: (text: string) => void
+  onToggle: (id: string, on: boolean) => void
+  onAll: (ids: readonly string[], on: boolean) => void
+}) {
+  const text = filter.trim().toLowerCase()
+  const shown =
+    text === '' ? candidates : candidates.filter((p) => p.name.toLowerCase().includes(text))
+  const chosen = candidates.filter((project) => covered.has(project.id)).length
+  const ids = shown.map((project) => project.id)
+  return (
+    <>
+      {candidates.length > 1 && (
+        <div className="views__choices-bar">
+          <input
+            type="search"
+            className="views__choices-search"
+            aria-label="Search the projects"
+            placeholder="Search the projects"
+            value={filter}
+            onChange={(event) => onFilter(event.target.value)}
+          />
+          <button
+            type="button"
+            className="account__button account__button--quiet"
+            disabled={shown.length === 0}
+            onClick={() => onAll(ids, true)}
+          >
+            {text === '' ? 'Choose all' : 'Choose all shown'}
+          </button>
+          <button
+            type="button"
+            className="account__button account__button--quiet"
+            disabled={chosen === 0}
+            onClick={() => onAll(ids, false)}
+          >
+            {text === '' ? 'Clear' : 'Clear shown'}
+          </button>
+          <span className="views__hint" role="status">
+            {chosen} of {candidates.length} chosen
+          </span>
+        </div>
+      )}
+      {shown.length === 0 ? (
+        <p className="views__hint">No project matches.</p>
+      ) : (
+        <div className="views__choices">
+          {shown.map((project) => (
+            <label key={project.id} className="views__choice" title={project.name}>
+              <input
+                type="checkbox"
+                checked={covered.has(project.id)}
+                onChange={(event) => onToggle(project.id, event.target.checked)}
+              />
+              <span className="views__choice-name">{project.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </>
+  )
 }

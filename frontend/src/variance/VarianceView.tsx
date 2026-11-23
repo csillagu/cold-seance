@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react'
 import type { Span, Timeline, VarianceModel, VarianceRow } from './variance-model.ts'
 import './variance.css'
 
@@ -163,11 +163,17 @@ export function VarianceView({ name, model }: VarianceViewProps) {
         <table className="variance__table" aria-label={name}>
           <thead>
             <tr>
-              <th scope="col">Task</th>
+              <th scope="col" className="variance__task-head">
+                Task
+              </th>
               <th scope="col" className="variance__date-head">
                 Planned
               </th>
-              <th scope="col" className="variance__date-head">
+              <th
+                scope="col"
+                className="variance__date-head variance__date-head--baseline"
+                title={`Baseline ${model.baseline}`}
+              >
                 Baseline {model.baseline}
               </th>
               <th scope="col" className="variance__date-head">
@@ -181,19 +187,7 @@ export function VarianceView({ name, model }: VarianceViewProps) {
               </th>
               <th scope="col" className="variance__timeline">
                 <span className="variance__visually-hidden">Timeline</span>
-                {timeline && (
-                  <span className="variance__weeks" aria-hidden="true">
-                    {timeline.weeks.map((week) => (
-                      <span
-                        key={week.at}
-                        className="variance__week"
-                        style={{ left: `${(week.at / timeline.days) * 100}%` }}
-                      >
-                        {week.label}
-                      </span>
-                    ))}
-                  </span>
-                )}
+                {timeline && <WeekLabels timeline={timeline} />}
               </th>
             </tr>
           </thead>
@@ -245,5 +239,46 @@ export function VarianceView({ name, model }: VarianceViewProps) {
         </span>
       </div>
     </>
+  )
+}
+
+/** The room one week's label needs on the timeline, in pixels. */
+const WEEK_LABEL_ROOM = 56
+
+/**
+ * The Mondays' labels above the timeline: as many as fit its width without running into each
+ * other, every week's or every second, third… week's (#256).
+ */
+function WeekLabels({ timeline }: { timeline: Timeline }) {
+  const holder = useRef<HTMLSpanElement>(null)
+  const [width, setWidth] = useState(0)
+  useLayoutEffect(() => {
+    const element = holder.current
+    if (!element) return undefined
+    setWidth(element.getBoundingClientRect().width)
+    if (typeof ResizeObserver !== 'function') return undefined
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width)
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  // Unmeasured (0), every label is shown.
+  const step =
+    width > 0 ? Math.max(1, Math.ceil((timeline.weeks.length * WEEK_LABEL_ROOM) / width)) : 1
+  return (
+    <span ref={holder} className="variance__weeks" aria-hidden="true">
+      {timeline.weeks
+        .filter((_, index) => index % step === 0)
+        .map((week) => (
+          <span
+            key={week.at}
+            className="variance__week"
+            style={{ left: `${(week.at / timeline.days) * 100}%` }}
+          >
+            {week.label}
+          </span>
+        ))}
+    </span>
   )
 }

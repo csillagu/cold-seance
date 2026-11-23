@@ -46,6 +46,10 @@ interface Selected {
  * projects (FR-046, DD-014). Each row names the readable tasks that load the person in the span.
  * Below, the project's tasks that put load on no one, unscheduled ones among them (FR-004), so
  * that every task of the project is in the view. Each task's title opens the task dialog (#209).
+ *
+ * A person's tasks are one line each, cut short with the whole line as its title, in a list that
+ * scrolls past a few lines, so that a busy person's row stays low; Saturdays and Sundays are shaded
+ * (#256).
  */
 export function PersonLoad({
   name,
@@ -76,7 +80,11 @@ export function PersonLoad({
                   Person
                 </th>
                 {days.map((day) => (
-                  <th key={day} scope="col" className="load__day">
+                  <th
+                    key={day}
+                    scope="col"
+                    className={'load__day' + (weekday(day) >= 5 ? ' load__day--weekend' : '')}
+                  >
                     <span className="load__weekday">{WEEKDAYS[weekday(day)]}</span>
                     <span>{formatDay(day)}</span>
                   </th>
@@ -100,7 +108,10 @@ export function PersonLoad({
                     {row.tasks.length > 0 && (
                       <ul className="load__tasks" aria-label={`Tasks of ${row.username}`}>
                         {row.tasks.map((task) => (
-                          <li key={task.taskId}>
+                          <li
+                            key={task.taskId}
+                            title={`${task.title}, ${formatPercent(task.load)}${projectOf(task.projectId) ? ` · ${projectOf(task.projectId)}` : ''}`}
+                          >
                             <TaskTitleButton
                               title={task.title}
                               onOpen={() => onOpen(task.taskId)}
@@ -115,7 +126,13 @@ export function PersonLoad({
                     )}
                   </th>
                   {row.days.map((day) => (
-                    <td key={day.date} className="load__cell-holder">
+                    <td
+                      key={day.date}
+                      className={
+                        'load__cell-holder' +
+                        (weekday(day.date) >= 5 ? ' load__cell-holder--weekend' : '')
+                      }
+                    >
                       <button
                         type="button"
                         className={cellClass(day, isSelected(row, day))}

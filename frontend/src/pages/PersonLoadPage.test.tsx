@@ -256,6 +256,20 @@ describe('the person load view (SC-032)', () => {
     )
   })
 
+  it('shows a changed span without asking for "Show" (#256)', async () => {
+    const requests = fakeProject()
+    renderView()
+    await screen.findByRole('table', { name: 'Person load of Apollo' })
+
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2027-03-05' } })
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2027-03-04' } })
+    await waitFor(() =>
+      expect(requests.map((request) => request.path)).toContain(
+        `/api/accounts/${CAROL}/load?from=2027-03-04&to=2027-03-05`,
+      ),
+    )
+  })
+
   it('sends someone not signed in to the sign-in page', async () => {
     fakeProject({ [`GET /api/projects/${APOLLO}/members`]: UNAUTHENTICATED })
     renderView()

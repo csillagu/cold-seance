@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api.ts'
 import type { TaskStatus } from '../gantt/gantt-model.ts'
 import { COLUMNS } from '../kanban/kanban-model.ts'
+import { useCurrentProject } from '../layout/current-project.ts'
 import { SubscriptionControl } from '../notifications/SubscriptionControl.tsx'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { AssignmentEditor, PersonLoadField } from '../tasks/AssignmentEditor.tsx'
@@ -81,6 +82,8 @@ export function TaskPage() {
   const { taskId = '' } = useParams()
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<State>({ state: 'loading' })
+  // The navigation marks the task's project as the current one (#256).
+  useCurrentProject(loaded.state === 'loaded' ? loaded.task.projectId : undefined)
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -448,6 +451,7 @@ function DetailsSection({
   save: (changes: Record<string, unknown>) => Promise<void>
 }) {
   const [draft, setDraft] = useState<DetailsDraft>(() => detailsDraftOf(task))
+  const saved = useMemo(() => detailsDraftOf(task), [task])
   const { saving, error, setError, run } = useSaving()
 
   const submit = (event: FormEvent) => {
@@ -478,6 +482,11 @@ function DetailsSection({
         milestone={Boolean(task.milestone)}
         // An AI-only task's person load is set in its assignment; one becoming AI-only gets it here.
         offerPersonLoad={task.aiShare !== AI_ONLY_SHARE}
+        plannedFinish={
+          draft.start === saved.start && draft.duration === saved.duration
+            ? task.plannedFinish
+            : null
+        }
       />
       <Footer saving={saving} error={error} label="Save details" />
     </form>

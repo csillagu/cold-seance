@@ -45,6 +45,18 @@ export interface Names {
   people: ReadonlyMap<string, string>
 }
 
+/**
+ * The colour of each label, so that a red flag does not look like a proposal (#256): red for a
+ * red flag, amber for what was undone or refused, blue for a request, the accent for a proposal.
+ */
+export const LABEL_TONES: Readonly<Record<string, 'red' | 'amber' | 'blue' | 'accent'>> = {
+  'Red flag': 'red',
+  'Reverted on GitHub': 'amber',
+  'GitHub token': 'amber',
+  'Repository request': 'blue',
+  Proposal: 'accent',
+}
+
 /** A notification as the list shows it: what it tells, and where it leads, if anywhere. */
 export interface NotificationView {
   id: string

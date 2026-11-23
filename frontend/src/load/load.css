@@ -101,7 +101,8 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  min-width: 180px;
+  width: 240px;
+  min-width: 240px;
   max-width: 240px;
   padding: 8px 12px !important;
   background: var(--card);
@@ -150,8 +151,37 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: 96px;
+  overflow-y: auto;
   font-weight: 400;
   font-size: 12px;
+}
+
+.load__tasks li {
+  flex: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.load__cell-holder {
+  vertical-align: middle;
+}
+
+.load__day--weekend,
+.load__cell-holder--weekend {
+  background: var(--sec);
+}
+
+.load__cell-holder--weekend .load__cell {
+  background: transparent;
+  color: var(--faint);
+  border-style: dashed;
+}
+
+.load__cell-holder--weekend .load__cell--over {
+  background: var(--red-bg);
+  color: var(--load-red-text);
 }
 
 .load__tasks a {

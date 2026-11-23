@@ -495,8 +495,45 @@
 }
 
 /* Legend */
+/* Above the chart, so that it is seen without scrolling past every task (#256). */
+.gantt__toolbar {
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.gantt__today-button {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gantt__today-button:hover:not(:disabled) {
+  background: var(--sec);
+}
+
+.gantt__today-button:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.gantt__key-parent {
+  width: 24px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--gantt-text2);
+}
+
 .gantt__legend {
-  margin: 14px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;

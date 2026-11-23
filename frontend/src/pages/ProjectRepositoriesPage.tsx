@@ -14,7 +14,7 @@ import { fullName, type Repository } from '../repositories/repository.ts'
 import type { RepositoryRequest } from '../repositories/request.ts'
 import { useSignInRedirect } from '../sign-in-redirect.ts'
 import { messageOf } from './accounts.ts'
-import { useProject } from './project-context.ts'
+import { canAdminister, useProject } from './project-context.ts'
 import './accounts.css'
 import './members.css'
 import './pages.css'
@@ -46,6 +46,8 @@ type Loaded =
  */
 export function ProjectRepositoriesPage() {
   const project = useProject()
+  // Only the project's admins manage its repositories (FR-109): no one else is shown the controls.
+  const manage = canAdminister(project.role)
   const toSignIn = useSignInRedirect()
   const [loaded, setLoaded] = useState<Loaded>({ state: 'loading' })
   const [chosen, setChosen] = useState('')
@@ -147,47 +149,49 @@ export function ProjectRepositoriesPage() {
 
   return (
     <section>
-      <form
-        className="account__card account__form"
-        aria-labelledby="add-repository"
-        onSubmit={(event) => void ask(event)}
-      >
-        <h2 className="account__card-title" id="add-repository">
-          Add a repository
-        </h2>
-        <p className="page__note">
-          {project.name} pulls the issues of a repository once one of the repository&apos;s admins
-          approves it, or at once if you are one.
-        </p>
-        {addable.length === 0 ? (
+      {manage && (
+        <form
+          className="account__card account__form"
+          aria-labelledby="add-repository"
+          onSubmit={(event) => void ask(event)}
+        >
+          <h2 className="account__card-title" id="add-repository">
+            Add a repository
+          </h2>
           <p className="page__note">
-            No other registered repository can be added. A repository is registered on the{' '}
-            <Link to="/repositories">repositories</Link> screen.
+            {project.name} pulls the issues of a repository once one of the repository&apos;s admins
+            approves it, or at once if you are one.
           </p>
-        ) : (
-          <div className="account__fields">
-            <div className="account__field">
-              <label htmlFor="repository-choice">Repository</label>
-              <select
-                id="repository-choice"
-                required
-                value={chosen}
-                onChange={(event) => setChosen(event.target.value)}
-              >
-                <option value="">Choose a repository</option>
-                {addable.map((repository) => (
-                  <option key={repository.id} value={repository.id}>
-                    {fullName(repository)}
-                  </option>
-                ))}
-              </select>
+          {addable.length === 0 ? (
+            <p className="page__note">
+              No other registered repository can be added. A repository is registered on the{' '}
+              <Link to="/repositories">repositories</Link> screen.
+            </p>
+          ) : (
+            <div className="account__fields">
+              <div className="account__field">
+                <label htmlFor="repository-choice">Repository</label>
+                <select
+                  id="repository-choice"
+                  required
+                  value={chosen}
+                  onChange={(event) => setChosen(event.target.value)}
+                >
+                  <option value="">Choose a repository</option>
+                  {addable.map((repository) => (
+                    <option key={repository.id} value={repository.id}>
+                      {fullName(repository)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button type="submit" className="account__button" disabled={busy}>
+                Add repository
+              </button>
             </div>
-            <button type="submit" className="account__button" disabled={busy || chosen === ''}>
-              Add repository
-            </button>
-          </div>
-        )}
-      </form>
+          )}
+        </form>
+      )}
 
       {outcome !== undefined && (
         <p
@@ -211,9 +215,11 @@ export function ProjectRepositoriesPage() {
                 <tr>
                   <th scope="col">Repository</th>
                   <th scope="col">Receiving project</th>
-                  <th scope="col" className="account__end">
-                    <span className="account__hidden">Actions</span>
-                  </th>
+                  {manage && (
+                    <th scope="col" className="account__end">
+                      <span className="account__hidden">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -228,29 +234,31 @@ export function ProjectRepositoriesPage() {
                       </Link>
                     </th>
                     <td>{receivingText(row, project.name)}</td>
-                    <td className="account__end">
-                      {row.receiving ? (
-                        <button
-                          type="button"
-                          className="account__button account__button--danger"
-                          disabled={busy}
-                          aria-label={`Give up receiving ${fullName(row.repository)}`}
-                          onClick={() => void giveUp(row)}
-                        >
-                          Give up receiving
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="account__button"
-                          disabled={busy}
-                          aria-label={`Mark ${project.name} as receiving ${fullName(row.repository)}`}
-                          onClick={() => void mark(row)}
-                        >
-                          Mark as receiving
-                        </button>
-                      )}
-                    </td>
+                    {manage && (
+                      <td className="account__end">
+                        {row.receiving ? (
+                          <button
+                            type="button"
+                            className="account__button account__button--danger"
+                            disabled={busy}
+                            aria-label={`Give up receiving ${fullName(row.repository)}`}
+                            onClick={() => void giveUp(row)}
+                          >
+                            Give up receiving
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="account__button account__button--quiet"
+                            disabled={busy}
+                            aria-label={`Mark ${project.name} as receiving ${fullName(row.repository)}`}
+                            onClick={() => void mark(row)}
+                          >
+                            Mark as receiving
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

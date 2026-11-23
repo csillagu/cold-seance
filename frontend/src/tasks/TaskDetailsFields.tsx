@@ -1,3 +1,4 @@
+import { formatDay } from '../gantt/gantt-model.ts'
 import { PersonLoadField } from './AssignmentEditor.tsx'
 import {
   type DetailsDraft,
@@ -16,7 +17,9 @@ import './task-details.css'
  * title and description here only. `offerPersonLoad` shows the person-load field, at 1% unless
  * changed (FR-149), once the AI share is set to 100%. A new task (`creating`) given a duration of
  * 0 is a milestone (FR-212): its planned start is then its fixed date, or it floats without one,
- * and the fields a milestone cannot have are hidden (FR-191).
+ * and the fields a milestone cannot have are hidden (FR-191). `plannedFinish`, the finish the
+ * scheduler derived from the saved start and duration (FR-144), is shown beside them while they
+ * are unchanged (#256).
  */
 export function TaskDetailsFields({
   draft,
@@ -24,12 +27,14 @@ export function TaskDetailsFields({
   milestone = false,
   creating = false,
   offerPersonLoad,
+  plannedFinish = null,
 }: {
   draft: DetailsDraft
   onChange: (draft: DetailsDraft) => void
   milestone?: boolean
   creating?: boolean
   offerPersonLoad: boolean
+  plannedFinish?: string | null
 }) {
   const set = (field: keyof DetailsDraft) => (value: string) =>
     onChange({ ...draft, [field]: value })
@@ -74,6 +79,14 @@ export function TaskDetailsFields({
                   onChange={(event) => set('duration')(event.target.value)}
                 />
               </label>
+              {numberOf(draft.duration) !== null && plannedFinish !== null ? (
+                <p className="task-editor__field task-details__finish">
+                  Planned finish
+                  <span className="task-details__finish-value">
+                    {formatDay(plannedFinish, true)}
+                  </span>
+                </p>
+              ) : null}
               {numberOf(draft.duration) === null && !newMilestone ? (
                 <label className="task-editor__field">
                   Planned finish

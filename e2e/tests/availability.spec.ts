@@ -100,6 +100,19 @@ async function holidaysOf(deployment: Deployment, accountId: string) {
     .toSorted()
 }
 
+/** A day, `YYYY-MM-DD`, as the screens write it: `Mon 1 Mar 2027`. */
+function dayInWords(day: string): string {
+  return new Date(`${day}T00:00:00Z`)
+    .toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
+    .replace(',', '')
+}
+
 /** Every day from `from` to `to`, both included, that is not a Saturday or a Sunday. */
 function workingDays(from: string, to: string): string[] {
   const days: string[] = []
@@ -153,7 +166,7 @@ test('TC-050: a person records their own absence in whole days (browser)', async
 
   // Step 2: read alice's absences back, afresh.
   await page.reload()
-  await expect(rowsOf(page, 'Absences')).toHaveText([/Mon 2027-03-08\s*Fri 2027-03-12/])
+  await expect(rowsOf(page, 'Absences')).toHaveText([/Mon 8 Mar 2027\s*Fri 12 Mar 2027/])
   expect(await absencesOf(deployment, alice.id)).toEqual([{ from: '2027-03-08', to: '2027-03-12' }])
 
   // Negative: no other person's absences change.
@@ -177,7 +190,9 @@ test('TC-051: a person enters many holidays in their own calendar (browser)', as
 
   // Step 2: read alice's calendar, afresh, and bob's.
   await page.reload()
-  await expect(rowsOf(page, 'Holidays')).toHaveText(holidays.map((day) => new RegExp(day)))
+  await expect(rowsOf(page, 'Holidays')).toHaveText(
+    holidays.map((day) => new RegExp(dayInWords(day))),
+  )
   expect(await holidaysOf(deployment, alice.id)).toEqual(holidays)
   // Negative: bob's calendar holds none of them, and the global calendar is unchanged.
   expect(await holidaysOf(deployment, bob.id)).toEqual([])
@@ -237,9 +252,9 @@ test("TC-222: a system admin changes another person's capacity, absences and cal
   await signIn(page, alice)
   await openOwn(page, 'Capacity and absences', 'Your capacity and absences')
   await expect(page.getByTestId('capacity')).toHaveText('Capacity: 60% of full time.')
-  await expect(rowsOf(page, 'Absences')).toHaveText([/Mon 2027-03-08\s*Mon 2027-03-08/])
+  await expect(rowsOf(page, 'Absences')).toHaveText([/Mon 8 Mar 2027\s*Mon 8 Mar 2027/])
   await openOwn(page, 'Working calendar', 'Your working calendar')
-  await expect(rowsOf(page, 'Holidays')).toHaveText([/Mon 2027-03-15/])
+  await expect(rowsOf(page, 'Holidays')).toHaveText([/Mon 15 Mar 2027/])
 
   // Negative: root's own capacity, absences and calendar are unchanged.
   expect(await capacityOf(deployment, deployment.root.id)).toBe(100)
