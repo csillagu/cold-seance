@@ -40,6 +40,7 @@ What Terraform makes:
 
 - **The first system admin's password and the webhook secret**, generated once and kept in Terraform's state.
 - **The test repository's webhook**, pointed at `terraform output webhook_url`, with the events `issues`, `sub_issues` and `issue_dependencies` and the generated secret, which the deployment is given as `github.webhookSecret`. GitHub sends no webhook for a Project owned by a user, so a change to the status field still comes in through the re-check, every 2 minutes here (`recheck_interval_minutes`).
+- **The `demo` environment** of `cold-seance`, which the [demo projects](#demo-projects) workflow runs in.
 - **The `live` environment** of `cold-seance`, with every setting of the [live GitHub tests](#live-github-tests): the address, the admin's name, the test repository, the Project, the status field, the time zone and the wait as its variables, and the admin's password and the two tokens as its secrets.
 
 Running it:
@@ -49,11 +50,32 @@ Running it:
 - **Logs**: `terraform output logs` prints the command that shows them; they are also in the Google Cloud console, under the service.
 - **Secrets**: the service's environment variables can be read by the Google Cloud project's users. Terraform's state, `terraform.tfstate`, holds every secret in plain text: keep it on your machine, or in a private bucket, and never commit it.
 - **Cost**: Cloud Run is billed only while an instance is up, within a monthly free tier; Artifact Registry and Secret Manager have free allowances that the copy of the image and the two secrets fit in. A budget alert on the project (Billing, Budgets & alerts) tells you if that stops being true.
-- **Removing it**: `terraform destroy` deletes the service, the registry proxy and the secrets, the Neon project with all its data, the test repository's webhook and the `live` environment.
+- **Removing it**: `terraform destroy` deletes the service, the registry proxy and the secrets, the Neon project with all its data, the test repository's webhook and the `live` and `demo` environments.
+
+## Demo projects
+
+The workflow [`.github/workflows/seed-demo-projects.yml`](../../.github/workflows/seed-demo-projects.yml) resets the test deployment's projects to a set of demo projects that people can look around in (#257, SC-131, DD-064). It is started by hand from the Actions tab only, and it:
+
+1. **Deletes the live tests' projects**, those named `<label> live-YYYY-MM-DD-HH-MM-<4 hex digits>`, straight in the deployment's Neon database, since the tool cannot delete a project. It asks Neon's API for the database's address with the Neon API key and runs [`deploy/demo/delete-live-test-projects.sql`](../../deploy/demo/delete-live-test-projects.sql) in one transaction: each project goes with every row that refers to it, its audit log entries included, found from the database's foreign keys, and an AI proposal that touches one goes whole. No other project, account, group or repository is touched.
+2. **Creates the missing demo projects** with [`deploy/demo/seed-demo-projects.py`](../../deploy/demo/seed-demo-projects.py), over the REST API as the first system admin. It first checks that the 30 demo accounts exist and stops, changing nothing, if one is missing: it never creates an account or sets a password. Then it creates each of the 64 demo projects that does not exist, found by name, with its tasks, dates relative to the day of the run, groups, baselines, proposals and views, and leaves one that exists as it is. Its docstring says what it makes.
+
+It shares the live GitHub tests' concurrency group, so it never deletes projects a live run is working in.
+
+The 30 demo accounts are created once, by hand, by a system admin, with long random passwords; keep their passwords outside the repository. On the project's own deployment they were created on 2026-11-23, and their passwords are in `deploy/gcp/demo-accounts.txt` on the owner's machine, which git ignores.
+
+Its settings are the `demo` environment's, which Terraform writes ([`deploy/gcp/demo.tf`](../../deploy/gcp/demo.tf)): the deployment's address (`SEED_URL`), its first system admin (`SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`), and the Neon project, database and role (`NEON_PROJECT_ID`, `NEON_DATABASE`, `NEON_ROLE`) with an API key (`NEON_API_KEY`). These are the same values as the live tests' for now; the API key is Terraform's variable `demo_neon_api_key`, for now the same key as `NEON_API_KEY`. The workflow stops, naming them, if any is missing.
+
+Each run is meant to wait for the approval of `demo_approver` (`csillagu` unless set), the environment's required reviewer. GitHub's free plan refuses a required reviewer on a private repository, so it is off until `cold-seance` is public: then set `demo_require_approval = true` and apply again (#242).
+
+To run the seed script from your machine instead, against any deployment whose demo accounts exist:
+
+```sh
+SEED_URL=https://cold-seance-test-123456789012.us-east1.run.app SEED_ADMIN_PASSWORD=... python3 deploy/demo/seed-demo-projects.py
+```
 
 ## Live GitHub tests
 
-`npm run test:live` runs the GitHub steps of the test cases against the test deployment and the real test repository (SC-126, DD-062), where the integration tests use a fake of GitHub. The tests are in `backend/test/live/`, each named with its test case's id. Each run works in projects of its own, named after it, on the deployment, and when it ends it removes the test repository from them and deletes the issues and milestones it made on GitHub. The projects stay, since the tool cannot delete a project. No other project on the deployment may pull from the test repository: it would take each issue a test opens as its own task (FR-100), and the seeding test would find the issue taken. For the same reason the test files run one at a time. A change made to an issue on GitHub reaches the deployment through the webhook, in seconds; a change to the Projects status field only at its next re-check, which those tests wait for: a run takes several minutes.
+`npm run test:live` runs the GitHub steps of the test cases against the test deployment and the real test repository (SC-126, DD-062), where the integration tests use a fake of GitHub. The tests are in `backend/test/live/`, each named with its test case's id. Each run works in projects of its own, named after it, on the deployment, and when it ends it removes the test repository from them and deletes the issues and milestones it made on GitHub. The projects stay, since the tool cannot delete a project, until the [demo projects](#demo-projects) workflow deletes them. No other project on the deployment may pull from the test repository: it would take each issue a test opens as its own task (FR-100), and the seeding test would find the issue taken. For the same reason the test files run one at a time. A change made to an issue on GitHub reaches the deployment through the webhook, in seconds; a change to the Projects status field only at its next re-check, which those tests wait for: a run takes several minutes.
 
 Terraform writes every one of these settings into the `live` environment. To run the suite from your machine, take them from there or from `terraform output`:
 

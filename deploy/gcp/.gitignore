@@ -4,3 +4,5 @@
 terraform.tfvars
 crash.log
 tfplan
+# The demo accounts and their passwords (#257).
+demo-accounts.txt
