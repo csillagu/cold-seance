@@ -187,10 +187,10 @@ To run the script by hand, start it as the scheduled task does, from a command p
 
 ### By hand
 
-From PostgreSQL's `bin` folder (`C:\Program Files\PostgreSQL\<version>\bin`):
+From PostgreSQL's `bin` folder (`C:\Program Files\PostgreSQL\<version>\bin`), giving the dump a full path, since only an administrator can write into that folder:
 
 ```bat
-pg_dump -Fc -h localhost -U cold_seance -f cold_seance.dump cold_seance
+pg_dump -Fc -h localhost -U cold_seance -f D:\backups\cold-seance\cold_seance.dump cold_seance
 ```
 
 In pgAdmin, right-click the database, choose **Backup…** and the *Custom* format.
@@ -209,7 +209,7 @@ The PostgreSQL installer does not put its tools on `PATH`. Run `psql` and `pg_re
 
    A plain SQL dump, made without `-Fc`, is restored with `psql -h localhost -U cold_seance -d cold_seance_restored -f <file>` instead. In pgAdmin, right-click the new database and choose **Restore…**.
 
-4. Either point `database.url` at `cold_seance_restored`, in an editor run as an administrator, or, as `postgres`, swap the databases: `DROP DATABASE cold_seance;` then `ALTER DATABASE cold_seance_restored RENAME TO cold_seance;`.
+4. Either point `database.url` at `cold_seance_restored`, in an editor run as an administrator, or, as `postgres`, swap the databases: `DROP DATABASE cold_seance;` then `ALTER DATABASE cold_seance_restored RENAME TO cold_seance;`. Swapping keeps the nightly backup as it is. If you point `database.url` at `cold_seance_restored` instead, the backup task still dumps `cold_seance`: create it again with `/F`, which replaces it, and with `-Database cold_seance_restored` added after `backup.ps1`, and add a line for `cold_seance_restored` to `pgpass.conf`.
 5. Start the tool.
 
 **Test a restore once:** restore a dump into a scratch database as above, start the tool on it, and check that your projects are there. A backup that has never been restored may not restore.
@@ -218,7 +218,7 @@ The PostgreSQL installer does not put its tools on `PATH`. Run `psql` and `pg_re
 
 1. **Stop the tool and take a backup.** Migrations are not reversible: the only way back to an older version is to restore the backup taken before the update.
 2. **Get the new package:** download and unblock the new zip, or build it into a **new** folder with option B (`git pull`, `npm ci`, `npm run build`, `node scripts/package-windows.ts --out C:\cold-seance-new`).
-3. **Replace the program files.** In the tool's folder, delete everything except `config.yaml`, the `secrets` folder, `pgpass.conf` and the `*.log` files. Then copy the new package's contents in their place.
+3. **Replace the program files.** In the tool's folder, delete everything except `config.yaml`, the `secrets` folder, `pgpass.conf` and the `*.log` files. Then copy the new package's contents in their place: from the new zip, the contents of its `cold-seance` folder.
 4. **Start the tool**, which migrates the database. A service registered from the folder stays registered, so `cold-seance-service.exe start` is enough.
 
 ## Uninstalling
