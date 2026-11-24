@@ -75,7 +75,7 @@ gh pr create --draft --base main --title "<title>" --body "Closes #<issue-number
 
 The `Closes #<issue-number>` line links the PR to the issue and closes the issue when the PR merges.
 
-Keep a **Decisions** section in the PR body, added to as the work goes: every choice the issue and the graph items did not make for you (a table or route shape, a reading of an item that could be read two ways, an edge case, a dependency, a deviation from the plan), each with why, what it rests on and what else was considered, or "None". [`plan/agent-prompt.md`](plan/agent-prompt.md) §7 gives the format. A choice about what the system must do is the owner's: ask it, do not record it as yours.
+Keep a **Decisions** section in the PR body, added to as the work goes: every choice the issue and the graph items did not make for you (a table or route shape, a reading of an item that could be read two ways, an edge case, a dependency, a deviation from the plan), each with why, what it rests on and what else was considered, or "None". Write each as one bullet: `- **<what was decided>.** Why: <the reason>. Rests on: <SC/FR/DD/TC ids, or "my choice">. Considered: <the options not taken, if any>.` A choice about what the system must do is the owner's: ask it, do not record it as yours.
 
 Keep pushing commits to the branch as work continues. When the work is done, mark the PR ready for review:
 
@@ -85,7 +85,7 @@ gh pr ready
 
 ### Merging
 
-The user merges PRs. Only merge a PR yourself when the user explicitly asks you to. The one standing exception: an agent working a work-graph issue as [`plan/agent-prompt.md`](plan/agent-prompt.md) sets out merges its own PR, once CI has passed on a head rebased onto the latest `main` (the owner's instruction of 2026-11-05).
+The user merges PRs. Only merge a PR yourself when the user explicitly asks you to.
 
 PRs are merged with a merge commit (not squash or rebase-merge). Before merging, rebase the branch onto the latest `main` so it is up to date:
 

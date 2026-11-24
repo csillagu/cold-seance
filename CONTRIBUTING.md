@@ -9,7 +9,7 @@ What the tool must do is recorded as requirements in [`graph/`](graph/), a [reql
 Two documents order the work:
 
 - [`docs/implementation-plan.md`](docs/implementation-plan.md), the **implementation plan**: every solution component in build order, in waves, with the status of each. It is the record of what is done.
-- [`plan/work-graph.md`](plan/work-graph.md), the **parallel work graph**: the components not yet built, cut into issue-sized nodes with "blocked by" relations, so that several people or agents can work at once. Its data is in [`plan/work-graph.yaml`](plan/work-graph.yaml). [`plan/create-issues.py`](plan/create-issues.py) turns it into GitHub issues, and agents take them one at a time as [`plan/agent-prompt.md`](plan/agent-prompt.md) sets out.
+- [`plan/work-graph.md`](plan/work-graph.md), the **parallel work graph**: the components not yet built, cut into issue-sized nodes with "blocked by" relations, so that several people or agents can work at once. Its data is in [`plan/work-graph.yaml`](plan/work-graph.yaml). [`plan/create-issues.py`](plan/create-issues.py) turns it into GitHub issues.
 
 [`docs/initial-requirements.md`](docs/initial-requirements.md) is the stakeholder's original input, kept frozen, and [`design/`](design/) holds the approved look of the frontend.
 

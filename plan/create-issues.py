@@ -9,8 +9,8 @@ comes first. Each issue gets:
 - a body with its rank, SCs, TCs (with the part each covers), Blocked by and notes;
 - GitHub's "blocked by" relation to each blocker's issue.
 
-The rank orders the nodes for the agents (plan/agent-prompt.md): rank 1 starts the longest chain
-of effort still to do. Z01 counts as 0 effort, since most of it is done along the way.
+The rank orders the nodes: rank 1 starts the longest chain of effort still to do. Z01 counts as 0
+effort, since most of it is done along the way.
 
 The node-to-issue numbers go to plan/issues.json, so a second run skips the nodes that already
 have an issue and only creates the rest.
@@ -38,7 +38,6 @@ BLOB = f'https://github.com/{REPO}/blob/main'
 
 LABELS = {
     'work-graph': ('5319e7', 'A node of the parallel work graph (plan/work-graph.md)'),
-    'claimed': ('fbca04', 'An agent is working on it (plan/agent-prompt.md)'),
     'needs-owner': ('d93f0b', 'Waits for an answer from the owner'),
     'backend': ('1d76db', 'Backend lane of the work graph'),
     'frontend': ('f9a03f', 'Frontend lane of the work graph'),
@@ -133,8 +132,7 @@ def main():
             continue
 
         lines = [
-            f'Node **{n}** of the [parallel work graph]({BLOB}/plan/work-graph.md). '
-            f'Agents take it as [`plan/agent-prompt.md`]({BLOB}/plan/agent-prompt.md) sets out.',
+            f'Node **{n}** of the [parallel work graph]({BLOB}/plan/work-graph.md).',
             '',
             f'**Rank:** {rank[n]} of {len(nodes)}  ',
             f'**Effort:** {node["effort"]}',

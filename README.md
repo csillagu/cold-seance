@@ -41,7 +41,7 @@ The [user guide](docs/user-guide/README.md) covers installing, configuring and u
 
 ## License
 
-cold-seance is licensed under the [Apache License 2.0](LICENSE).
+cold-seance is Copyright 2026 Andras Ujvari, licensed under the [Apache License 2.0](LICENSE); see [`NOTICE`](NOTICE).
 
 ---
 
