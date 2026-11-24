@@ -15,5 +15,6 @@ to back up and restore, and how to update, are in the user guide in this folder:
 docs\user-guide\install-windows.md, also online at
 https://github.com/csillagu/cold-seance/blob/main/docs/user-guide/install-windows.md
 
-Licences: LICENSE (cold-seance, Apache License 2.0); licenses\ for Node.js and WinSW; each package
-in node_modules\ holds its own; frontend\dist holds those of the frontend's bundled packages.
+Licences: LICENSE (cold-seance, Apache License 2.0) and NOTICE (its copyright); licenses\ for
+Node.js and WinSW; each package in node_modules\ holds its own; frontend\dist holds those of the
+frontend's bundled packages.
