@@ -9,7 +9,7 @@
 # The base image is pinned to an exact Node.js version and digest, so a rebuild gets the same base;
 # Dependabot proposes each new patch or minor release of it as a pull request. Its major version
 # follows .nvmrc, and Dependabot leaves it alone.
-FROM node:26.13.0-alpine3.24@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS base
+FROM node:26.13.1-alpine3.24@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS base
 
 # Builds both packages with every dependency, dev ones included.
 FROM base AS build
