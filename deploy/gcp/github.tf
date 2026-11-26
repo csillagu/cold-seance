@@ -45,9 +45,25 @@ resource "github_repository_webhook" "test" {
   }
 }
 
+# The approver of each run in the `live` and `demo` environments (#262).
+data "github_user" "approver" {
+  username = var.approver
+}
+
+# The `live` environment, with the owner as its required reviewer (#262, SRC-296): CI's live job runs
+# on every pull request, and none gets the App's key and the tokens until the owner approves it.
 resource "github_repository_environment" "live" {
   repository  = var.environment_repository
   environment = "live"
+
+  # The approver also opens the pull requests and starts the runs, so they may approve their own.
+  prevent_self_review = false
+  dynamic "reviewers" {
+    for_each = var.require_approval ? [data.github_user.approver.id] : []
+    content {
+      users = [tonumber(reviewers.value)]
+    }
+  }
 }
 
 resource "github_actions_environment_variable" "live" {

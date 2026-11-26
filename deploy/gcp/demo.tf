@@ -1,7 +1,7 @@
 # The `demo` environment the demo seeding workflow runs in (#257, SC-131, DD-064): separate from
-# `live`, with the owner as its required reviewer once `demo_require_approval` is set, so that no
-# run resets the deployment's projects without their approval. GitHub's free plan has required
-# reviewers only on public repositories, so it stays off until cold-seance is public (#242).
+# `live`, with the owner (`approver`) as its required reviewer, so that no run resets the
+# deployment's projects without their approval. GitHub's free plan has required reviewers only on
+# public repositories; `require_approval` turns it off for a private one (#242).
 #
 # Its settings are the same values as the live tests' for now: the deployment and its first system
 # admin, and a Neon API key of its own variable, for now the key Terraform itself uses.
@@ -20,10 +20,6 @@ locals {
   }
 }
 
-data "github_user" "demo_approver" {
-  username = var.demo_approver
-}
-
 resource "github_repository_environment" "demo" {
   repository  = var.environment_repository
   environment = "demo"
@@ -31,7 +27,7 @@ resource "github_repository_environment" "demo" {
   # The approver also starts the runs, so they may approve their own.
   prevent_self_review = false
   dynamic "reviewers" {
-    for_each = var.demo_require_approval ? [data.github_user.demo_approver.id] : []
+    for_each = var.require_approval ? [data.github_user.approver.id] : []
     content {
       users = [tonumber(reviewers.value)]
     }
