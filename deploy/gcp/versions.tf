@@ -49,8 +49,16 @@ provider "google-beta" {
 # The Neon API key is read from the environment variable NEON_API_KEY.
 provider "neon" {}
 
-# The GitHub token Terraform sets up the test repository's webhook and the `live` environment with
-# is read from the environment variable GITHUB_TOKEN; see docs/development/live-tests.md for what it needs.
+# The GitHub token Terraform sets up the `live` and `demo` environments with is read from the
+# environment variable GITHUB_TOKEN; see docs/development/live-tests.md for what it needs.
 provider "github" {
   owner = var.github_owner
+}
+
+# The test repository is under an account of its own (#261), whose token Terraform sets up its
+# webhook with: a collaborator cannot manage a user's repository's webhooks.
+provider "github" {
+  alias = "test"
+  owner = var.test_owner
+  token = var.test_github_token
 }
