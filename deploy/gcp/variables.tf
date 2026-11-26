@@ -62,19 +62,31 @@ variable "github_app_private_key_file" {
 }
 
 variable "github_projects_token" {
-  description = "The classic personal access token, with the repo and project scopes, that the deployment reads the Projects status field with (projectsStatus) and the live suite sets it with. A fine-grained token cannot reach a Project owned by a user."
+  description = "The classic personal access token of test_owner, with the repo and project scopes, that the deployment reads the Projects status field with (projectsStatus) and the live suite sets it with. A fine-grained token cannot reach a Project owned by a user; made by test_owner, it reaches only that account's repositories and Projects."
   type        = string
   sensitive   = true
 }
 
 variable "github_owner" {
-  description = "The GitHub account that owns the test repository and the repository whose `live` environment Terraform writes."
+  description = "The GitHub account that owns the image, the registry token and the repository whose `live` and `demo` environments Terraform writes."
   type        = string
   default     = "csillagu"
 }
 
+variable "test_owner" {
+  description = "The GitHub account made only for the live tests, which owns the test repository, its Project, the GitHub App and the Projects token (#261)."
+  type        = string
+  default     = "csillagu-alt"
+}
+
+variable "test_github_token" {
+  description = "The fine-grained personal access token of test_owner, on the test repository only, with Webhooks read and write, that Terraform sets up the test repository's webhook with."
+  type        = string
+  sensitive   = true
+}
+
 variable "test_repository" {
-  description = "The name of the test repository, under github_owner, which the App is installed on and Terraform puts the webhook on."
+  description = "The name of the test repository, under test_owner, which the App is installed on and Terraform puts the webhook on."
   type        = string
   default     = "cold-seance-live"
 }
@@ -86,12 +98,12 @@ variable "environment_repository" {
 }
 
 variable "github_project_number" {
-  description = "The number of the GitHub Project, owned by github_owner, whose status field the deployment reads."
+  description = "The number of the GitHub Project, owned by test_owner, whose status field the deployment reads."
   type        = number
 }
 
 variable "live_github_token" {
-  description = "The fine-grained personal access token the live suite acts on the test repository with; see docs/development/live-tests.md for its permissions."
+  description = "The fine-grained personal access token of test_owner that the live suite acts on the test repository with; see docs/development/live-tests.md for its permissions."
   type        = string
   sensitive   = true
 }

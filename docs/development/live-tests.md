@@ -6,16 +6,17 @@ The project's own test deployment, and the test suites that exercise the GitHub 
 
 The project's own test deployment (SC-125, DD-062), which the live GitHub tests below run against, is described by Terraform scripts in [`deploy/gcp/`](../../deploy/gcp/). It is a test bed for the project, not a way to install the tool: it runs the published image on Google Cloud Run, scaled to zero, with its database on Neon's free plan, so it costs next to nothing between test runs. Terraform also puts a webhook on the test repository and writes the live tests' settings into this repository's `live` environment. Nothing is deployed from CI; apply the scripts from your own machine.
 
-**Before the first apply**, on GitHub:
+**Before the first apply**, on GitHub. The test bed is under a GitHub account made only for these tests, `csillagu-alt` unless you set `test_owner` (#261): the Projects token below is classic, with the `repo` scope, so it can do what its account can on every repository that account reaches, and it is held in the `live` environment and on the deployment. Made by an account that owns only the test bed, it reaches only the test repository and its Project. The image and the `live` and `demo` environments stay under `csillagu` (`github_owner`).
 
-1. Create the test repository, `csillagu/cold-seance-live` unless you set `test_repository`. Use it for these tests only: the suite creates and deletes issues and milestones in it.
-2. Register a GitHub App by hand (DD-058) with the repository permissions **Issues: read and write** and **Metadata: read**, and with its webhook turned off: the deployment takes its webhook deliveries from the test repository's webhook, which Terraform sets up. Install the App on the test repository only, and generate a private key.
-3. Create a GitHub Project owned by your user, with a single-select field `Status` whose options include `In Progress` and `On Hold`: GitHub's default `Status` field has `Todo`, `In Progress` and `Done` only, so add `On Hold` to it. Note its number, from its address.
-4. Create the tokens. A fine-grained token cannot reach a Project owned by a user or read GitHub Packages, so the tokens for those are classic:
-   - **The Projects token** (`github_projects_token`): classic, with the `repo` and `project` scopes. The deployment reads the status field with it (`projectsStatus`), and the live tests set it.
-   - **The live tests' token** (`live_github_token`): fine-grained, on the test repository only, with **Issues: read and write**, **Metadata: read** and **Administration: read and write**. Only a repository admin can delete an issue, and GitHub's documentation does not say which fine-grained permission that takes, so give Administration on the dedicated test repository.
-   - **The registry token** (`ghcr_token`): classic, with only the `read:packages` scope. The image is private, Cloud Run pulls it through an Artifact Registry proxy of `ghcr.io`, and a fine-grained token cannot read GitHub Packages.
-   - **Terraform's own token**, in the environment variable `GITHUB_TOKEN`: fine-grained, on `cold-seance` and the test repository, with **Administration**, **Environments**, **Secrets**, **Variables** and **Webhooks**, all read and write. Or `gh auth token`, if `gh` is signed in as the owner.
+1. Create the test account, and in it the test repository, `cold-seance-live` unless you set `test_repository`. Use it for these tests only: the suite creates and deletes issues and milestones in it.
+2. Register a GitHub App by hand (DD-058), owned by the test account, with the repository permissions **Issues: read and write** and **Metadata: read**, and with its webhook turned off: the deployment takes its webhook deliveries from the test repository's webhook, which Terraform sets up. A private App can be installed only on the account that owns it. Install it on the test repository only, and generate a private key.
+3. Create a GitHub Project owned by the test account, with a single-select field `Status` whose options include `In Progress` and `On Hold`: GitHub's default `Status` field has `Todo`, `In Progress` and `Done` only, so add `On Hold` to it. Note its number, from its address.
+4. Create the tokens. A fine-grained token cannot reach a Project owned by a user or read GitHub Packages, so the tokens for those are classic. A fine-grained token reaches only the repositories of the account that makes it, so the test account makes the tokens on the test repository:
+   - **The Projects token** (`github_projects_token`): the test account's, classic, with the `repo` and `project` scopes. The deployment reads the status field with it (`projectsStatus`), and the live tests set it.
+   - **The live tests' token** (`live_github_token`): the test account's, fine-grained, on the test repository only, with **Issues: read and write**, **Metadata: read** and **Administration: read and write**. Only a repository admin can delete an issue, and GitHub's documentation does not say which fine-grained permission that takes, so give Administration on the dedicated test repository.
+   - **Terraform's token for the test repository** (`test_github_token`): the test account's, fine-grained, on the test repository only, with **Webhooks: read and write**. Terraform sets up the test repository's webhook with it: a collaborator cannot manage the webhooks of a repository owned by a user.
+   - **The registry token** (`ghcr_token`): `csillagu`'s, classic, with only the `read:packages` scope. The image is private, Cloud Run pulls it through an Artifact Registry proxy of `ghcr.io`, and a fine-grained token cannot read GitHub Packages.
+   - **Terraform's own token**, in the environment variable `GITHUB_TOKEN`: `csillagu`'s, fine-grained, on `cold-seance`, with **Administration**, **Environments**, **Secrets** and **Variables**, all read and write. Or `gh auth token`, if `gh` is signed in as `csillagu`.
 
 Then, with [Terraform](https://developer.hashicorp.com/terraform/install) 1.9 or later, the [`gcloud` CLI](https://cloud.google.com/sdk/docs/install) signed in (`gcloud auth application-default login`), a Google Cloud project with billing enabled (the free tier still needs a billing account) and a [Neon API key](https://neon.com/docs/manage/api-keys):
 
@@ -50,6 +51,7 @@ Running it:
 - **Logs**: `terraform output logs` prints the command that shows them; they are also in the Google Cloud console, under the service.
 - **Secrets**: the service's environment variables can be read by the Google Cloud project's users. Terraform's state, `terraform.tfstate`, holds every secret in plain text: keep it on your machine, or in a private bucket, and never commit it.
 - **Cost**: Cloud Run is billed only while an instance is up, within a monthly free tier; Artifact Registry and Secret Manager have free allowances that the copy of the image and the two secrets fit in. A budget alert on the project (Billing, Budgets & alerts) tells you if that stops being true.
+- **Moving the test repository** to another account: the deployment keeps a registered repository under the owner and name it was registered with, and GitHub keeps a moved repository's id, so the live tests, which look it up by its new name, would try to register it again and be refused. Change its `owner` in the deployment's `repositories` table to the new one. When the test bed moved to `csillagu-alt` (#261), on 2026-11-26, this was done by hand.
 - **Removing it**: `terraform destroy` deletes the service, the registry proxy and the secrets, the Neon project with all its data, the test repository's webhook and the `live` and `demo` environments.
 
 ## Demo projects
@@ -94,7 +96,7 @@ Terraform writes every one of these settings into the `live` environment. To run
 | `LIVE_WAIT_MINUTES`                                                                | How long a test waits for a change made on GitHub to reach the deployment, 6 unless set: three times the deployment's re-check interval         |
 
 ```sh
-LIVE_URL=https://cold-seance-test-123456789012.us-east1.run.app LIVE_ADMIN_PASSWORD=... LIVE_GITHUB_REPOSITORY=csillagu/cold-seance-live \
+LIVE_URL=https://cold-seance-test-123456789012.us-east1.run.app LIVE_ADMIN_PASSWORD=... LIVE_GITHUB_REPOSITORY=csillagu-alt/cold-seance-live \
   LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live
 ```
 
@@ -114,7 +116,7 @@ It needs PostgreSQL as the integration tests do, the variables above from `LIVE_
 
 ```sh
 TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres LIVE_GITHUB_APP_ID=123456 \
-  LIVE_GITHUB_APP_PRIVATE_KEY="$(cat github-app.pem)" LIVE_GITHUB_REPOSITORY=csillagu/cold-seance-live \
+  LIVE_GITHUB_APP_PRIVATE_KEY="$(cat github-app.pem)" LIVE_GITHUB_REPOSITORY=csillagu-alt/cold-seance-live \
   LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live:local
 ```
 

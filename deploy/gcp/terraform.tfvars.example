@@ -4,12 +4,14 @@ gcp_project                 = "my-gcp-project"
 github_app_id               = 123456
 github_app_private_key_file = "~/keys/cold-seance-test.private-key.pem"
 github_project_number       = 1
-github_projects_token       = "ghp_change-me"        # classic: repo, project
-live_github_token           = "github_pat_change-me" # fine-grained, on the test repository
+github_projects_token       = "ghp_change-me"        # test_owner's, classic: repo, project
+live_github_token           = "github_pat_change-me" # test_owner's, fine-grained, on the test repository
+test_github_token           = "github_pat_change-me" # test_owner's, fine-grained, on the test repository: Webhooks
 ghcr_token                  = "ghp_change-me"        # classic: read:packages only
 demo_neon_api_key           = "napi_change-me"       # for the demo seeding workflow; for now the same as NEON_API_KEY
 
 # github_owner             = "csillagu"
+# test_owner               = "csillagu-alt"
 # test_repository          = "cold-seance-live"
 # environment_repository   = "cold-seance"
 # region                   = "us-east1"

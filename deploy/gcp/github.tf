@@ -1,5 +1,6 @@
 # GitHub: the test repository's webhook and the `live` environment the live test workflow runs in
-# (SC-125, DD-062). The token comes from GITHUB_TOKEN; see docs/development/live-tests.md for what it needs.
+# (SC-125, DD-062). The webhook is set up with test_owner's token, the environment with GITHUB_TOKEN;
+# see docs/development/live-tests.md for what each needs.
 
 locals {
   webhook_url = "${local.url}/api/github/webhooks"
@@ -9,8 +10,8 @@ locals {
     LIVE_URL                   = local.url
     LIVE_GITHUB_APP_ID         = tostring(var.github_app_id)
     LIVE_ADMIN_USERNAME        = var.first_admin_username
-    LIVE_GITHUB_REPOSITORY     = "${var.github_owner}/${var.test_repository}"
-    LIVE_GITHUB_PROJECT_OWNER  = var.github_owner
+    LIVE_GITHUB_REPOSITORY     = "${var.test_owner}/${var.test_repository}"
+    LIVE_GITHUB_PROJECT_OWNER  = var.test_owner
     LIVE_GITHUB_PROJECT_NUMBER = tostring(var.github_project_number)
     LIVE_STATUS_FIELD_NAME     = var.status_field.name
     LIVE_STATUS_FIELD_STARTED  = var.status_field.started
@@ -31,6 +32,7 @@ locals {
 # the tool takes in from a repository. GitHub sends no event for a Project owned by a user, so the
 # status field still comes in through the re-check.
 resource "github_repository_webhook" "test" {
+  provider   = github.test
   repository = var.test_repository
   events     = ["issues", "sub_issues", "issue_dependencies"]
   active     = true
