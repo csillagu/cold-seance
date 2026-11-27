@@ -1,4 +1,5 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { Executor, Transaction } from '../db/client.ts'
 import { taskBlockedBy, tasks } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
@@ -126,6 +127,27 @@ export class TaskRelationService {
     const task = await this.#find(taskId, this.#db)
     await this.#roles.permissions.require(caller, task.projectId, 'read')
     return this.#relationsOf(caller, this.#db, task)
+  }
+
+  /**
+   * The relations of every task of the project, in the order the tasks were created, each as
+   * `getRelations` answers it, for anyone with a role in the project; refused as not visible to
+   * anyone else (FR-017). They are read together, so that a view of the project's tasks needs one
+   * request for them rather than one for each task.
+   */
+  async listRelations(caller: Caller, projectId: string): Promise<TaskRelations[]> {
+    await this.#roles.permissions.require(caller, projectId, 'read')
+    const all = await relationsIn(this.#db, projectId)
+    const readable = new Set(
+      await this.#filter.readable(
+        caller,
+        all.flatMap((relations) => relations.blockedBy),
+      ),
+    )
+    return all.map((relations) => ({
+      ...relations,
+      blockedBy: relations.blockedBy.filter((blocker) => readable.has(blocker)),
+    }))
   }
 
   /**
@@ -310,6 +332,41 @@ async function relationsOf(executor: Executor, task: Found): Promise<TaskRelatio
     .where(eq(taskBlockedBy.taskId, task.id))
     .orderBy(asc(taskBlockedBy.createdAt), asc(tasks.id))
   return { taskId: task.id, parent: parent ?? null, subtasks, blockedBy }
+}
+
+/**
+ * The relations of every task of the project, in the order the tasks were created, as
+ * `relationsOf` gives each one, read in two queries whatever the number of tasks. A task's parent
+ * is always of its own project, so the parent and the subtasks are found among the project's tasks.
+ */
+async function relationsIn(executor: Executor, projectId: string): Promise<TaskRelations[]> {
+  const rows = await executor
+    .select({ id: tasks.id, projectId: tasks.projectId, parentId: tasks.parentId })
+    .from(tasks)
+    .where(eq(tasks.projectId, projectId))
+    .orderBy(asc(tasks.createdAt), asc(tasks.id))
+  const blocked = alias(tasks, 'blocked')
+  const blockers = await executor
+    .select({ taskId: taskBlockedBy.taskId, id: tasks.id, projectId: tasks.projectId })
+    .from(taskBlockedBy)
+    .innerJoin(blocked, eq(blocked.id, taskBlockedBy.taskId))
+    .innerJoin(tasks, eq(tasks.id, taskBlockedBy.blockerId))
+    .where(eq(blocked.projectId, projectId))
+    .orderBy(asc(taskBlockedBy.createdAt), asc(tasks.id))
+
+  const byTask = new Map<string, TaskRelations>(
+    rows.map((row) => [row.id, { taskId: row.id, parent: null, subtasks: [], blockedBy: [] }]),
+  )
+  for (const row of rows) {
+    if (row.parentId === null) continue
+    const relations = byTask.get(row.id)
+    if (relations) relations.parent = { id: row.parentId, projectId: row.projectId }
+    byTask.get(row.parentId)?.subtasks.push({ id: row.id, projectId: row.projectId })
+  }
+  for (const { taskId, id, projectId: blockerProject } of blockers) {
+    byTask.get(taskId)?.blockedBy.push({ id, projectId: blockerProject })
+  }
+  return [...byTask.values()]
 }
 
 /** Whether `ancestor` is `taskId` itself, or its parent, or its parent's parent, and so on. */

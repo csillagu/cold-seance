@@ -60,7 +60,7 @@ function localDate(date: Date): string {
 
 /**
  * The Gantt of a project (SC-031), at `/projects/<id>/gantt`, inside the project's page. It reads
- * the project's tasks, each task's relations, the project's red flags, its baselines, its members
+ * the project's tasks, their relations, the project's red flags, its baselines, its members
  * and the global calendar through the REST API, and draws them; anyone with a role in the project
  * can open it (FR-106). It shows the plan as it was when opened; reloading the page reads it again.
  *
@@ -97,17 +97,15 @@ export function GanttPage() {
     async (signal?: AbortSignal) => {
       const get = <T,>(path: string) => api<T>(path, { signal })
       const base = `/projects/${encodeURIComponent(project.id)}`
-      const [tasks, flags, calendar, members, baselines, proposals] = await Promise.all([
+      const [tasks, relations, flags, calendar, members, baselines, proposals] = await Promise.all([
         get<KanbanTask[]>(`${base}/tasks`),
+        get<ApiRelations[]>(`${base}/task-relations`),
         get<ApiRedFlag[]>(`${base}/red-flags`),
         get<ApiCalendar>('/calendar'),
         get<Member[]>(`${base}/members`),
         get<BaselineSummary[]>(`${base}/baselines`),
         loadOverlay(project.id, signal),
       ])
-      const relations = await Promise.all(
-        tasks.map((task) => get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`)),
-      )
       setLoaded({
         state: 'loaded',
         tasks,

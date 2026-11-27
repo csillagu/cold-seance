@@ -24,7 +24,7 @@ export interface ApiTask {
   assignees: string[]
 }
 
-/** A task's relations as the API gives them (`GET /tasks/{id}/relations`). */
+/** A task's relations as the API gives them (`GET /tasks/{id}/relations`, `GET /projects/{id}/task-relations`). */
 export interface ApiRelations {
   taskId: string
   parent: { id: string; projectId: string } | null

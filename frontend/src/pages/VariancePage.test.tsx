@@ -76,10 +76,14 @@ function fakeProject(overrides: Record<string, FakeAnswer> = {}, baselines = [v1
             { ...baseTask, id: BACKLOG, title: 'Triage backlog' },
           ],
         }
-      case `/api/tasks/${T}/relations`:
-        return { status: 200, body: { taskId: T, parent: null, blockedBy: [] } }
-      case `/api/tasks/${BACKLOG}/relations`:
-        return { status: 200, body: { taskId: BACKLOG, parent: null, blockedBy: [] } }
+      case `/api/projects/${APOLLO}/task-relations`:
+        return {
+          status: 200,
+          body: [
+            { taskId: T, parent: null, blockedBy: [] },
+            { taskId: BACKLOG, parent: null, blockedBy: [] },
+          ],
+        }
       case `/api/projects/${APOLLO}/baselines`:
         return { status: 200, body: baselines }
       case `/api/baselines/${V1}/variance`:
@@ -192,6 +196,7 @@ describe('the baseline save dialog (SC-097)', () => {
         return { status: 200, body: { id: APOLLO, name: 'Apollo' } }
       }
       if (path === `/api/projects/${APOLLO}/tasks`) return { status: 200, body: [] }
+      if (path === `/api/projects/${APOLLO}/task-relations`) return { status: 200, body: [] }
       if (path === `/api/baselines/${V1}/variance`) {
         return { status: 200, body: { baseline: v1, tasks: [] } }
       }

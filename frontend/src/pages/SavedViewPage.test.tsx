@@ -80,10 +80,17 @@ function answer(kind: string) {
         return { status: 200, body: [{ accountId: ALICE, username: 'alice', role: 'admin' }] }
       case '/api/calendar':
         return { status: 200, body: { weekendDays: ['saturday', 'sunday'], holidays: [] } }
+      case `/api/saved-views/${VIEW}/task-relations`:
+        return {
+          status: 200,
+          body: [
+            { taskId: 'a', parent: null, blockedBy: [] },
+            { taskId: 'b', parent: null, blockedBy: [] },
+          ],
+        }
       case '/api/tasks/a/relations':
-        return { status: 200, body: { taskId: 'a', parent: null, blockedBy: [] } }
-      case '/api/tasks/b/relations':
-        return { status: 200, body: { taskId: 'b', parent: null, blockedBy: [] } }
+        // The task dialog's own read of the task's relations.
+        return { status: 200, body: { taskId: 'a', parent: null, subtasks: [], blockedBy: [] } }
       default:
         return {
           status: 403,

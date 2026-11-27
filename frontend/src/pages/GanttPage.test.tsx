@@ -107,6 +107,16 @@ function answers(overrides: Record<string, FakeAnswer> = {}) {
           status: 200,
           body: { markdown: '```mermaid\ngantt\n    title Apollo\n```\n' },
         }
+      case `/api/projects/${APOLLO}/task-relations`:
+        return {
+          status: 200,
+          body: [A, M, U, X].map((taskId) => ({
+            taskId,
+            parent: null,
+            subtasks: [],
+            blockedBy: taskId === M ? [{ id: A, projectId: APOLLO }] : [],
+          })),
+        }
       case `/api/tasks/${U}/relations`:
         return { status: 200, body: { taskId: U, parent: null, subtasks: [], blockedBy: [] } }
       case `/api/tasks/${X}/relations`:
@@ -183,6 +193,17 @@ describe('the Gantt page (SC-031)', () => {
       'data-date',
       '2027-03-01',
     )
+  })
+
+  it('reads the relations of all its tasks in one request (#269)', async () => {
+    const requests = fakeApi(answers())
+    renderGantt()
+    await screen.findByRole('table', { name: 'Gantt of Apollo' })
+
+    const relationReads = requests.filter(({ path }) => path.includes('relations'))
+    expect(relationReads).toEqual([
+      { method: 'GET', path: `/api/projects/${APOLLO}/task-relations`, body: undefined },
+    ])
   })
 
   it('says so when the project has no task', async () => {
@@ -592,6 +613,17 @@ describe('drawing an unscheduled task on its lane (#228)', () => {
       }
       if (path === `/api/projects/${APOLLO}/tasks`) {
         return { status: 200, body: [tasks[0], saved ? pinned : unpinned] }
+      }
+      if (path === `/api/projects/${APOLLO}/task-relations`) {
+        return {
+          status: 200,
+          body: [tasks[0]!.id, PIN].map((taskId) => ({
+            taskId,
+            parent: null,
+            subtasks: [],
+            blockedBy: [],
+          })),
+        }
       }
       if (path === `/api/tasks/${PIN}/relations`) {
         return { status: 200, body: { taskId: PIN, parent: null, subtasks: [], blockedBy: [] } }

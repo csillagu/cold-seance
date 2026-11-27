@@ -34,7 +34,7 @@ function localDate(date: Date): string {
 
 /**
  * The baseline variance view of a project (SC-033), at `/projects/<id>/variance`, inside the
- * project's page. It reads the project's baselines, its tasks and each task's relations through the
+ * project's page. It reads the project's baselines, its tasks and their relations through the
  * REST API, and the variance against the selected baseline, which the variance calculator computes
  * when it is read (DD-037); anyone with a role in the project can open it (FR-106). The baseline
  * saved last is selected when it opens; another can be selected above the table, which only reads
@@ -57,13 +57,11 @@ export function VariancePage() {
     async (signal?: AbortSignal) => {
       const get = <T,>(path: string) => api<T>(path, { signal })
       const base = `/projects/${encodeURIComponent(project.id)}`
-      const [tasks, baselines] = await Promise.all([
+      const [tasks, relations, baselines] = await Promise.all([
         get<KanbanTask[]>(`${base}/tasks`),
+        get<ApiRelations[]>(`${base}/task-relations`),
         get<BaselineSummary[]>(`${base}/baselines`),
       ])
-      const relations = await Promise.all(
-        tasks.map((task) => get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`)),
-      )
       setLoaded({ state: 'loaded', tasks, relations, baselines })
       return baselines
     },

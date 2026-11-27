@@ -4,6 +4,7 @@ import { FILTER_FIELDS, FILTER_OPERATORS } from '../service/saved-view-filter.ts
 import { SAVED_VIEW_PLACES, type SavedViewInput } from '../service/saved-views.ts'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
+import { relations } from './task-relations.ts'
 import { task } from './tasks.ts'
 
 const id = { type: 'string', format: 'uuid' } as const
@@ -151,6 +152,21 @@ export const savedViewRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
       },
     },
     async (request) => services.savedViews.openView(callerOf(request), request.params.viewId),
+  )
+
+  routes.get<{ Params: { viewId: string } }>(
+    '/:viewId/task-relations',
+    {
+      schema: {
+        description:
+          'The relations of each task the view shows the caller when opened, in the order of ' +
+          'GET /saved-views/{viewId}/tasks, each as GET /tasks/{taskId}/relations answers it.',
+        params: viewParams,
+        response: { 200: { type: 'array', items: relations } },
+      },
+    },
+    async (request) =>
+      services.savedViews.openViewRelations(callerOf(request), request.params.viewId),
   )
 }
 
