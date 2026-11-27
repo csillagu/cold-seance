@@ -67,11 +67,10 @@ export default defineConfig({
         test: {
           // The same live tests against a backend the run starts itself (SC-128, DD-063), with
           // npm run test:live:local, and by CI on each pull request (SC-129). No webhook reaches
-          // that backend, and a new issue opened on GitHub reaches the tool only by a webhook, so
-          // TC-147 is left out until the tool takes in new issues without one (#245).
+          // that backend: a change made on GitHub, and a new issue opened there (FR-214), reach it
+          // at its re-check.
           name: 'live-local',
           include: ['test/live/**/*.test.ts'],
-          exclude: ['test/live/new-issue.test.ts'],
           globalSetup: ['test/live/local-server.ts'],
           provide: { liveTarget: 'local' },
           fileParallelism: false,

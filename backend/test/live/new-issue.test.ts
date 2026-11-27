@@ -3,8 +3,10 @@ import { LiveRun } from './run.ts'
 import { eventually } from './settings.ts'
 import type { Task } from './tool.ts'
 
-// The GitHub step of the test case on a new issue opened on GitHub (SC-023, SC-105), run against
-// the test deployment and the real test repository (SC-126, DD-062). It runs in a file of its own:
+// The GitHub step of the test case on a new issue opened on GitHub (SC-023, SC-105, SC-024), run
+// against the test deployment, where the issue arrives by the webhook, and against a server the run
+// starts, where it arrives at the re-check (FR-214), and the real test repository (SC-126, SC-128,
+// DD-062, DD-063). It runs in a file of its own:
 // a new issue goes to the one project that pulls from its repository, and to none while several
 // do (FR-100, FR-157), so no other project of the run may pull from the test repository meanwhile.
 // The suite's GitHub user stands for the test case's `tc-writer`.

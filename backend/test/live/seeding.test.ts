@@ -20,8 +20,11 @@ it('TC-151: seeding imports an open issue as an unscheduled task (live)', async 
   const opened = await run.openIssue('Open work')
   // The seeding reads the repository's list of issues, which shows a new issue only after some
   // seconds. Waiting for it before the project pulls from the repository also keeps the issue's
-  // webhook from making it a task of the project first.
+  // webhook from making it a task of the project first, and so does the re-check, which takes in
+  // only issues opened since the project was given the repository (FR-214): GitHub records the
+  // opening to the second, so the project is given it at least two seconds later.
   await eventually(() => run.github.listed(opened.number), 60_000, 3_000)
+  await new Promise((resolve) => setTimeout(resolve, 2_000))
   const apollo = await run.project('TC-151')
 
   // Step 1: seed Apollo from the test repository. The tool reads the list with its App, whose

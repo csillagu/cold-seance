@@ -95,7 +95,7 @@ An issue that is in no Project can still be finished by closing it, but it canno
 
 Webhooks are optional. With them, a change made on GitHub reaches the tool within seconds. Without them, the tool sees it at its next re-check, every 60 minutes unless `github.recheckIntervalMinutes` says otherwise.
 
-**Without a webhook, new issues are not brought in.** The re-check goes over the issues the tool already links to tasks. An issue opened on GitHub only becomes a task when a webhook announces it.
+New issues come in without webhooks too: each re-check lists the issues of the repositories projects pull from, and brings in those opened since the receiving project was given the repository. Without a webhook, a new issue becomes a task only at the next re-check.
 
 The endpoint is `https://<the tool's address>/api/github/webhooks`. GitHub must be able to reach it from the internet. There are two kinds of sender:
 

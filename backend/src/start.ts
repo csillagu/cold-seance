@@ -130,10 +130,15 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
     db,
     recheckLinkedIssues(
       db,
-      { handler: changeHandler, mirror: planningMirror },
+      { github, handler: changeHandler, mirror: planningMirror },
       {
         onError: (error, issue) =>
-          app?.log.error({ err: error, issue }, 'The re-check could not take in a linked issue'),
+          app?.log.error({ err: error, issue }, 'The re-check could not take in an issue'),
+        onRepositoryError: (error, repository) =>
+          app?.log.error(
+            { err: error, repository },
+            "The re-check could not read a repository's issues",
+          ),
       },
     ),
     {

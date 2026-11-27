@@ -50,7 +50,7 @@ When a new issue is opened on GitHub, it becomes an unscheduled task in one proj
 
 An admin of a project that pulls from the repository marks it as the receiving project, on the project's **Repositories** page. A repository has at most one receiving project. While one project holds the role, marking another is refused, until the first project's admin gives it up.
 
-New issues reach the tool only through a [webhook](github-setup.md#webhooks). Without webhooks, issues opened on GitHub do not become tasks by themselves. Use [seeding](#seed-a-project-from-github) to bring them in.
+With a [webhook](github-setup.md#webhooks), a new issue arrives within seconds. With or without one, the [re-check](#the-re-check) also brings in every issue that has no task yet and was opened since the receiving project was given the repository; an issue already closed then arrives as a done task, with the day it was closed as its actual finish. Issues opened before the project was given the repository are left to [seeding](#seed-a-project-from-github).
 
 ## Seed a project from GitHub
 
@@ -101,7 +101,7 @@ A relation with a task that has no issue is left off GitHub. A relation on GitHu
 | The issue closed as "not planned" | The task is cancelled |
 | The issue reopened | A finished task goes back to in progress, and its actual finish is cleared |
 | The issue deleted | The same as closed |
-| A new issue opened (with webhooks) | A new unscheduled task in the [receiving project](#the-receiving-project) |
+| A new issue opened | A new unscheduled task in the [receiving project](#the-receiving-project): at once with webhooks, at the next re-check without |
 
 These come in **whatever the GitHub user's role in the tool, or none**. Anyone who can work on the issue on GitHub can start, hold and finish its task. The audit log records each one under the GitHub login of whoever made it.
 
@@ -120,6 +120,6 @@ Each revert leaves a short comment on the issue explaining why, naming the unfin
 
 ## The re-check
 
-Every `github.recheckIntervalMinutes` (60 by default), the tool goes over every linked issue as if it had just changed, then writes every task's planning to GitHub again. This catches what webhooks missed, what GitHub was down for, and everything when there are no webhooks. After a restart, it runs at once only if it is due.
+Every `github.recheckIntervalMinutes` (60 by default), the tool first lists the issues of every repository a project pulls from and brings in each that has no task yet, if it was opened since the [receiving project](#the-receiving-project) was given the repository. Then it goes over every linked issue as if it had just changed, and writes every task's planning to GitHub again. This catches what webhooks missed, what GitHub was down for, and everything when there are no webhooks. After a restart, it runs at once only if it is due.
 
 A change the re-check finds is recorded under whoever GitHub names for it: the person who closed the issue, or who last reopened it. Where GitHub names no one, such as for a deleted issue or a move in the status field, it is recorded under `(re-check)`.
