@@ -60,6 +60,7 @@ Load it into a tool such as [Swagger Editor](https://editor.swagger.io/) or Post
 | Cancel a task | `POST /api/tasks/{taskId}/cancel` |
 | Assign it to a repository, which creates its issue | `PUT /api/tasks/{taskId}/repository` with `{ "repositoryId": ... }` |
 | A task's relations | `GET /api/tasks/{taskId}/relations` |
+| The relations of every task of a project, or of a saved view | `GET /api/projects/{projectId}/task-relations`, `GET /api/saved-views/{viewId}/task-relations` |
 | Set its parent | `PUT /api/tasks/{taskId}/parent` with `{ "parentId": ... }`, or `null` |
 | Add, remove a blocker | `POST /api/tasks/{taskId}/blocked-by` with `{ "blockerId": ... }`, `DELETE /api/tasks/{taskId}/blocked-by/{blockerId}` |
 | A project's red flags | `GET /api/projects/{projectId}/red-flags` |
