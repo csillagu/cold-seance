@@ -1,4 +1,4 @@
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import {
   accounts,
@@ -548,18 +548,18 @@ export async function lockRolesOn(
 /**
  * The roles people hold on projects through the groups the projects are in (FR-111): each member
  * of a group holds their group role on every project in it, for as long as they are a member and
- * the project is in the group. The project role store (SC-014) asks these, read with the executor
- * it is given, and applies the highest where a person holds several (FR-112).
+ * the project is in the group. The project role store (SC-014) asks these, reading them in the
+ * same query as the roles held directly, and applies the highest where a person holds several
+ * (FR-112).
  */
 export const groupRoles: GroupRoles = {
-  async rolesThroughGroups(executor, accountId, projectId) {
-    if (!isUuid(accountId) || !isUuid(projectId)) return []
-    const rows = await executor
-      .select({ role: groupMembers.role })
-      .from(groupMembers)
-      .innerJoin(groupProjects, eq(groupProjects.groupId, groupMembers.groupId))
-      .where(and(eq(groupMembers.accountId, accountId), eq(groupProjects.projectId, projectId)))
-    return rows.map((row) => row.role)
+  rolesThroughGroups(accountIds, projectId) {
+    return sql`
+      select ${groupMembers.accountId} as account_id, ${groupMembers.role} as role
+      from ${groupMembers}
+      inner join ${groupProjects} on ${eq(groupProjects.groupId, groupMembers.groupId)}
+      where ${and(inArray(groupMembers.accountId, [...accountIds]), eq(groupProjects.projectId, projectId))}
+    `
   },
   async allRolesThroughGroups(executor, accountId) {
     if (!isUuid(accountId)) return []

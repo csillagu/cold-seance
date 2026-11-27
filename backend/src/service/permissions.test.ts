@@ -147,6 +147,9 @@ describe('ProjectPermissions', () => {
         executors.push(executor)
         return table[projectId]
       },
+      rolesOf: async () => {
+        throw new Error('The permission checks ask one role at a time')
+      },
     }
     return { permissions: new ProjectPermissions(source), executors }
   }

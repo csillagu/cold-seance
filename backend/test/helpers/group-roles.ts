@@ -1,5 +1,6 @@
+import { sql } from 'drizzle-orm'
 import type { Executor } from '../../src/db/client.ts'
-import type { GroupRoles, ProjectRole } from '../../src/service/project-roles.ts'
+import { type GroupRoles, noGroupRoles, type ProjectRole } from '../../src/service/project-roles.ts'
 
 type Account = { id: string }
 
@@ -14,10 +15,14 @@ export function groupTable(): GroupRoles & {
     takeAway: (account, projectId) => {
       roles = roles.filter((r) => !(r.accountId === account.id && r.projectId === projectId))
     },
-    rolesThroughGroups: async (_executor: Executor, accountId, projectId) =>
-      roles
-        .filter((r) => r.accountId === accountId && r.projectId === projectId)
-        .map((r) => r.role),
+    rolesThroughGroups: (accountIds, projectId) => {
+      const held = roles.filter(
+        (r) => accountIds.includes(r.accountId) && r.projectId === projectId,
+      )
+      if (held.length === 0) return noGroupRoles.rolesThroughGroups(accountIds, projectId)
+      const rows = held.map((r) => sql`(${r.accountId}::uuid, ${r.role}::project_role)`)
+      return sql`select * from (values ${sql.join(rows, sql`, `)}) as held(account_id, role)`
+    },
     allRolesThroughGroups: async (_executor: Executor, accountId) =>
       roles
         .filter((r) => r.accountId === accountId)

@@ -87,6 +87,12 @@ export interface RoleSource {
     projectId: string,
     executor?: Executor,
   ): Promise<ProjectRole | undefined>
+  /** The roles of several people in a project at once, leaving out those who hold none. */
+  rolesOf(
+    accountIds: Iterable<string>,
+    projectId: string,
+    executor?: Executor,
+  ): Promise<Map<string, ProjectRole>>
 }
 
 /**
