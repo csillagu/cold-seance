@@ -10,7 +10,15 @@
 // pinned checksum, unless --winsw names a copy, which is checked the same way.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -60,8 +68,8 @@ cpSync(join(repo, 'backend/config.example.yaml'), join(out, 'config.example.yaml
 
 // The backend's run-time dependencies, installed as the image installs them, then copied without
 // npm's links to the workspace packages, which the backend does not import.
-const staging = join(tmpdir(), `cold-seance-package-${process.pid}`)
-rmSync(staging, { recursive: true, force: true })
+// A fresh folder of its own, which no other user of the machine can have made beforehand.
+const staging = mkdtempSync(join(tmpdir(), 'cold-seance-package-'))
 for (const path of [
   'package.json',
   'package-lock.json',
@@ -82,10 +90,14 @@ rmSync(staging, { recursive: true, force: true })
 mkdirSync(join(out, 'licenses'))
 cpSync(nodeExe, join(out, 'node.exe'))
 cpSync(nodeLicense, join(out, 'licenses', 'Node.js.txt'))
-const wrapper = values.winsw ?? (await download(winsw.url))
-const digest = createHash('sha256').update(readFileSync(wrapper)).digest('hex')
-if (digest !== winsw.sha256) fail(`${wrapper} has SHA-256 ${digest}, not WinSW's ${winsw.sha256}.`)
-cpSync(wrapper, join(out, 'cold-seance-service.exe'))
+// The bytes checked are the bytes written: the download is held in memory, never in a file that
+// could be swapped between the check and the copy.
+const wrapper = values.winsw === undefined ? await download(winsw.url) : readFileSync(values.winsw)
+const digest = createHash('sha256').update(wrapper).digest('hex')
+const wrapperSource = values.winsw ?? winsw.url
+if (digest !== winsw.sha256)
+  fail(`${wrapperSource} has SHA-256 ${digest}, not WinSW's ${winsw.sha256}.`)
+writeFileSync(join(out, 'cold-seance-service.exe'), wrapper)
 
 // The project's own Windows files, with Windows line endings, which cmd.exe needs.
 for (const [from, to] of [
@@ -110,12 +122,10 @@ function run(command: string, args: string[], cwd: string): void {
   if (result.status !== 0) fail(`${command} ${args.join(' ')} failed.`)
 }
 
-async function download(url: string): Promise<string> {
+async function download(url: string): Promise<Buffer> {
   const response = await fetch(url)
   if (!response.ok) fail(`${url} answered ${response.status}.`)
-  const path = join(tmpdir(), `cold-seance-${basename(url)}`)
-  writeFileSync(path, Buffer.from(await response.arrayBuffer()))
-  return path
+  return Buffer.from(await response.arrayBuffer())
 }
 
 function fail(message: string): never {
