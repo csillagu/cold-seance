@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { isIP } from 'node:net'
 import { resolve } from 'node:path'
 import { parse as parseYaml, YAMLError } from 'yaml'
 
@@ -57,6 +58,12 @@ export interface Config {
     host: string
     /** The port the backend listens on, 3000 unless set. */
     port: number
+    /**
+     * The reverse proxies in front of the tool, as IP addresses or CIDR ranges (SC-132): a request
+     * from one of them is counted against the client address its `X-Forwarded-For` names. Empty
+     * unless set, and then the header is ignored (SRC-298).
+     */
+    trustedProxies: readonly string[]
   }
   database: {
     /** The address of the PostgreSQL database the tool uses (FR-177). */
@@ -90,7 +97,15 @@ export interface Config {
 }
 
 type Kind =
-  'databaseUrl' | 'secret' | 'token' | 'positiveInteger' | 'keyFile' | 'host' | 'port' | 'name'
+  | 'databaseUrl'
+  | 'secret'
+  | 'token'
+  | 'positiveInteger'
+  | 'keyFile'
+  | 'host'
+  | 'port'
+  | 'name'
+  | 'proxies'
 
 /** One setting: where it sits in the YAML file, the environment variable that overrides it. */
 export interface Setting {
@@ -120,6 +135,7 @@ export const defaultServerPort = 3000
 export const settings: readonly Setting[] = [
   { path: ['server', 'host'], kind: 'host', required: false },
   { path: ['server', 'port'], kind: 'port', required: false },
+  { path: ['server', 'trustedProxies'], kind: 'proxies', required: false },
   { path: ['database', 'url'], kind: 'databaseUrl', required: true },
   { path: ['database', 'directUrl'], kind: 'databaseUrl', required: false },
   ...githubFunctions.flatMap((fn): Setting[] => {
@@ -191,6 +207,7 @@ interface KeyFile {
 interface Values {
   numbers: Map<string, number>
   strings: Map<string, string>
+  lists: Map<string, string[]>
   keyFiles: Map<string, KeyFile>
 }
 
@@ -217,7 +234,12 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
     githubFunctions.map((fn) => [fn, { app: given(fn, 'app'), token: given(fn, 'token') }]),
   )
 
-  const values: Values = { numbers: new Map(), strings: new Map(), keyFiles: new Map() }
+  const values: Values = {
+    numbers: new Map(),
+    strings: new Map(),
+    lists: new Map(),
+    keyFiles: new Map(),
+  }
   for (const setting of settings) {
     // A function given both an App and a token, or neither, is reported below instead of its
     // settings: they are neither required nor read, its App's key file included.
@@ -275,6 +297,7 @@ export function loadConfig(options: LoadConfigOptions = {}): Config {
     server: {
       host: values.strings.get(key('server', 'host')) ?? defaultServerHost,
       port: values.numbers.get(key('server', 'port')) ?? defaultServerPort,
+      trustedProxies: values.lists.get(key('server', 'trustedProxies')) ?? [],
     },
     database: { url, directUrl: values.strings.get(key('database', 'directUrl')) ?? url },
     github: {
@@ -451,6 +474,21 @@ function convert(
         values.strings.set(path, value)
       } else problems.push(`${name} must be a host name or an IP address`)
       return
+    case 'proxies': {
+      // A list in the file, or one string of addresses separated by commas, as an environment
+      // variable can only give it.
+      const items = typeof value === 'string' ? value.split(',') : value
+      const proxies = Array.isArray(items)
+        ? items.map((item: unknown) => (typeof item === 'string' ? item.trim() : ''))
+        : []
+      if (proxies.length > 0 && proxies.every(isAddressOrRange)) values.lists.set(path, proxies)
+      else {
+        problems.push(
+          `${name} must be IP addresses or CIDR ranges, as a list or separated by commas`,
+        )
+      }
+      return
+    }
     case 'databaseUrl':
       // The value is never echoed: a database address usually carries a password.
       if (typeof value === 'string' && isPostgresUrl(value)) values.strings.set(path, value)
@@ -489,6 +527,15 @@ function convert(
         problems.push(`${name}: the key file ${value} cannot be read: ${errorCode(error)}`)
       }
   }
+}
+
+/** An IP address, such as `127.0.0.1` or `::1`, or a CIDR range, such as `10.0.0.0/8`. */
+function isAddressOrRange(value: string): boolean {
+  const [address = '', bits, ...rest] = value.split('/')
+  const family = isIP(address)
+  if (family === 0 || rest.length > 0) return false
+  if (bits === undefined) return true
+  return /^\d{1,3}$/.test(bits) && Number(bits) <= (family === 4 ? 32 : 128)
 }
 
 /** A number, or a string of digits, as a number; anything else as NaN. */

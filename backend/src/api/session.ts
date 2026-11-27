@@ -1,6 +1,8 @@
 import type { FastifyPluginAsync, FastifyReply } from 'fastify'
 import type { RouteGroupOptions } from './api.ts'
 import { callerOf } from './caller.ts'
+import { errorBody } from './errors.ts'
+import { SignInLimits } from './sign-in-limits.ts'
 
 /**
  * The cookie the browser keeps its session's id in (DD-054). The `__Host-` prefix makes browsers
@@ -52,6 +54,9 @@ export function setSessionCookie(reply: FastifyReply, sessionId: string): void {
  * caller's own. They only translate the request, and the services decide (DD-039).
  */
 export const sessionRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group, { services }) => {
+  // Each backend counts its own sign-in attempts and password checks (SC-132).
+  const limits = new SignInLimits()
+
   group.post<{ Body: { username: string; password: string } }>(
     '/',
     {
@@ -67,9 +72,23 @@ export const sessionRoutes: FastifyPluginAsync<RouteGroupOptions> = async (group
       },
     },
     async (request, reply) => {
-      const { sessionId } = await services.sessions.signIn(request.body)
-      setSessionCookie(reply, sessionId)
-      return reply.code(204).send()
+      // Refused before the password is checked: too many attempts from the client's address, or
+      // too many password checks running (FR-215, FR-216). `ip` is the address X-Forwarded-For
+      // names only for a request from a trusted proxy (server.trustedProxies).
+      const admission = limits.admit(request.ip)
+      if (!admission.admitted) {
+        return reply
+          .code(429)
+          .header('retry-after', String(admission.retryAfterSeconds))
+          .send(errorBody(429, admission.message))
+      }
+      try {
+        const { sessionId } = await services.sessions.signIn(request.body)
+        setSessionCookie(reply, sessionId)
+        return reply.code(204).send()
+      } finally {
+        admission.release()
+      }
     },
   )
 

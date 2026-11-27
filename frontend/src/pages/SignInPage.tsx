@@ -7,6 +7,9 @@ import './sign-in.css'
 /** What the page says when the username or the password is wrong, as the design words it. */
 export const SIGN_IN_FAILED = 'Signing in failed. The username or the password is wrong.'
 
+/** What the page says when the backend refused the sign-in for too many attempts (SRC-298). */
+export const SIGN_IN_TOO_MANY = 'Signing in failed: too many attempts. Wait a minute and try again.'
+
 /** What the page says when the tool could not be reached or answered with an error of its own. */
 export const SIGN_IN_UNAVAILABLE = 'Signing in failed: the tool could not be reached. Try again.'
 
@@ -17,6 +20,13 @@ export const SIGN_IN_UNAVAILABLE = 'Signing in failed: the tool could not be rea
  * as the approved design shows (SRC-249, `design/frontend/SignIn.dc.html`): no registration, since
  * only system admins create accounts, and no way to reset a password.
  */
+function failureMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return SIGN_IN_UNAVAILABLE
+  if (error.status === 401) return SIGN_IN_FAILED
+  if (error.status === 429) return SIGN_IN_TOO_MANY
+  return SIGN_IN_UNAVAILABLE
+}
+
 export function SignInPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -32,9 +42,7 @@ export function SignInPage() {
       await api('/session', { method: 'POST', body: { username, password } })
       void navigate(afterSignIn(searchParams.get('next')), { replace: true })
     } catch (error) {
-      setFailure(
-        error instanceof ApiError && error.status === 401 ? SIGN_IN_FAILED : SIGN_IN_UNAVAILABLE,
-      )
+      setFailure(failureMessage(error))
       setPassword('')
       setBusy(false)
     }

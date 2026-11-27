@@ -31,6 +31,7 @@ function fullFile(): string {
 server:
   host: 0.0.0.0
   port: 8080
+  trustedProxies: [127.0.0.1, 10.0.0.0/8]
 database:
   url: ${dbUrl}
   directUrl: postgres://tool:secret@direct.example:5432/tool
@@ -145,6 +146,7 @@ describe('settings', () => {
     expect(settings.map(name)).toEqual([
       'server.host',
       'server.port',
+      'server.trustedProxies',
       'database.url',
       'database.directUrl',
       ...githubFunctions.flatMap((fn) => [
@@ -195,7 +197,7 @@ describe('loadConfig', () => {
   it('reads every setting from the YAML file and reads the key files', () => {
     const config = loadConfig({ env: withFile(fullFile()) })
     expect(config).toEqual({
-      server: { host: '0.0.0.0', port: 8080 },
+      server: { host: '0.0.0.0', port: 8080, trustedProxies: ['127.0.0.1', '10.0.0.0/8'] },
       database: { url: dbUrl, directUrl: 'postgres://tool:secret@direct.example:5432/tool' },
       github: {
         recheckIntervalMinutes: 15,
@@ -231,6 +233,7 @@ describe('loadConfig', () => {
     const env = {
       COLD_SEANCE_SERVER_HOST: '::',
       COLD_SEANCE_SERVER_PORT: '8443',
+      COLD_SEANCE_SERVER_TRUSTED_PROXIES: '::1, 172.16.0.0/12',
       COLD_SEANCE_DATABASE_URL: dbUrl,
       COLD_SEANCE_DATABASE_DIRECT_URL: 'postgresql://direct.example/tool',
       COLD_SEANCE_GITHUB_RECHECK_INTERVAL_MINUTES: '30',
@@ -245,7 +248,11 @@ describe('loadConfig', () => {
     }
     // fx.dir has no config.yaml, so the default file is absent.
     const config = loadConfig({ env, cwd: fx.dir })
-    expect(config.server).toEqual({ host: '::', port: 8443 })
+    expect(config.server).toEqual({
+      host: '::',
+      port: 8443,
+      trustedProxies: ['::1', '172.16.0.0/12'],
+    })
     expect(config.database).toEqual({ url: dbUrl, directUrl: 'postgresql://direct.example/tool' })
     expect(config.github.recheckIntervalMinutes).toBe(30)
     expect(config.github.webhookSecret).toBe('repos')
@@ -320,6 +327,10 @@ github:
     > = {
       'server.host': () => ({ env: '::1', check: (c) => c.server.host }),
       'server.port': () => ({ env: '4000', check: (c) => c.server.port }),
+      'server.trustedProxies': () => ({
+        env: '192.168.1.1',
+        check: (c) => c.server.trustedProxies.join(','),
+      }),
       'database.url': () => ({ env: 'postgres://env.example/db', check: (c) => c.database.url }),
       'database.directUrl': () => ({
         env: 'postgres://env-direct.example/db',
@@ -409,7 +420,7 @@ github:
       env: { COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv },
       cwd: fx.dir,
     })
-    expect(config.server).toEqual({ host: '127.0.0.1', port: 3000 })
+    expect(config.server).toEqual({ host: '127.0.0.1', port: 3000, trustedProxies: [] })
     expect(config.database.directUrl).toBe(dbUrl)
     expect(config.github.recheckIntervalMinutes).toBe(60)
     for (const fn of githubFunctions) expect(config.github.apps[fn]?.webhookSecret).toBeUndefined()
@@ -666,6 +677,47 @@ github:
       expect(problemsOf({ ...env, COLD_SEANCE_SERVER_HOST: '0.0.0.0 ' })).toEqual([
         'server.host (COLD_SEANCE_SERVER_HOST) must be a host name or an IP address',
       ])
+    })
+
+    describe('when a trusted proxy is not an IP address or a CIDR range (SC-132)', () => {
+      const proxiesProblem =
+        'server.trustedProxies (COLD_SEANCE_SERVER_TRUSTED_PROXIES) must be IP addresses or CIDR ranges, as a list or separated by commas'
+      // fx is set before each test, so the environment is made in each test.
+      const env = () => ({ COLD_SEANCE_DATABASE_URL: dbUrl, ...fx.githubEnv })
+      for (const bad of [
+        'proxy.example',
+        '10.0.0.1,',
+        '10.0.0.0/33',
+        '::1/129',
+        '10.0.0.0/8/8',
+        '10.0.0.0/x',
+      ]) {
+        it(`refuses ${JSON.stringify(bad)}`, () => {
+          expect(problemsOf({ ...env(), COLD_SEANCE_SERVER_TRUSTED_PROXIES: bad }, fx.dir)).toEqual(
+            [proxiesProblem],
+          )
+        })
+      }
+
+      it('refuses a list in the file holding something other than a string, or an empty list', () => {
+        expect(problemsOf(withFile(`server: { trustedProxies: [127.0.0.1, 5] }`, env()))).toEqual([
+          proxiesProblem,
+        ])
+        expect(problemsOf(withFile(`server: { trustedProxies: [] }`, env()))).toEqual([
+          proxiesProblem,
+        ])
+      })
+
+      it('accepts IPv4 and IPv6 addresses and ranges, around spaces', () => {
+        const config = loadConfig({
+          env: {
+            ...env(),
+            COLD_SEANCE_SERVER_TRUSTED_PROXIES: ' 127.0.0.1 ,fd00::/8,::ffff:10.0.0.1',
+          },
+          cwd: fx.dir,
+        })
+        expect(config.server.trustedProxies).toEqual(['127.0.0.1', 'fd00::/8', '::ffff:10.0.0.1'])
+      })
     })
 
     it('when the host in the file is not a string', () => {
