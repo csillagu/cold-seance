@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import { auditLog, projectMembers } from '../../src/db/schema.ts'
+import type { Executor } from '../../src/db/client.ts'
 import { AuditLogService } from '../../src/service/audit.ts'
 import type { Caller } from '../../src/service/caller.ts'
 import { ServiceError } from '../../src/service/errors.ts'
@@ -120,6 +121,64 @@ describe('the project role store', () => {
       await grantRole(x.db, bob, q, 'admin')
       groups.give(bob, q, 'read-only')
       expect(await store.roleOf(bob.id, q)).toBe('admin')
+    })
+  })
+
+  describe('rolesOf', () => {
+    /** The database, counting the queries begun on it. */
+    function counting() {
+      const queries = { count: 0 }
+      const starts = new Set(['execute', 'select', 'insert', 'update', 'delete', 'transaction'])
+      const executor: Executor = new Proxy(x.db, {
+        get(target, property, receiver) {
+          if (typeof property === 'string' && starts.has(property)) queries.count++
+          return Reflect.get(target, property, receiver)
+        },
+      })
+      return { executor, queries }
+    }
+
+    it('answers the roles of several people, held directly and through groups, in one query', async () => {
+      const p = await seedProject(x.db, alice)
+      await grantRole(x.db, bob, p, 'read-only')
+      groups.give(bob, p, 'read-write')
+      groups.give(carol, p, 'contributor')
+      const { executor, queries } = counting()
+      const roles = await store.rolesOf([alice.id, bob.id, carol.id, root.id], p, executor)
+      expect(Object.fromEntries(roles)).toEqual({
+        [alice.id]: 'admin',
+        [bob.id]: 'read-write',
+        [carol.id]: 'contributor',
+      })
+      expect(queries.count).toBe(1)
+    })
+
+    it('agrees with roleOf, which reads the role in one query too', async () => {
+      const p = await seedProject(x.db, alice)
+      await grantRole(x.db, bob, p, 'contributor')
+      groups.give(bob, p, 'read-only')
+      const { executor, queries } = counting()
+      expect(await store.roleOf(bob.id, p, executor)).toBe('contributor')
+      expect(queries.count).toBe(1)
+      expect((await store.rolesOf([bob.id], p)).get(bob.id)).toBe('contributor')
+    })
+
+    it('answers each id under the spelling it was asked by', async () => {
+      const p = await seedProject(x.db, alice)
+      const upper = alice.id.toUpperCase()
+      expect(Object.fromEntries(await store.rolesOf([upper], p))).toEqual({ [upper]: 'admin' })
+    })
+
+    it('answers nothing for no one, ids that are not UUIDs or a project that is not one, without asking the database', async () => {
+      const p = await seedProject(x.db, alice)
+      const { executor, queries } = counting()
+      expect((await store.rolesOf([], p, executor)).size).toBe(0)
+      expect((await store.rolesOf(['alice'], p, executor)).size).toBe(0)
+      expect((await store.rolesOf([alice.id], 'apollo', executor)).size).toBe(0)
+      expect(queries.count).toBe(0)
+      expect(Object.fromEntries(await store.rolesOf(['alice', alice.id], p))).toEqual({
+        [alice.id]: 'admin',
+      })
     })
   })
 

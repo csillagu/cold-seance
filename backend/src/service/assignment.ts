@@ -143,20 +143,16 @@ export class TaskAssignments {
 
   /**
    * Those of `people` who cannot read the project: who hold no role in it, directly or through a
-   * group, that lets them read it (FR-199).
+   * group, that lets them read it (FR-199). Their roles are read in one query.
    */
   async withoutReadAccess(
     executor: Executor,
     projectId: string,
     people: Iterable<string>,
   ): Promise<Set<string>> {
-    const without = new Set<string>()
-    for (const person of new Set(people)) {
-      if (!allows(await this.#roles.roleOf(person, projectId, executor), 'read')) {
-        without.add(person)
-      }
-    }
-    return without
+    const unique = new Set(people)
+    const roles = await this.#roles.rolesOf(unique, projectId, executor)
+    return new Set([...unique].filter((person) => !allows(roles.get(person), 'read')))
   }
 
   /** Refuses any of `people` who has no account, or no role in the project that lets them read it. */

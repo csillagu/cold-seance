@@ -917,15 +917,24 @@ describe('group project assignment', () => {
   })
 
   describe('the roles a group gives on its projects (FR-111)', () => {
+    /** The roles the person holds on the project through groups, as the role store reads them. */
+    async function throughGroups(accountId: string, projectId: string) {
+      const { rows } = await x.db.execute<{ account_id: string; role: string }>(
+        groupRoles.rolesThroughGroups([accountId], projectId),
+      )
+      expect(rows.every((row) => row.account_id === accountId)).toBe(true)
+      return rows.map((row) => row.role)
+    }
+
     it('gives each member their group role, for as long as they are a member', async () => {
       const platform = await group(alice)
       const apollo = await project(alice)
       await service.addProject(by(alice), platform.id, apollo.id)
       await service.setMemberRole(by(alice), platform.id, carol.id, 'read-write')
-      expect(await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).toEqual(['read-write'])
+      expect(await throughGroups(carol.id, apollo.id)).toEqual(['read-write'])
       expect(await roles.readableProjects(carol.id)).toContain(apollo.id)
       await service.removeMember(by(alice), platform.id, carol.id)
-      expect(await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).toEqual([])
+      expect(await throughGroups(carol.id, apollo.id)).toEqual([])
       expect(await roles.roleOf(carol.id, apollo.id)).toBeUndefined()
     })
 
@@ -937,10 +946,7 @@ describe('group project assignment', () => {
       await service.setMemberRole(by(alice), one.id, carol.id, 'read-only')
       await service.setMemberRole(by(alice), two.id, carol.id, 'read-write')
       await grantRole(x.db, carol, apollo.id, 'contributor')
-      expect((await groupRoles.rolesThroughGroups(x.db, carol.id, apollo.id)).sort()).toEqual([
-        'read-only',
-        'read-write',
-      ])
+      expect((await throughGroups(carol.id, apollo.id)).sort()).toEqual(['read-only', 'read-write'])
       expect(await roles.roleOf(carol.id, apollo.id)).toBe('read-write')
       const all = await groupRoles.allRolesThroughGroups(x.db, carol.id)
       expect(
@@ -955,9 +961,9 @@ describe('group project assignment', () => {
       const platform = await group(alice)
       const apollo = await project(alice)
       await service.addProject(by(alice), platform.id, apollo.id)
-      expect(await groupRoles.rolesThroughGroups(x.db, bob.id, apollo.id)).toEqual([])
-      expect(await groupRoles.rolesThroughGroups(x.db, 'nobody', apollo.id)).toEqual([])
-      expect(await groupRoles.rolesThroughGroups(x.db, bob.id, 'nothing')).toEqual([])
+      expect(await throughGroups(bob.id, apollo.id)).toEqual([])
+      expect(await roles.roleOf('nobody', apollo.id)).toBeUndefined()
+      expect(await roles.roleOf(bob.id, 'nothing')).toBeUndefined()
       expect(await groupRoles.allRolesThroughGroups(x.db, 'nobody')).toEqual([])
     })
   })

@@ -1,4 +1,4 @@
-import { and, asc, eq, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { Database, Executor } from '../db/client.ts'
 import { accounts, PROJECT_ROLES, projectMembers } from '../db/schema.ts'
 import type { AuditLogService } from './audit.ts'
@@ -22,15 +22,17 @@ export interface ProjectRoles {
 }
 
 /**
- * The roles a person holds in a project through the groups the project is in (FR-111). The
- * groups (SC-057, SC-058) hold them, as `groupRoles` answers; the role store asks them through this.
+ * The roles people hold in a project through the groups the project is in (FR-111). The groups
+ * (SC-057, SC-058) hold them, as `groupRoles` answers; the role store asks them through this.
  */
 export interface GroupRoles {
-  rolesThroughGroups(
-    executor: Executor,
-    accountId: string,
-    projectId: string,
-  ): Promise<ProjectRole[]>
+  /**
+   * A query of the roles the people `accountIds` hold in the project through groups: rows of
+   * `account_id` (a `uuid`) and `role` (a `project_role`), one per group that gives one. The role
+   * store reads it together with the roles held directly, in one query, so it is a fragment of
+   * SQL rather than an answer. The ids are UUIDs, and there is at least one.
+   */
+  rolesThroughGroups(accountIds: readonly string[], projectId: string): SQL
   /**
    * Every role the person holds through groups, with its project. It must agree with
    * `rolesThroughGroups`, so that the role checks and the view filter decide alike.
@@ -43,7 +45,8 @@ export interface GroupRoles {
 
 /** No group roles, for a role store given none, as some tests of other modules need. */
 export const noGroupRoles: GroupRoles = {
-  rolesThroughGroups: async () => [],
+  rolesThroughGroups: () =>
+    sql`select null::uuid as account_id, null::project_role as role where false`,
   allRolesThroughGroups: async () => [],
 }
 
@@ -107,13 +110,38 @@ export class ProjectRoleService implements ProjectRoles {
     projectId: string,
     executor: Executor = this.#db,
   ): Promise<ProjectRole | undefined> {
-    if (!isUuid(accountId) || !isUuid(projectId)) return undefined
-    const [direct] = await executor
-      .select({ role: projectMembers.role })
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.accountId, accountId)))
-    const throughGroups = await this.#groups.rolesThroughGroups(executor, accountId, projectId)
-    return highestRole([...(direct ? [direct.role] : []), ...throughGroups])
+    return (await this.rolesOf([accountId], projectId, executor)).get(accountId)
+  }
+
+  /**
+   * The role of each of `accountIds` in the project, as `roleOf` answers it, read for all of them
+   * in one query. Those who hold no role there are left out.
+   */
+  async rolesOf(
+    accountIds: Iterable<string>,
+    projectId: string,
+    executor: Executor = this.#db,
+  ): Promise<Map<string, ProjectRole>> {
+    const ids = [...new Set(accountIds)].filter(isUuid)
+    const roles = new Map<string, ProjectRole>()
+    if (ids.length === 0 || !isUuid(projectId)) return roles
+    const { rows } = await executor.execute<{ account_id: string; role: ProjectRole }>(sql`
+      select ${projectMembers.accountId} as account_id, ${projectMembers.role} as role
+      from ${projectMembers}
+      where ${and(eq(projectMembers.projectId, projectId), inArray(projectMembers.accountId, ids))}
+      union all
+      ${this.#groups.rolesThroughGroups(ids, projectId)}
+    `)
+    // The database hands ids out in lower case; each is answered under the id it was asked by.
+    const held = new Map<string, ProjectRole[]>()
+    for (const { account_id: accountId, role } of rows) {
+      held.set(accountId, [...(held.get(accountId) ?? []), role])
+    }
+    for (const id of ids) {
+      const role = highestRole(held.get(id.toLowerCase()) ?? [])
+      if (role !== undefined) roles.set(id, role)
+    }
+    return roles
   }
 
   /**
