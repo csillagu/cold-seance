@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeApi, UNAUTHENTICATED } from '../test/fetch.ts'
-import { SIGN_IN_FAILED, SIGN_IN_UNAVAILABLE, SignInPage } from './SignInPage.tsx'
+import { SIGN_IN_FAILED, SIGN_IN_TOO_MANY, SIGN_IN_UNAVAILABLE, SignInPage } from './SignInPage.tsx'
 
 function renderSignIn(path = '/sign-in') {
   render(
@@ -57,6 +57,18 @@ describe('the sign-in page (SC-075)', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByLabelText('Username')).toHaveValue('alice')
     expect(screen.getByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('tells the person when signing in was refused for too many attempts (SRC-298)', async () => {
+    fakeApi(() => ({
+      status: 429,
+      body: { statusCode: 429, error: 'Too Many Requests', message: 'Too many sign-in attempts' },
+    }))
+    renderSignIn()
+    signIn('alice', 'alice-password')
+    expect(await screen.findByRole('alert')).toHaveTextContent(SIGN_IN_TOO_MANY)
+    // Not a wrong password: the password field is not marked as the problem.
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'false')
   })
 
   it('tells the person when the tool could not be reached', async () => {
