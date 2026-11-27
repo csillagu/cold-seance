@@ -41,7 +41,7 @@ Environment variables are a good place for secrets, such as tokens and passwords
 | `github.apps.<function>.webhookSecret` | no | | The secret of that App's webhook, if it sends webhooks. |
 | `github.tokens.<function>` | per function | | A personal access token, given as its value. |
 | `github.webhookSecret` | no | | The one secret shared by all webhooks set up directly on repositories or organizations. |
-| `github.recheckIntervalMinutes` | no | `60` | How often the tool re-checks every linked issue against GitHub. |
+| `github.recheckIntervalMinutes` | no | `60` | How often the tool re-checks every linked issue against GitHub and looks for new issues. |
 | `github.statusField.name` | no | `Status` | The GitHub Projects field that starts and holds tasks. |
 | `github.statusField.started` | no | `In Progress` | The option of that field that means started. |
 | `github.statusField.onHold` | no | `On Hold` | The option that means on hold. |

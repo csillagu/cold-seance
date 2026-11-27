@@ -4,7 +4,11 @@ import type { Database } from '../db/client.ts'
 import { repositories, taskBlockedBy, taskIssues, tasks } from '../db/schema.ts'
 import type { ISSUE_SEEN_STATES } from '../db/schema.ts'
 import type { GitHubUser } from '../service/audit.ts'
-import { type GitHubIssueTaskService, lockIssueLinks } from '../service/github-issue-tasks.ts'
+import {
+  type FoundIssue,
+  type GitHubIssueTaskService,
+  lockIssueLinks,
+} from '../service/github-issue-tasks.ts'
 import type { TaskStatus } from '../service/permissions.ts'
 import type { TaskCancellationService } from '../service/task-cancellation.ts'
 import type { TaskStatusService } from '../service/task-status.ts'
@@ -100,7 +104,9 @@ const CLEAR_OPTION = `mutation ($projectId: ID!, $itemId: ID!, $fieldId: ID!) {
  *   the issue's task, the tasks GitHub now shows as its sub-issues or as blocked by it, and
  *   the task's own subtasks and the tasks it blocks.
  * - **New issues** become unscheduled tasks in the repository's receiving project (FR-100,
- *   FR-156, FR-157), through `issueOpened`.
+ *   FR-156, FR-157), through `issueOpened`; and so does each issue the re-check finds that no
+ *   task is linked to, opened since that project was given the repository, a closed one as a done
+ *   task (FR-214), through `issueFound`.
  *
  * The issues of tasks a project kept after its approval for the repository was withdrawn are
  * ignored (FR-182). Changes are dealt with one at a time.
@@ -156,6 +162,30 @@ export class GitHubChangeHandler {
     return this.#enqueue(() =>
       this.#opened(repository, number, { githubLogin: sender, channel: 'github' }),
     )
+  }
+
+  /**
+   * Handles an issue of `repository` that the re-check (SC-024) found in the repository's list of
+   * issues, with no task linked to it (FR-214): adds it to the repository's receiving project, as
+   * an unscheduled task if it is open and a done one if it is closed, unless it is linked to a
+   * task by now, no project is to receive it, or it was opened before that project was given the
+   * repository. The creation is recorded under whoever opened the issue, as GitHub names them
+   * (SRC-253), or as found by the re-check where it names no one.
+   */
+  issueFound(
+    repository: Repository,
+    issue: Omit<FoundIssue, 'repositoryId'> & { openedBy: string | undefined },
+  ): Promise<void> {
+    return this.#enqueue(async () => {
+      const repositoryId = await this.#repositoryId(repository)
+      if (repositoryId === undefined) return
+      const { openedBy, ...found } = issue
+      const taskId = await this.#services.githubIssueTasks.createFromFoundIssue(
+        { githubLogin: openedBy ?? RECHECK_ACTOR, channel: 'github' },
+        { ...found, repositoryId },
+      )
+      if (taskId !== null) this.#mirror.changed([taskId])
+    })
   }
 
   #enqueue(work: () => Promise<void>): Promise<void> {

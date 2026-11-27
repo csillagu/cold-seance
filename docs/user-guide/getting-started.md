@@ -37,7 +37,7 @@ For a team that works across several projects, create a **group** instead, under
 
 1. Under **GitHub → Repositories**, register the repository as `owner/name`. You become its admin in the tool.
 2. On the project's **Repositories** tab, add it to the project. As an admin of both, you add it at once. Otherwise one of the repository's admins approves the request.
-3. On the same tab, mark the project as the repository's **receiving project**, so that new issues opened on GitHub arrive in it. This needs [webhooks](github-setup.md#webhooks).
+3. On the same tab, mark the project as the repository's **receiving project**, so that new issues opened on GitHub arrive in it: at once with [webhooks](github-setup.md#webhooks), at the next re-check without.
 4. To bring in the issues the repository already has, use the project's **Seeding** tab. Open issues arrive as unscheduled tasks, and closed ones as done.
 
 [Repositories and the GitHub sync](github-sync.md) explains each step.

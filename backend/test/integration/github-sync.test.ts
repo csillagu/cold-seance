@@ -3,10 +3,18 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../../src/app.ts'
 import type { GitHubAppConfig } from '../../src/config/config.ts'
-import { auditLog, recheckRuns, taskBlockedBy, taskIssues, tasks } from '../../src/db/schema.ts'
+import {
+  auditLog,
+  projectRepositoryRequests,
+  recheckRuns,
+  taskBlockedBy,
+  taskIssues,
+  tasks,
+} from '../../src/db/schema.ts'
 import { GitHubChangeHandler, RECHECK_ACTOR } from '../../src/github/change-handler.ts'
 import { GitHubPlanningMirror } from '../../src/github/planning-mirror.ts'
 import { recheckLinkedIssues } from '../../src/github/recheck.ts'
+import { gitHubSeedingSource } from '../../src/github/seeding-source.ts'
 import { RecheckTimer } from '../../src/github/recheck-timer.ts'
 import { GitHubWebhookReceiver } from '../../src/github/webhooks.ts'
 import type { Caller } from '../../src/service/caller.ts'
@@ -79,7 +87,11 @@ describe('GitHub changes reaching the tool', () => {
     const mirror = new GitHubPlanningMirror(x.db, github.client, {
       onError: (error) => errors.push(error),
     })
-    const services = createServices(x.db, { github: github.reach, planningChanges: mirror })
+    const services = createServices(x.db, {
+      github: github.reach,
+      planningChanges: mirror,
+      seeding: gitHubSeedingSource(github.client),
+    })
     const handler = new GitHubChangeHandler(x.db, github.client, mirror, services)
     const receiver = new GitHubWebhookReceiver(
       x.db,
@@ -92,7 +104,14 @@ describe('GitHub changes reaching the tool', () => {
     const clock = { now: new Date('2026-11-16T09:00:00Z') }
     const timer = new RecheckTimer(
       x.db,
-      recheckLinkedIssues(x.db, { handler, mirror }, { onError: (error) => errors.push(error) }),
+      recheckLinkedIssues(
+        x.db,
+        { github: github.client, handler, mirror },
+        {
+          onError: (error) => errors.push(error),
+          onRepositoryError: (error) => errors.push(error),
+        },
+      ),
       { intervalMinutes: 60, now: () => clock.now, onError: (error) => errors.push(error) },
     )
     await seedAccount(x.db, { username: 'root', systemAdmin: true })
@@ -490,6 +509,198 @@ describe('GitHub changes reaching the tool', () => {
       expect(await d.timer.tick()).toBe(true)
       expect(await readTask(t.id)).toMatchObject({ status: 'done' })
       expect(d.errors.length).toBeGreaterThan(0)
+    })
+
+    describe('issues no task is linked to (FR-214)', () => {
+      const tasksOf = (projectId: string) =>
+        d.x.db.select().from(tasks).where(eq(tasks.projectId, projectId))
+
+      /** Sets back when the project was given the repository, as if it had been long before. */
+      const approvedAt = (s: Setup, at: Date) =>
+        d.x.db
+          .update(projectRepositoryRequests)
+          .set({ decidedAt: at })
+          .where(eq(projectRepositoryRequests.projectId, s.projectId))
+
+      it('TC-147: a new issue opened on GitHub becomes an unscheduled task (end to end: re-check, no webhook)', async () => {
+        const s = await apolloWithRepo()
+        const known = await linked(s, 'Known')
+
+        // Step 1: as tc-writer, open issue "Crash on start". No webhook reaches the tool.
+        const issue = d.github.issues.createIssue(s.full, 'Crash on start')
+        expect((await tasksOf(s.projectId)).map((t) => t.title)).toEqual(['Known'])
+
+        // Step 2: within an hour, at the re-check, Apollo has a task linked to it, with no planned
+        // dates and no assigned people; the task linked already is not taken in again.
+        expect(await d.timer.tick()).toBe(true)
+        const list = await tasksOf(s.projectId)
+        expect(list.map((t) => t.title).sort()).toEqual(['Crash on start', 'Known'])
+        const created = list.find((t) => t.title === 'Crash on start')!
+        expect(await readTask(created.id)).toMatchObject({
+          status: 'not-started',
+          plannedStart: null,
+          plannedFinish: null,
+          assignees: [],
+          githubIssue: { repositoryId: s.repo.id, number: issue.number },
+        })
+        expect(await readTask(known.id)).toMatchObject({ title: 'Known' })
+        // Recorded under whoever opened the issue, as GitHub names them (SRC-253).
+        expect(await githubEntries()).toEqual([
+          expect.objectContaining({ action: 'task.created', actorGithubLogin: 'tc-writer' }),
+        ])
+        expect(d.errors).toEqual([])
+      })
+
+      it('TC-287: an issue closed before the tool saw it becomes a done task at the next re-check', async () => {
+        const s = await apolloWithRepo()
+        expect(await d.timer.tick()).toBe(true)
+        const start = d.clock.now
+
+        // Step 1: as tc-writer, open issue "Fixed already", then close it as completed.
+        const issue = d.github.issues.createIssue(s.full, 'Fixed already')
+        close(issue)
+        issue.closedAt = '2026-11-20T12:00:00Z'
+
+        // Step 2: at once, Apollo has no task linked to it.
+        expect(await tasksOf(s.projectId)).toEqual([])
+
+        // Step 3: 60 minutes after step 1, Apollo has a done task linked to it, with the day it was
+        // closed as its actual finish and no planned dates or people; the issue stays closed.
+        d.clock.now = new Date(start.getTime() + 60 * 60_000)
+        expect(await d.timer.tick()).toBe(true)
+        const [task] = await tasksOf(s.projectId)
+        expect(await readTask(task!.id)).toMatchObject({
+          title: 'Fixed already',
+          status: 'done',
+          actualFinish: localToday(new Date('2026-11-20T12:00:00Z')),
+          plannedStart: null,
+          plannedFinish: null,
+          assignees: [],
+        })
+        expect(d.github.issues.issue(s.full, issue.number).state).toBe('closed')
+
+        // The next re-check finds nothing new to take in or change.
+        d.clock.now = new Date(start.getTime() + 120 * 60_000)
+        expect(await d.timer.tick()).toBe(true)
+        expect(await tasksOf(s.projectId)).toHaveLength(1)
+        expect(await readTask(task!.id)).toMatchObject({ status: 'done' })
+        expect(d.errors).toEqual([])
+      })
+
+      it('takes in an issue closed as not planned as a done task too', async () => {
+        const s = await apolloWithRepo()
+        const issue = d.github.issues.createIssue(s.full, 'Not doing it')
+        close(issue, 'not_planned')
+        issue.closedAt = new Date().toISOString()
+
+        expect(await d.timer.tick()).toBe(true)
+        const [task] = await tasksOf(s.projectId)
+        expect(await readTask(task!.id)).toMatchObject({ status: 'done', actualFinish: today })
+        expect(d.github.issues.issue(s.full, issue.number)).toMatchObject({
+          state: 'closed',
+          stateReason: 'not_planned',
+        })
+        expect(d.errors).toEqual([])
+      })
+
+      it('TC-288: the re-check leaves out issues opened before their repository was added', async () => {
+        const s = await apolloWithRepo()
+        // #1 was opened before step 1, in which tc-repo is added to Apollo.
+        const old = d.github.issues.createIssue(s.full, 'Old work')
+        old.createdAt = '2026-11-01T09:00:00Z'
+        await approvedAt(s, new Date('2026-11-02T09:00:00Z'))
+
+        // Step 2: 60 minutes after, Apollo has no tasks; no task anywhere is linked to #1.
+        expect(await d.timer.tick()).toBe(true)
+        expect(await tasksOf(s.projectId)).toEqual([])
+        expect(await d.x.db.select().from(taskIssues)).toEqual([])
+
+        // Step 3: as alice, seed Apollo from tc-repo: the seeding imports #1.
+        const seeded = await d.services.seeding.seed(by(d.alice), s.projectId, [s.repo.id])
+        expect(seeded.imported).toEqual([expect.objectContaining({ issueNumber: old.number })])
+        expect(d.errors).toEqual([])
+      })
+
+      it('takes in an issue opened in the second its repository was added, which GitHub records to the second', async () => {
+        const s = await apolloWithRepo()
+        await approvedAt(s, new Date('2026-11-02T09:00:00.900Z'))
+        const issue = d.github.issues.createIssue(s.full, 'Same second')
+        issue.createdAt = '2026-11-02T09:00:00Z'
+        const before = d.github.issues.createIssue(s.full, 'Second before')
+        before.createdAt = '2026-11-02T08:59:59Z'
+
+        expect(await d.timer.tick()).toBe(true)
+        expect((await tasksOf(s.projectId)).map((t) => t.title)).toEqual(['Same second'])
+        expect(d.errors).toEqual([])
+      })
+
+      it('counts from when the receiving project was given the repository, not another project', async () => {
+        const s = await apolloWithRepo()
+        await approvedAt(s, new Date('2026-11-01T09:00:00Z'))
+        // Borealis, also alice's, is given tc-repo and made its receiving project after #1 was opened.
+        const issue = d.github.issues.createIssue(s.full, 'Between')
+        issue.createdAt = '2026-11-05T09:00:00Z'
+        const borealis = await d.services.projects.createProject(by(d.alice), {
+          name: `Borealis ${n}`,
+        })
+        await d.services.projectRepositories.requestRepository(by(d.alice), borealis.id, s.repo.id)
+        await d.services.receivingProjects.markReceiving(by(d.alice), borealis.id, s.repo.id)
+        const later = d.github.issues.createIssue(s.full, 'Later')
+
+        expect(await d.timer.tick()).toBe(true)
+        expect(await tasksOf(s.projectId)).toEqual([])
+        expect((await tasksOf(borealis.id)).map((t) => t.title)).toEqual(['Later'])
+        expect(later.number).toBeGreaterThan(issue.number)
+        expect(d.errors).toEqual([])
+      })
+
+      it('sends no issue to any project while several pull from its repository and none receives', async () => {
+        const s = await apolloWithRepo()
+        const borealis = await d.services.projects.createProject(by(d.alice), {
+          name: `Borealis ${n}`,
+        })
+        await d.services.projectRepositories.requestRepository(by(d.alice), borealis.id, s.repo.id)
+        d.github.issues.createIssue(s.full, 'Shared')
+
+        expect(await d.timer.tick()).toBe(true)
+        expect(await tasksOf(s.projectId)).toEqual([])
+        expect(await tasksOf(borealis.id)).toEqual([])
+        expect(d.errors).toEqual([])
+      })
+
+      it('leaves out pull requests, and repositories no project pulls from', async () => {
+        const s = await apolloWithRepo()
+        d.github.issues.createIssue(s.full, 'A pull request').pullRequest = true
+        const removed = await apolloWithRepo('removed')
+        await d.services.projectRepositories.removeRepository(
+          by(d.alice),
+          removed.projectId,
+          removed.repo.id,
+        )
+        d.github.issues.createIssue(removed.full, 'After removal')
+
+        expect(await d.timer.tick()).toBe(true)
+        expect(await tasksOf(s.projectId)).toEqual([])
+        expect(await tasksOf(removed.projectId)).toEqual([])
+        expect(d.errors).toEqual([])
+      })
+
+      it('goes on with the next repository and the linked issues when a list cannot be read', async () => {
+        const other = await apolloWithRepo('a-unreachable')
+        d.github.issues.createIssue(other.full, 'Unseen')
+        d.github.uninstall(other.full)
+        const s = await apolloWithRepo('b-repo')
+        const t = await linked(s, 'T')
+        await d.services.taskStatus.setStatus(by(d.alice), t.id, 'in-progress')
+        close(t.issue)
+        d.github.issues.createIssue(s.full, 'Seen')
+
+        expect(await d.timer.tick()).toBe(true)
+        expect((await tasksOf(s.projectId)).map((x) => x.title).sort()).toEqual(['Seen', 'T'])
+        expect(await readTask(t.id)).toMatchObject({ status: 'done' })
+        expect(await tasksOf(other.projectId)).toEqual([])
+        expect(d.errors.length).toBeGreaterThan(0)
+      })
     })
 
     it('stores the time of its last run, so that a restart runs it only once it is due', async () => {

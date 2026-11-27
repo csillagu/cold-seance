@@ -18,6 +18,10 @@ export interface FakeIssue {
   /** `owner/name`, as the repository was created. */
   repository: string
   title: string
+  /** When it was opened, as GitHub records it (an ISO timestamp): when it was created on the fake. */
+  createdAt: string
+  /** The GitHub login of whoever opened it, as GitHub names them in `user`: `tc-writer` unless set. */
+  openedBy: string
   state: 'open' | 'closed'
   /** Why it was closed, as GitHub names it (`completed`, `not_planned`), or `null`. */
   stateReason: string | null
@@ -129,6 +133,8 @@ export function fakeIssues(
       id: issue.id,
       number: issue.number,
       title: issue.title,
+      created_at: issue.createdAt,
+      user: { login: issue.openedBy },
       state: issue.state,
       state_reason: issue.stateReason,
       closed_at: issue.closedAt,
@@ -157,6 +163,8 @@ export function fakeIssues(
         number,
         repository: fullName,
         title,
+        createdAt: new Date().toISOString(),
+        openedBy: 'tc-writer',
         state: 'open',
         stateReason: null,
         closedAt: null,
