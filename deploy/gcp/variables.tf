@@ -142,14 +142,14 @@ variable "demo_neon_api_key" {
   sensitive   = true
 }
 
-variable "demo_approver" {
-  description = "The GitHub user who approves each run of the demo seeding workflow, as the `demo` environment's required reviewer."
+variable "approver" {
+  description = "The GitHub user who approves each run in the `live` and `demo` environments, as their required reviewer (#262)."
   type        = string
   default     = "csillagu"
 }
 
-variable "demo_require_approval" {
-  description = "Whether each run of the demo seeding workflow waits for demo_approver's approval. GitHub's free plan refuses a required reviewer on a private repository, so set it once cold-seance is public (#242)."
+variable "require_approval" {
+  description = "Whether each run in the `live` and `demo` environments waits for the approver's approval. GitHub's free plan refuses a required reviewer on a private repository, so set it to false only to apply against a private one (#242, #262)."
   type        = bool
-  default     = false
+  default     = true
 }

@@ -42,7 +42,7 @@ What Terraform makes:
 - **The first system admin's password and the webhook secret**, generated once and kept in Terraform's state.
 - **The test repository's webhook**, pointed at `terraform output webhook_url`, with the events `issues`, `sub_issues` and `issue_dependencies` and the generated secret, which the deployment is given as `github.webhookSecret`. GitHub sends no webhook for a Project owned by a user, so a change to the status field still comes in through the re-check, every 2 minutes here (`recheck_interval_minutes`).
 - **The `demo` environment** of `cold-seance`, which the [demo projects](#demo-projects) workflow runs in.
-- **The `live` environment** of `cold-seance`, with every setting of the [live GitHub tests](#live-github-tests): the address, the admin's name, the test repository, the Project, the status field, the time zone and the wait as its variables, and the admin's password and the two tokens as its secrets.
+- **The `live` environment** of `cold-seance`, with every setting of the [live GitHub tests](#live-github-tests): the address, the admin's name, the test repository, the Project, the status field, the time zone and the wait as its variables, and the admin's password and the two tokens as its secrets. Its required reviewer is `approver` (`csillagu` unless set), so no job gets these secrets until that person approves the run (#262).
 
 Running it:
 
@@ -67,7 +67,7 @@ The 30 demo accounts are created once, by hand, by a system admin, with long ran
 
 Its settings are the `demo` environment's, which Terraform writes ([`deploy/gcp/demo.tf`](../../deploy/gcp/demo.tf)): the deployment's address (`SEED_URL`), its first system admin (`SEED_ADMIN_USERNAME`, `SEED_ADMIN_PASSWORD`), and the Neon project, database and role (`NEON_PROJECT_ID`, `NEON_DATABASE`, `NEON_ROLE`) with an API key (`NEON_API_KEY`). These are the same values as the live tests' for now; the API key is Terraform's variable `demo_neon_api_key`, for now the same key as `NEON_API_KEY`. The workflow stops, naming them, if any is missing.
 
-Each run is meant to wait for the approval of `demo_approver` (`csillagu` unless set), the environment's required reviewer. GitHub's free plan refuses a required reviewer on a private repository, so it is off until `cold-seance` is public: then set `demo_require_approval = true` and apply again (#242).
+Each run waits for the approval of `approver` (`csillagu` unless set), the environment's required reviewer, as runs in the `live` environment do. GitHub's free plan refuses a required reviewer on a private repository, so to apply against a private one, set `require_approval = false` (#242).
 
 To run the seed script from your machine instead, against any deployment whose demo accounts exist:
 
@@ -120,4 +120,4 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres LIVE_GITH
   LIVE_GITHUB_TOKEN=github_pat_... LIVE_GITHUB_PROJECTS_TOKEN=ghp_... LIVE_GITHUB_PROJECT_NUMBER=1 npm run test:live:local
 ```
 
-CI runs it on every pull request and manual dispatch, as the `live` job of [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (SC-129), with its settings from the `live` environment. The job has no approval gate: it uses the environment's secrets on every run. GitHub gives them to no pull request from a fork and to no Dependabot pull request, so the job fails on those, naming the missing settings. Every run of the suite works in the one test repository, so the `live` job and the deployment's workflow share one concurrency group and run one at a time. GitHub keeps only one run waiting in a group: a third that arrives cancels the one waiting, which then has to be run again.
+CI runs it on every pull request and manual dispatch, as the `live` job of [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) (SC-129), with its settings from the `live` environment. Each run of the job waits until the `live` environment's required reviewer approves it (#262), on the run's page in the Actions tab or on the pull request, and only then gets the environment's secrets. GitHub gives them to no pull request from a fork and to no Dependabot pull request, so the job fails on those, naming the missing settings: to merge such a change, run it again from a branch of this repository. Every run of the suite works in the one test repository, so the `live` job and the deployment's workflow share one concurrency group and run one at a time. GitHub keeps only one run waiting in a group: a third that arrives cancels the one waiting, which then has to be run again.

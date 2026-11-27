@@ -16,4 +16,5 @@ demo_neon_api_key           = "napi_change-me"       # for the demo seeding work
 # environment_repository   = "cold-seance"
 # region                   = "us-east1"
 # recheck_interval_minutes = 2
-# demo_approver            = "csillagu"
+# approver                 = "csillagu"
+# require_approval         = true
