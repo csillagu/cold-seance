@@ -34,6 +34,7 @@ Environment variables are a good place for secrets, such as tokens and passwords
 | --- | --- | --- | --- |
 | `server.host` | no | `127.0.0.1` (the Docker image sets `0.0.0.0`) | The address the tool listens on. `127.0.0.1` lets in this machine only, and `0.0.0.0` every network interface. |
 | `server.port` | no | `3000` | The port it listens on. |
+| `server.trustedProxies` | no | | The addresses of the reverse proxies in front of the tool, as IP addresses or CIDR ranges: a list in the file, separated by commas in the environment variable. See [Sign-in limits](#sign-in-limits). |
 | `database.url` | **yes** | | The PostgreSQL database, as `postgres://user:password@host:port/database`. |
 | `database.directUrl` | no | `database.url` | A direct, unpooled connection to the same database, for the migrations at start. Set it when `database.url` goes through a connection pooler. |
 | `github.apps.<function>.appId` | per function | | A GitHub App's id. See [GitHub access](#github-access). |
@@ -124,6 +125,12 @@ server {
     }
 }
 ```
+
+### Sign-in limits
+
+The tool refuses a sign-in, before checking the password, when the address it comes from has made 10 sign-in attempts in the last 60 seconds, or while 4 other sign-ins are having their passwords checked. The person is told to wait a minute and try again. A refused attempt does not count toward the 10.
+
+Behind a reverse proxy, every request comes from the proxy's address, so everyone's attempts would count together. Set `server.trustedProxies` to the proxy's address, such as `127.0.0.1` for a proxy on the same machine, and the tool counts each attempt against the address the proxy names in `X-Forwarded-For` instead. Caddy and the nginx configuration above both set that header. Leave the setting unset when nothing sits in front of the tool: it then ignores the header, which anyone could write.
 
 The tool serves everything from one address: the web interface, the REST API under `/api`, the MCP server at `/mcp` and the GitHub webhook endpoint at `/api/github/webhooks`.
 

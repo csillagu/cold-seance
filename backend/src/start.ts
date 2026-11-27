@@ -148,7 +148,11 @@ export async function startBackend(options: StartOptions = {}): Promise<Backend>
     },
   )
   app = buildApp(
-    options.server,
+    // A request from a trusted proxy has the client address its X-Forwarded-For names as its
+    // `ip`, for the sign-in limits (SC-132); with none set, `ip` is the address it comes from.
+    config.server.trustedProxies.length > 0
+      ? { ...options.server, trustProxy: [...config.server.trustedProxies] }
+      : options.server,
     // Each channel's own way of saying who makes a request: the API tokens (SC-055) and the
     // browser's session cookie (SC-107). A token is asked first, so a token that does not work is
     // refused even beside a live session's cookie.

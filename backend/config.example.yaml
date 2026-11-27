@@ -9,6 +9,11 @@ server:
   # host: 127.0.0.1
   # The port it listens on; 3000 if not set.                             COLD_SEANCE_SERVER_PORT
   # port: 3000
+  # The reverse proxies in front of the tool, as IP addresses or CIDR    COLD_SEANCE_SERVER_TRUSTED_PROXIES
+  # ranges (comma-separated in the variable). Sign-in attempts through
+  # one are counted against the address its X-Forwarded-For names; if
+  # not set, the header is ignored.
+  # trustedProxies: [127.0.0.1]
 
 database:
   # Required. The PostgreSQL database the tool stores its data in.       COLD_SEANCE_DATABASE_URL

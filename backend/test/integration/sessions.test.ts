@@ -189,11 +189,17 @@ describe('the session check on requests from the browser (SC-107)', () => {
     await x?.drop()
   })
 
+  // Each sign-in from an address of its own: the app is shared by these tests, which sign in more
+  // often than one address may within a minute (SC-132).
+  let addresses = 0
+  const nextAddress = () => `192.0.2.${++addresses}`
+
   /** Signs alice in through the REST API and answers the cookie the browser would send back. */
   async function signedInCookie(): Promise<string> {
     const response = await app.inject({
       method: 'POST',
       url: '/api/session',
+      remoteAddress: nextAddress(),
       payload: { username: 'alice', password: 'alice-C' },
     })
     expect(response.statusCode).toBe(204)
@@ -312,6 +318,7 @@ describe('the session check on requests from the browser (SC-107)', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/session',
+      remoteAddress: nextAddress(),
       headers: { cookie: dead },
       payload: { username: 'alice', password: 'alice-C' },
     })
