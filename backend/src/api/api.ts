@@ -28,7 +28,7 @@ import { groupSavedViewRoutes, projectSavedViewRoutes, savedViewRoutes } from '.
 import { seedingRoutes } from './seeding.ts'
 import { sessionRoutes } from './session.ts'
 import { taskPeopleRoutes } from './task-people.ts'
-import { taskRelationRoutes } from './task-relations.ts'
+import { projectTaskRelationRoutes, taskRelationRoutes } from './task-relations.ts'
 import {
   projectTaskRoutes,
   taskCancellationRoutes,
@@ -83,6 +83,7 @@ export const routeGroups: readonly ApiRouteGroup[] = [
   { prefix: '/projects', routes: projectRoutes },
   { prefix: '/projects', routes: projectMemberRoutes },
   { prefix: '/projects', routes: projectTaskRoutes },
+  { prefix: '/projects', routes: projectTaskRelationRoutes },
   { prefix: '/projects', routes: projectProposalRoutes },
   { prefix: '/projects', routes: projectRepositoryRoutes },
   { prefix: '/projects', routes: receivingProjectRoutes },

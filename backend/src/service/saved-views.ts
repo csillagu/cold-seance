@@ -17,6 +17,7 @@ import { lockRolesOn } from './groups.ts'
 import type { ProjectRole, ProjectRoleService } from './project-roles.ts'
 import { type FilterCondition, matchesFilter, parseFilter } from './saved-view-filter.ts'
 import { isUuid } from './system-admins.ts'
+import type { TaskRelations, TaskRelationService } from './task-relations.ts'
 import type { Task, TaskService } from './tasks.ts'
 import { characters } from './text.ts'
 import type { ViewReadFilter } from './view-filter.ts'
@@ -118,6 +119,7 @@ export class SavedViewService {
   readonly #roles: ProjectRoleService
   readonly #tasks: TaskService
   readonly #readFilter: ViewReadFilter
+  readonly #relations: TaskRelationService
 
   constructor(
     db: Database,
@@ -125,12 +127,14 @@ export class SavedViewService {
     roles: ProjectRoleService,
     tasks: TaskService,
     readFilter: ViewReadFilter,
+    relations: TaskRelationService,
   ) {
     this.#db = db
     this.#audit = audit
     this.#roles = roles
     this.#tasks = tasks
     this.#readFilter = readFilter
+    this.#relations = relations
   }
 
   /**
@@ -276,6 +280,27 @@ export class SavedViewService {
       shown.push(...tasks.filter((task) => matchesFilter(task, view.filter, caller.accountId)))
     }
     return this.#readFilter.readable(caller, shown)
+  }
+
+  /**
+   * The relations of each task the view shows the caller when opened (`openView`), in the order
+   * it shows them, each as the task relation module answers it (SC-002): one request for them
+   * all, rather than one for each task. Refused as `getView` is.
+   */
+  async openViewRelations(caller: Caller, viewId: string): Promise<TaskRelations[]> {
+    const shown = await this.openView(caller, viewId)
+    const ofTask = new Map<string, TaskRelations>()
+    for (const projectId of new Set(shown.map((task) => task.projectId))) {
+      const relations = await this.#relations
+        .listRelations(caller, projectId)
+        .catch((error: unknown) => {
+          // A role lost since the view was opened: its tasks' relations are not shown (FR-059).
+          if (error instanceof ServiceError && error.kind === 'not-visible') return []
+          throw error
+        })
+      for (const each of relations) ofTask.set(each.taskId, each)
+    }
+    return shown.flatMap((task) => ofTask.get(task.id) ?? [])
   }
 
   async #list(caller: Caller, where: SQL | undefined): Promise<SavedView[]> {

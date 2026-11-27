@@ -136,3 +136,31 @@ export const taskRelationRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
       ),
   )
 }
+
+/**
+ * The relations of every task of a project, in one request (SC-026), for the views that draw them
+ * all: a project's Gantt and its variance view. They are answered as each task's own relations
+ * are; the task relation service decides what is allowed (DD-039).
+ */
+export const projectTaskRelationRoutes: FastifyPluginAsync<RouteGroupOptions> = async (
+  group,
+  { services },
+) => {
+  group.get<{ Params: { projectId: string } }>(
+    '/:projectId/task-relations',
+    {
+      schema: {
+        description:
+          'The relations of every task of the project, in the order the tasks were created, each as GET /tasks/{taskId}/relations answers it, for anyone with a role in the project.',
+        params: {
+          type: 'object',
+          required: ['projectId'],
+          properties: { projectId: { type: 'string', format: 'uuid' } },
+        },
+        response: { 200: { type: 'array', items: relations } },
+      },
+    },
+    async (request) =>
+      services.taskRelations.listRelations(callerOf(request), request.params.projectId),
+  )
+}

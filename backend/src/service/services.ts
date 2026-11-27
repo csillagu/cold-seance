@@ -144,6 +144,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
   const changes = options.planningChanges
   const proposals = new ProposalService(db, audit, projectRoles, options.now)
   const tasks = new TaskService(db, audit, projectRoles, changes)
+  const taskRelations = new TaskRelationService(db, audit, projectRoles, viewFilter, changes)
   const receivingProjects = new ReceivingProjectService(
     db,
     audit,
@@ -191,7 +192,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     receivingProjects,
     redFlags: new RedFlagService(db, projectRoles),
     repositories: new RepositoryService(db, audit, options.github),
-    savedViews: new SavedViewService(db, audit, projectRoles, tasks, viewFilter),
+    savedViews: new SavedViewService(db, audit, projectRoles, tasks, viewFilter, taskRelations),
     seeding: new SeedingService(
       db,
       audit,
@@ -204,7 +205,7 @@ export function createServices(db: Database, options: ServiceOptions = {}): Serv
     tasks,
     taskCancellation: new TaskCancellationService(db, audit, projectRoles, changes),
     taskPeople: new TaskPeopleService(db, tasks),
-    taskRelations: new TaskRelationService(db, audit, projectRoles, viewFilter, changes),
+    taskRelations,
     taskRepository: new TaskRepositoryService(
       db,
       audit,

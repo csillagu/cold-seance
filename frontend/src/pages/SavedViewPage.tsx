@@ -92,14 +92,10 @@ export function SavedViewPage() {
       )
       const gantt =
         view.kind === 'gantt'
-          ? {
-              calendar: await get<ApiCalendar>('/calendar'),
-              relations: await Promise.all(
-                tasks.map((task) =>
-                  get<ApiRelations>(`/tasks/${encodeURIComponent(task.id)}/relations`),
-                ),
-              ),
-            }
+          ? await Promise.all([
+              get<ApiCalendar>('/calendar'),
+              get<ApiRelations[]>(`${base}/task-relations`),
+            ]).then(([calendar, relations]) => ({ calendar, relations }))
           : null
       const people = new Map<string, string>()
       for (const { members } of perProject) {
